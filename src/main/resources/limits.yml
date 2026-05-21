@@ -1,0 +1,37 @@
+# ============================================
+# 附魔数量限制配置
+# ============================================
+# 说明：
+# - 这里限制单个物品最终允许拥有的附魔总数。
+# - 统计范围包含原版附魔、插件注册的真实附魔、旧版 PDC 自定义附魔。
+# - -1 表示不限制，0 表示禁止该物品继续新增附魔。
+# - 优先级：materials 单独材料 > item-groups 物品类型组 > default-max-enchantments。
+# ============================================
+
+# 通用附魔数量上限
+default-max-enchantments: 8
+
+# 按物品类型组限制
+item-groups:
+  helmets: 8
+  chestplates: 8
+  leggings: 8
+  boots: 8
+  swords: 8
+  axes: 6
+  pickaxes: 6
+  shovels: 6
+  hoes: 6
+  bows: 6
+  crossbows: 6
+  tridents: 6
+  fishing-rods: 5
+  shields: 5
+  books: 8
+
+# 按具体材料单独覆盖
+materials:
+  # 示例：钻石胸甲最多 7 个附魔
+  # DIAMOND_CHESTPLATE: 7
+  # 示例：下界合金斧最多 5 个附魔
+  # NETHERITE_AXE: 5

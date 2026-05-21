@@ -1,0 +1,39 @@
+name: FotiaEnchantment
+version: '${project.version}'
+main: gg.fotia.enchantment.FotiaEnchantment
+bootstrapper: gg.fotia.enchantment.bootstrap.FotiaEnchantmentBootstrap
+api-version: '1.21'
+description: Config-driven enchantment effect engine
+authors:
+  - Fotia
+load: STARTUP
+dependencies:
+  server:
+    PlaceholderAPI:
+      required: false
+      load: BEFORE
+      join-classpath: true
+    WorldGuard:
+      required: false
+      load: BEFORE
+      join-classpath: true
+    AuraSkills:
+      required: false
+      load: BEFORE
+      join-classpath: true
+    mcMMO:
+      required: false
+      load: BEFORE
+      join-classpath: true
+    MythicMobs:
+      required: false
+      load: BEFORE
+      join-classpath: true
+    packetevents:
+      required: false
+      load: BEFORE
+      join-classpath: true
+    CraftEngine:
+      required: false
+      load: BEFORE
+      join-classpath: true

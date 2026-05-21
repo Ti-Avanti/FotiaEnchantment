@@ -1,0 +1,51 @@
+name: FotiaEnchantment
+version: '${project.version}'
+main: gg.fotia.enchantment.FotiaEnchantment
+api-version: '1.21'
+description: 配置驱动的附魔效果引擎
+authors:
+  - Fotia
+softdepend:
+  - PlaceholderAPI
+  - WorldGuard
+  - AuraSkills
+  - mcMMO
+  - MythicMobs
+  - packetevents
+  - CraftEngine
+commands:
+  fe:
+    description: FotiaEnchantment主命令
+    usage: /fe <subcommand>
+    aliases: [fotia, fotiaenchant]
+permissions:
+  fotia.enchantment.use:
+    description: 使用基础命令
+    default: true
+  fotia.enchantment.give:
+    description: 给予附魔
+    default: op
+  fotia.enchantment.enchant:
+    description: 附魔手持物品
+    default: op
+  fotia.enchantment.remove:
+    description: 移除附魔
+    default: op
+  fotia.enchantment.list:
+    description: 列出附魔
+    default: true
+  fotia.enchantment.info:
+    description: 查看附魔详情
+    default: true
+  fotia.enchantment.reload:
+    description: 重载配置
+    default: op
+  fotia.enchantment.gui:
+    description: 打开管理GUI
+    default: op
+  fotia.enchantment.giveitem:
+    description: 给予自定义道具
+    default: op
+  fotia.enchantment.update:
+    description: 接收插件更新提示
+    default: op

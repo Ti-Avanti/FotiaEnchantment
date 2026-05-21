@@ -1,0 +1,45 @@
+<svg width="1280" height="420" viewBox="0 0 1280 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">FotiaEnchantment</title>
+  <desc id="desc">A polished banner for the FotiaEnchantment Minecraft plugin.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10151F"/>
+      <stop offset="0.48" stop-color="#1E2A33"/>
+      <stop offset="1" stop-color="#3A2618"/>
+    </linearGradient>
+    <linearGradient id="fire" x1="191" y1="44" x2="525" y2="374" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE78A"/>
+      <stop offset="0.42" stop-color="#FF8C42"/>
+      <stop offset="1" stop-color="#FF4D6D"/>
+    </linearGradient>
+    <linearGradient id="aqua" x1="843" y1="85" x2="1155" y2="321" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7FFFD4"/>
+      <stop offset="1" stop-color="#54A7FF"/>
+    </linearGradient>
+    <filter id="glow" x="-60" y="-60" width="1400" height="540" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0.9 0 1 0 0 0.35 0 0 1 0 0.12 0 0 0 0.65 0"/>
+      <feBlend mode="screen" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="420" rx="34" fill="url(#bg)"/>
+  <path d="M0 322C163 254 279 330 430 274C576 220 653 124 831 155C1016 187 1106 301 1280 246V420H0V322Z" fill="#111822" opacity="0.72"/>
+  <path d="M53 70C205 95 292 66 437 52C632 33 802 79 958 55C1075 37 1172 36 1280 75" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>
+  <g filter="url(#glow)">
+    <path d="M239 283L347 80L451 283H381L360 238H265L244 283H239Z" fill="url(#fire)"/>
+    <path d="M312 142L281 205H345L312 142Z" fill="#10151F" fill-opacity="0.9"/>
+    <path d="M426 171L503 80L473 183L545 175L466 284L496 197L426 207V171Z" fill="url(#fire)"/>
+    <path d="M1075 97C1130 119 1160 165 1160 214C1160 282 1105 336 1037 336C970 336 916 282 916 214C916 165 946 119 1001 97C986 124 986 156 1006 179C1029 205 1075 203 1094 170C1107 147 1098 119 1075 97Z" fill="url(#aqua)" opacity="0.9"/>
+  </g>
+  <text x="102" y="142" fill="#F5F7FB" font-size="34" font-family="Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="0">FotiaEnchantment</text>
+  <text x="102" y="200" fill="#F0E1C2" font-size="64" font-family="Segoe UI, Arial, sans-serif" font-weight="800" letter-spacing="0">Config-driven enchantment engine</text>
+  <text x="106" y="252" fill="#C7D1DD" font-size="26" font-family="Segoe UI, Arial, sans-serif" letter-spacing="0">Custom effects, GUI encyclopedia, lore rewriting, and GitHub release updates for Paper / Leaf servers.</text>
+  <g transform="translate(103 304)">
+    <rect width="174" height="42" rx="21" fill="#FF8C42" fill-opacity="0.18" stroke="#FFB06B"/>
+    <text x="22" y="28" fill="#FFE4C2" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="700">113 enchantments</text>
+    <rect x="194" width="142" height="42" rx="21" fill="#54A7FF" fill-opacity="0.16" stroke="#7FFFD4"/>
+    <text x="216" y="28" fill="#D7FFF4" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Multi-language</text>
+    <rect x="356" width="174" height="42" rx="21" fill="#E35D86" fill-opacity="0.14" stroke="#FF8FB2"/>
+    <text x="378" y="28" fill="#FFE3EE" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Release checker</text>
+  </g>
+</svg>

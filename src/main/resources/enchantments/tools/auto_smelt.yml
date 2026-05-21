@@ -1,0 +1,53 @@
+# ============================================
+# 自动熔炼 (Auto Smelt)
+# 挖掘方块时自动将掉落物熔炼为成品
+# 例如：铁矿石直接掉落铁锭
+# ============================================
+
+# 附魔ID（唯一标识，不可重复）
+id: auto_smelt
+
+# 是否启用此附魔
+enabled: true
+
+# 最大等级（仅1级，有或无）
+max-level: 1
+
+# 稀有度（对应 rarity.yml 中定义的稀有度ID）
+rarity: moonlit
+
+# 所属附魔组（对应 groups.yml）
+group: mining
+
+# 可应用的物品类型
+applicable-items:
+  - PICKAXE
+  - SHOVEL
+
+# 冲突的附魔ID列表（与时运/精准采集冲突）
+conflicts:
+  - bountiful
+
+# 获取方式配置
+obtain:
+  enchanting-table: true
+  anvil: true
+  villager-trade: true
+  loot-table: true
+
+# 附魔台权重（影响附魔台中出现概率）
+enchanting-table-weight: 15
+
+# 星芒魔典抽取池配置
+codex-pools:
+  moonlit: 15
+  radiant: 8
+
+# 效果配置（核心：Trigger → Condition → Effect 管道）
+effects:
+  # 挖掘方块时自动熔炼
+  - trigger: MINE_BLOCK
+    conditions: []
+    actions:
+      # 将掉落物熔炼为对应产品
+      - type: SMELT

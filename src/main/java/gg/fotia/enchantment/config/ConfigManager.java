@@ -1,0 +1,390 @@
+package gg.fotia.enchantment.config;
+
+import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
+import gg.fotia.enchantment.item.CodexCraftRarity;
+import gg.fotia.enchantment.item.CodexRarityWeights;
+import org.bukkit.Material;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+
+public class ConfigManager {
+
+    private final FotiaEnchantment plugin;
+    private YamlConfiguration mainConfig;
+    private YamlConfiguration rarityConfig;
+    private YamlConfiguration groupsConfig;
+    private YamlConfiguration itemsConfig;
+    private YamlConfiguration enchantmentBooksConfig;
+    private YamlConfiguration limitsConfig;
+    private Map<String, YamlConfiguration> guiConfigs = new HashMap<>();
+
+    private static final List<String> GUI_CONFIG_IDS = List.of(
+            "admin", "fragment-craft", "codex", "enchantment-guide", "disenchant");
+
+    public ConfigManager(FotiaEnchantment plugin) {
+        this.plugin = plugin;
+    }
+
+    /**
+     * 加载所有配置文件
+     */
+    public void loadAll() {
+        // 保存默认配置文件
+        saveDefaultResource("config.yml");
+        saveDefaultResource("rarity.yml");
+        saveDefaultResource("groups.yml");
+        saveDefaultGuiConfigs();
+        saveDefaultResource("limits.yml");
+        saveDefaultResource("items/custom-items.yml");
+        saveDefaultResource("items/enchantment-books.yml");
+
+        // 保存默认原版附魔覆盖配置
+        saveDefaultResource("vanilla/sharpness.yml");
+        saveDefaultResource("vanilla/mending.yml");
+
+        // 保存默认自定义附魔配置
+        saveDefaultEnchantments();
+
+        // 加载配置
+        mainConfig = loadConfig("config.yml");
+        rarityConfig = loadConfig("rarity.yml");
+        groupsConfig = loadConfig("groups.yml");
+        loadGuiConfigs();
+        limitsConfig = loadConfig("limits.yml");
+        itemsConfig = loadConfig("items/custom-items.yml");
+        enchantmentBooksConfig = loadConfig("items/enchantment-books.yml");
+    }
+
+    /**
+     * 重载所有配置文件
+     */
+    public void reload() {
+        mainConfig = loadConfig("config.yml");
+        rarityConfig = loadConfig("rarity.yml");
+        groupsConfig = loadConfig("groups.yml");
+        loadGuiConfigs();
+        limitsConfig = loadConfig("limits.yml");
+        itemsConfig = loadConfig("items/custom-items.yml");
+        enchantmentBooksConfig = loadConfig("items/enchantment-books.yml");
+    }
+
+    /**
+     * 加载指定配置文件
+     */
+    private YamlConfiguration loadConfig(String path) {
+        File file = new File(plugin.getDataFolder(), path);
+        if (!file.exists()) {
+            saveDefaultResource(path);
+        }
+        return YamlConfiguration.loadConfiguration(file);
+    }
+
+    /**
+     * 保存默认资源文件（如果不存在）
+     */
+    private void saveDefaultResource(String resourcePath) {
+        File outFile = new File(plugin.getDataFolder(), resourcePath);
+        if (outFile.exists()) {
+            return;
+        }
+
+        // 确保父目录存在
+        File parentDir = outFile.getParentFile();
+        if (!parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+
+        try (InputStream in = plugin.getResource(resourcePath)) {
+            if (in == null) {
+                plugin.getLogger().warning("无法在jar中找到资源文件: " + resourcePath);
+                return;
+            }
+            try (OutputStream out = Files.newOutputStream(outFile.toPath())) {
+                byte[] buf = new byte[1024];
+                int len;
+                while ((len = in.read(buf)) > 0) {
+                    out.write(buf, 0, len);
+                }
+            }
+        } catch (IOException e) {
+            plugin.getLogger().severe("无法保存默认配置文件: " + resourcePath);
+            e.printStackTrace();
+        }
+    }
+
+    private void saveDefaultGuiConfigs() {
+        for (String id : GUI_CONFIG_IDS) {
+            saveDefaultResource("gui/" + id + ".yml");
+        }
+    }
+
+    private void loadGuiConfigs() {
+        Map<String, YamlConfiguration> loaded = new HashMap<>();
+        for (String id : GUI_CONFIG_IDS) {
+            loaded.put(id, loadConfig("gui/" + id + ".yml"));
+        }
+        guiConfigs = Map.copyOf(loaded);
+    }
+
+    /**
+     * 保存内置的示例自定义附魔配置。
+     */
+    private void saveDefaultEnchantments() {
+        for (String resource : listBundledEnchantmentResources()) {
+            saveDefaultResource(resource);
+        }
+    }
+
+    private List<String> listBundledEnchantmentResources() {
+        try {
+            Path location = Path.of(plugin.getClass()
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toURI());
+            if (Files.isDirectory(location)) {
+                Path enchantmentDir = location.resolve("enchantments");
+                if (!Files.isDirectory(enchantmentDir)) {
+                    return Collections.emptyList();
+                }
+                try (var stream = Files.walk(enchantmentDir)) {
+                    return stream
+                            .filter(path -> path.toString().toLowerCase().endsWith(".yml"))
+                            .map(location::relativize)
+                            .map(path -> path.toString().replace(File.separatorChar, '/'))
+                            .sorted()
+                            .toList();
+                }
+            }
+
+            List<String> resources = new ArrayList<>();
+            try (JarFile jar = new JarFile(location.toFile())) {
+                var entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    String name = entry.getName();
+                    if (!entry.isDirectory()
+                            && name.startsWith("enchantments/")
+                            && name.toLowerCase().endsWith(".yml")) {
+                        resources.add(name);
+                    }
+                }
+            }
+            Collections.sort(resources);
+            return resources;
+        } catch (IOException | URISyntaxException | IllegalArgumentException ex) {
+            plugin.getLogger().warning("无法枚举内置附魔资源: " + ex.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    // ==================== Getter 方法 ====================
+
+    /**
+     * 获取主配置
+     */
+    public YamlConfiguration getMainConfig() {
+        return mainConfig;
+    }
+
+    /**
+     * 获取稀有度配置
+     */
+    public YamlConfiguration getRarityConfig() {
+        return rarityConfig;
+    }
+
+    /**
+     * 获取附魔组配置
+     */
+    public YamlConfiguration getGroupsConfig() {
+        return groupsConfig;
+    }
+
+    /**
+     * 获取自定义道具配置
+     */
+    public YamlConfiguration getItemsConfig() {
+        return itemsConfig;
+    }
+
+    /**
+     * 获取自定义附魔书外观配置
+     */
+    public YamlConfiguration getEnchantmentBooksConfig() {
+        return enchantmentBooksConfig;
+    }
+
+    /**
+     * 获取 GUI 配置
+     */
+    public YamlConfiguration getGuiConfig(String id) {
+        YamlConfiguration config = guiConfigs.get(id);
+        if (config != null) {
+            return config;
+        }
+        return loadConfig("gui/" + id + ".yml");
+    }
+
+    /**
+     * 获取附魔数量限制配置
+     */
+    public YamlConfiguration getLimitsConfig() {
+        return limitsConfig;
+    }
+
+    // ==================== 便捷访问方法 ====================
+
+    /**
+     * 获取单件装备最大附魔数量
+     */
+    public int getMaxEnchantmentsPerItem() {
+        return mainConfig.getInt("max-enchantments-per-item", 8);
+    }
+
+    /**
+     * 获取指定材料的单件物品附魔数量上限。
+     */
+    public int getMaxEnchantmentsForMaterial(Material material) {
+        return EnchantmentLimitPolicy.resolveLimit(limitsConfig, material, getMaxEnchantmentsPerItem());
+    }
+
+    /**
+     * 获取默认语言
+     */
+    public String getDefaultLanguage() {
+        return mainConfig.getString("default-language", "zh_cn");
+    }
+
+    /**
+     * 是否检查更新
+     */
+    public boolean isCheckUpdate() {
+        return mainConfig.getBoolean("check-update", true);
+    }
+
+    public boolean isUpdateCheckerEnabled() {
+        return mainConfig.getBoolean("update-checker.enabled", isCheckUpdate());
+    }
+
+    public boolean isUpdateCheckOnStartup() {
+        return mainConfig.getBoolean("update-checker.check-on-startup", true);
+    }
+
+    public int getUpdateCheckDelaySeconds() {
+        return Math.max(0, mainConfig.getInt("update-checker.check-delay-seconds", 5));
+    }
+
+    public String getUpdateCheckerApiUrl() {
+        String owner = mainConfig.getString("update-checker.owner", "Ti-Avanti");
+        String repository = mainConfig.getString("update-checker.repository", "FotiaEnchantment");
+        String fallback = "https://api.github.com/repos/" + owner + "/" + repository + "/releases/latest";
+        return mainConfig.getString("update-checker.api-url", fallback)
+                .replace("{owner}", owner)
+                .replace("{repository}", repository);
+    }
+
+    public String getUpdateCheckerDownloadUrl() {
+        String owner = mainConfig.getString("update-checker.owner", "Ti-Avanti");
+        String repository = mainConfig.getString("update-checker.repository", "FotiaEnchantment");
+        String fallback = "https://github.com/" + owner + "/" + repository + "/releases/latest";
+        return mainConfig.getString("update-checker.download-url", fallback)
+                .replace("{owner}", owner)
+                .replace("{repository}", repository);
+    }
+
+    public boolean isUpdateNotifyConsole() {
+        return mainConfig.getBoolean("update-checker.notify.console", true);
+    }
+
+    public boolean isUpdateNotifyOps() {
+        return mainConfig.getBoolean("update-checker.notify.ops", true);
+    }
+
+    /**
+     * 附魔台是否可获取自定义附魔
+     */
+    public boolean isEnchantingTableEnabled() {
+        return mainConfig.getBoolean("obtain.enchanting-table", true);
+    }
+
+    /**
+     * 铁砧合成是否启用
+     */
+    public boolean isAnvilEnabled() {
+        return mainConfig.getBoolean("obtain.anvil", true);
+    }
+
+    /**
+     * 村民交易是否启用
+     */
+    public boolean isVillagerTradeEnabled() {
+        return mainConfig.getBoolean("obtain.villager-trade", true);
+    }
+
+    public int getEnchantingTableCustomRolls() {
+        return Math.max(0, mainConfig.getInt("enchanting-table.custom-rolls", 3));
+    }
+
+    public double getEnchantingTableBaseChance() {
+        return mainConfig.getDouble("enchanting-table.base-custom-chance", 0.35);
+    }
+
+    public double getEnchantingTableChancePerLevel() {
+        return mainConfig.getDouble("enchanting-table.custom-chance-per-level", 0.03);
+    }
+
+    public double getEnchantingTableMaxChance() {
+        return mainConfig.getDouble("enchanting-table.max-custom-chance", 0.95);
+    }
+
+    /**
+     * 获取效果检查间隔（tick）
+     */
+    public int getEffectCheckInterval() {
+        return mainConfig.getInt("performance.effect-check-interval", 1);
+    }
+
+    /**
+     * 获取每tick最大效果执行数
+     */
+    public int getMaxEffectsPerTick() {
+        return mainConfig.getInt("performance.max-effects-per-tick", 50);
+    }
+
+    /**
+     * 获取星芒魔典合成所需碎片数量
+     */
+    public int getStellarisCodexFragmentCost() {
+        return mainConfig.getInt("stellaris-codex.fragment-cost", 5);
+    }
+
+    /**
+     * 碎片合成星芒魔典始终随机品质。保留入口用于兼容旧配置，但不再读取固定品质。
+     */
+    public String getStellarisCodexCraftRarity() {
+        return CodexCraftRarity.RANDOM;
+    }
+
+    /**
+     * 获取碎片合成星芒魔典时各品质的随机权重。
+     */
+    public Map<String, Integer> getStellarisCodexRarityWeights() {
+        return CodexRarityWeights.resolve(mainConfig, rarityConfig);
+    }
+}
