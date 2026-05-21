@@ -124,7 +124,7 @@ mvn clean package
 构建完成后使用：
 
 ```text
-target/FotiaEnchantment-1.0.0-SNAPSHOT.jar
+target/FotiaEnchantment-1.0.0.jar
 ```
 
 ## 开源协议
