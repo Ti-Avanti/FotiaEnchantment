@@ -3,7 +3,6 @@ package gg.fotia.enchantment.bootstrap;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import io.papermc.paper.plugin.bootstrap.BootstrapContext;
-import io.papermc.paper.plugin.bootstrap.PluginBootstrap;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import io.papermc.paper.registry.RegistryKey;
 import io.papermc.paper.registry.TypedKey;
@@ -43,7 +42,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 @SuppressWarnings("UnstableApiUsage")
-public final class FotiaEnchantmentBootstrap implements PluginBootstrap {
+final class FotiaEnchantmentBootstrapCurrent implements FotiaBootstrapImplementation {
 
     private static final String[] DEFAULT_ENCHANTMENT_RESOURCES = {
             "enchantments/melee/blazing_blade.yml",
@@ -150,7 +149,7 @@ public final class FotiaEnchantmentBootstrap implements PluginBootstrap {
     }
 
     private static BootstrapData loadBootstrapData(Path dataDirectory) {
-        ClassLoader classLoader = FotiaEnchantmentBootstrap.class.getClassLoader();
+        ClassLoader classLoader = FotiaEnchantmentBootstrapCurrent.class.getClassLoader();
         Map<String, String> names = loadNames(dataDirectory, classLoader);
         Map<String, BootstrapEnchantment> enchantments = new LinkedHashMap<>();
 

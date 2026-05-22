@@ -66,8 +66,10 @@ public class ItemUtils {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return;
 
-        meta.setItemModel(NamespacedKey.fromString(model));
-        item.setItemMeta(meta);
+        NamespacedKey key = NamespacedKey.fromString(model);
+        if (setItemModel(meta, key)) {
+            item.setItemMeta(meta);
+        }
     }
 
     /**
@@ -81,8 +83,30 @@ public class ItemUtils {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return;
 
-        meta.setTooltipStyle(NamespacedKey.fromString(style));
-        item.setItemMeta(meta);
+        NamespacedKey key = NamespacedKey.fromString(style);
+        if (setTooltipStyle(meta, key)) {
+            item.setItemMeta(meta);
+        }
+    }
+
+    public static boolean setItemModel(ItemMeta meta, NamespacedKey key) {
+        if (meta == null || key == null) return false;
+        try {
+            meta.setItemModel(key);
+            return true;
+        } catch (LinkageError | UnsupportedOperationException ignored) {
+            return false;
+        }
+    }
+
+    public static boolean setTooltipStyle(ItemMeta meta, NamespacedKey key) {
+        if (meta == null || key == null) return false;
+        try {
+            meta.setTooltipStyle(key);
+            return true;
+        } catch (LinkageError | UnsupportedOperationException ignored) {
+            return false;
+        }
     }
 
     /**

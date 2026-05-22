@@ -4,6 +4,7 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
 import gg.fotia.enchantment.gui.menu.MenuText;
+import gg.fotia.enchantment.util.ItemUtils;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -103,8 +104,8 @@ public abstract class BaseGUI {
         if (config.modelData() != null) {
             meta.setCustomModelData(config.modelData());
         }
-        applyNamespacedKey(config.tooltipStyle(), meta::setTooltipStyle, "tooltip-style");
-        applyNamespacedKey(config.itemModel(), meta::setItemModel, "itemmodel");
+        applyNamespacedKey(config.tooltipStyle(), key -> ItemUtils.setTooltipStyle(meta, key), "tooltip-style");
+        applyNamespacedKey(config.itemModel(), key -> ItemUtils.setItemModel(meta, key), "itemmodel");
         if (config.glow()) {
             applyGlow(meta);
         }

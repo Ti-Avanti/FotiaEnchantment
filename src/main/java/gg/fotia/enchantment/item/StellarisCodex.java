@@ -3,6 +3,7 @@ package gg.fotia.enchantment.item;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentManager;
+import gg.fotia.enchantment.util.ItemUtils;
 import org.bukkit.NamespacedKey;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
@@ -211,8 +212,8 @@ public class StellarisCodex {
         if (appearance.customModelData() != null) {
             meta.setCustomModelData(appearance.customModelData());
         }
-        applyNamespacedKey(appearance.itemModel(), meta::setItemModel, "item-model");
-        applyNamespacedKey(appearance.tooltipStyle(), meta::setTooltipStyle, "tooltip-style");
+        applyNamespacedKey(appearance.itemModel(), key -> ItemUtils.setItemModel(meta, key), "item-model");
+        applyNamespacedKey(appearance.tooltipStyle(), key -> ItemUtils.setTooltipStyle(meta, key), "tooltip-style");
     }
 
     private void applyNamespacedKey(String raw, java.util.function.Consumer<NamespacedKey> setter, String fieldName) {

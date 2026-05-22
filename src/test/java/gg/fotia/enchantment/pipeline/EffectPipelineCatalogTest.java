@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
@@ -55,20 +54,13 @@ class EffectPipelineCatalogTest {
     private static Set<String> wikiConditionIds() throws IOException {
         String source = wikiApp();
         Set<String> ids = new TreeSet<>();
-        ids.addAll(extractEntryIds(block(source, "const runtimeConditions", "const runtimeEffects"), false));
-        ids.addAll(extractRoadmapIds(block(source, "const conditionRoadmapFamilies", "const effectRoadmapFamilies"), false));
+        ids.addAll(extractEntryIds(block(source, "const conditions", "const effects"), false));
         return ids;
     }
 
     private static Set<String> wikiEffectIds() throws IOException {
         String source = wikiApp();
-        Set<String> runtime = extractEntryIds(block(source, "const runtimeEffects", "const conditionRoadmapFamilies"), true);
-        Set<String> ids = new TreeSet<>(runtime);
-        Set<String> planned = buildRoadmapEffects(
-                block(source, "const effectRoadmapFamilies", "function buildRoadmapConditions"),
-                runtime);
-        ids.addAll(planned);
-        return ids;
+        return extractEntryIds(block(source, "const effects", "function td"), true);
     }
 
     private static String wikiApp() throws IOException {
@@ -87,51 +79,7 @@ class EffectPipelineCatalogTest {
 
     private static Set<String> extractEntryIds(String source, boolean upper) {
         Set<String> ids = new TreeSet<>();
-        Matcher matcher = Pattern.compile("id:\\\"([^\\\"]+)\\\"").matcher(source);
-        while (matcher.find()) {
-            ids.add(normalize(matcher.group(1), upper));
-        }
-        return ids;
-    }
-
-    private static Set<String> extractRoadmapIds(String source, boolean upper) {
-        Set<String> ids = new TreeSet<>();
-        Matcher familyMatcher = Pattern.compile("ids:\\[(.*?)]", Pattern.DOTALL).matcher(source);
-        while (familyMatcher.find()) {
-            ids.addAll(extractQuoted(familyMatcher.group(1), upper));
-        }
-        return ids;
-    }
-
-    private static Set<String> buildRoadmapEffects(String source, Set<String> runtime) {
-        Set<String> ids = new LinkedHashSet<>();
-        Matcher familyMatcher = Pattern.compile(
-                "targets:\\[(.*?)]\\s*,\\s*operations:\\[(.*?)]",
-                Pattern.DOTALL).matcher(source);
-        while (familyMatcher.find() && ids.size() < 270) {
-            Set<String> targets = extractQuoted(familyMatcher.group(1), true);
-            Set<String> operations = extractQuoted(familyMatcher.group(2), true);
-            for (String operation : operations) {
-                for (String target : targets) {
-                    String id = target + "_" + operation;
-                    if (!runtime.contains(id)) {
-                        ids.add(id);
-                    }
-                    if (ids.size() >= 270) {
-                        break;
-                    }
-                }
-                if (ids.size() >= 270) {
-                    break;
-                }
-            }
-        }
-        return new TreeSet<>(ids);
-    }
-
-    private static Set<String> extractQuoted(String source, boolean upper) {
-        Set<String> ids = new LinkedHashSet<>();
-        Matcher matcher = Pattern.compile("\\\"([^\\\"]+)\\\"").matcher(source);
+        Matcher matcher = Pattern.compile("\"id\"\\s*:\\s*\"([^\"]+)\"").matcher(source);
         while (matcher.find()) {
             ids.add(normalize(matcher.group(1), upper));
         }

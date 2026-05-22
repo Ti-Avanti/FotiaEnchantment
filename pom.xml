@@ -6,7 +6,7 @@
 
     <groupId>gg.fotia</groupId>
     <artifactId>FotiaEnchantment</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -54,19 +54,6 @@
     </repositories>
 
     <dependencies>
-        <dependency>
-            <groupId>cn.dreeam.leaf</groupId>
-            <artifactId>leaf-api</artifactId>
-            <version>1.21.11-R0.1-SNAPSHOT</version>
-            <scope>system</scope>
-            <systemPath>D:/MC_server/test_server/leaf1.21.11/libraries/cn/dreeam/leaf/leaf-api/1.21.11-R0.1-SNAPSHOT/leaf-api-1.21.11-R0.1-SNAPSHOT.jar</systemPath>
-        </dependency>
-        <dependency>
-            <groupId>io.papermc.paper</groupId>
-            <artifactId>paper-api</artifactId>
-            <version>1.21.4-R0.1-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>
         <dependency>
             <groupId>net.kyori</groupId>
             <artifactId>adventure-api</artifactId>
@@ -180,6 +167,61 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>compile-paper-1.21.1-bootstrap</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <javac destdir="${project.build.outputDirectory}"
+                                       encoding="UTF-8"
+                                       release="21"
+                                       includeantruntime="false">
+                                    <src path="${project.basedir}/src/compat-paper-1.21.1/java"/>
+                                    <src path="${project.basedir}/src/bootstrap/java"/>
+                                    <include name="**/*.java"/>
+                                    <classpath>
+                                        <pathelement location="${settings.localRepository}/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar"/>
+                                        <pathelement location="${project.build.outputDirectory}"/>
+                                        <path refid="maven.compile.classpath"/>
+                                    </classpath>
+                                    <compilerarg value="-proc:none"/>
+                                </javac>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>leaf-current</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>cn.dreeam.leaf</groupId>
+                    <artifactId>leaf-api</artifactId>
+                    <version>1.21.11-R0.1-SNAPSHOT</version>
+                    <scope>system</scope>
+                    <systemPath>D:/MC_server/test_server/leaf1.21.11/libraries/cn/dreeam/leaf/leaf-api/1.21.11-R0.1-SNAPSHOT/leaf-api-1.21.11-R0.1-SNAPSHOT.jar</systemPath>
+                </dependency>
+                <dependency>
+                    <groupId>io.papermc.paper</groupId>
+                    <artifactId>paper-api</artifactId>
+                    <version>1.21.4-R0.1-SNAPSHOT</version>
+                    <scope>provided</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

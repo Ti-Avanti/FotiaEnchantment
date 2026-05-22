@@ -103,7 +103,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                             "FotiaEnchantment command",
                             List.of("fotia", "fotiaenchant"),
                             createPaperCommandBridge()));
-        } catch (IllegalArgumentException | IllegalStateException ex) {
+        } catch (IllegalArgumentException | IllegalStateException | LinkageError ex) {
             boolean legacyRegistered = registerDynamicCommand();
             if (!legacyRegistered) {
                 throw ex;

@@ -111,7 +111,7 @@ update-checker:
     ops: true
 ```
 
-Release 标签建议使用 `v1.0.0`、`v1.1.0` 这类语义化版本。插件会把 `1.0.0-SNAPSHOT` 视为低于正式版 `1.0.0`。
+Release 标签建议使用 `v1.0.1`、`v1.1.0` 这类语义化版本。插件会把 `1.0.1-SNAPSHOT` 视为低于正式版 `1.0.1`。
 
 ## 从源码构建
 
@@ -122,7 +122,7 @@ mvn clean package
 构建完成后使用：
 
 ```text
-target/FotiaEnchantment-1.0.0.jar
+target/FotiaEnchantment-1.0.1.jar
 ```
 
 ## 开源协议
