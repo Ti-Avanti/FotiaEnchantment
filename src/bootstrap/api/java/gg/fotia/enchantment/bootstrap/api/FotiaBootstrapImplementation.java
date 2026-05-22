@@ -1,8 +1,8 @@
-package gg.fotia.enchantment.bootstrap;
+package gg.fotia.enchantment.bootstrap.api;
 
 import io.papermc.paper.plugin.bootstrap.BootstrapContext;
 
-interface FotiaBootstrapImplementation {
+public interface FotiaBootstrapImplementation {
 
     void bootstrap(BootstrapContext context);
 }

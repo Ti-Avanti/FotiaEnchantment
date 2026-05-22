@@ -19,13 +19,16 @@ class BootstrapCompatibilityStructureTest {
 
         assertTrue(paperPlugin.contains("bootstrapper: gg.fotia.enchantment.bootstrap.FotiaEnchantmentBootstrap"));
         assertFalse(paperPlugin.contains("FotiaEnchantmentBootstrap1211"));
+        assertFalse(paperPlugin.contains("PaperV1_21_R1Bootstrap"));
     }
 
     @Test
     void unifiedBootstrapperDoesNotDirectlyUseVersionSpecificRegistryEvent() throws IOException {
-        String dispatcher = read("src/bootstrap/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java");
+        String dispatcher = read("src/bootstrap/dispatcher/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java");
 
         assertTrue(dispatcher.contains("ServerBuildInfo.buildInfo()"));
+        assertTrue(dispatcher.contains("PaperV1_21_R1Bootstrap"));
+        assertTrue(dispatcher.contains("PaperV1_21_R6Bootstrap"));
         assertFalse(dispatcher.contains("RegistryEvents.ENCHANTMENT.compose()"));
         assertFalse(dispatcher.contains("RegistryEvents.ENCHANTMENT.freeze()"));
         assertFalse(dispatcher.contains("Class.forName"));
@@ -38,13 +41,24 @@ class BootstrapCompatibilityStructureTest {
         String pom = read("pom.xml");
 
         assertTrue(Files.isRegularFile(ROOT.resolve(
-                "src/main/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrapCurrent.java")));
+                "src/bootstrap/api/java/gg/fotia/enchantment/bootstrap/api/FotiaBootstrapImplementation.java")));
         assertTrue(Files.isRegularFile(ROOT.resolve(
-                "src/main/java/gg/fotia/enchantment/bootstrap/FotiaBootstrapImplementation.java")));
+                "src/bootstrap/dispatcher/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java")));
         assertTrue(Files.isRegularFile(ROOT.resolve(
-                "src/bootstrap/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java")));
-        assertTrue(pom.contains("compile-paper-1.21.1-bootstrap"));
+                "src/bootstrap/paper-v1_21_R1/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R1/PaperV1_21_R1Bootstrap.java")));
+        assertTrue(Files.isRegularFile(ROOT.resolve(
+                "src/bootstrap/paper-v1_21_R6/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R6/PaperV1_21_R6Bootstrap.java")));
+        assertTrue(pom.contains("compile-versioned-bootstraps"));
+        assertTrue(pom.contains("src/bootstrap/api/java"));
+        assertTrue(pom.contains("src/bootstrap/dispatcher/java"));
+        assertTrue(pom.contains("src/bootstrap/paper-v1_21_R1/java"));
+        assertTrue(pom.contains("src/bootstrap/paper-v1_21_R6/java"));
         assertFalse(pom.contains("<id>paper-1.21.1</id>"));
+        assertFalse(pom.contains("src/compat-paper-1.21.1/java"));
+        assertFalse(pom.contains("src/bootstrap/java"));
+        assertFalse(pom.contains("FotiaEnchantmentBootstrapCurrent"));
+        assertFalse(pom.contains("FotiaEnchantmentBootstrap1211"));
+        assertFalse(pom.contains("compile-paper-1.21.1-bootstrap"));
         assertFalse(pom.contains("copy-paper-1.21.1-compat-resources"));
         assertFalse(pom.contains("${project.artifactId}-${project.version}-paper-1.21.1"));
     }

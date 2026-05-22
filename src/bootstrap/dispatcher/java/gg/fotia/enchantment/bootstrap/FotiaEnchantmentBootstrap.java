@@ -1,5 +1,8 @@
 package gg.fotia.enchantment.bootstrap;
 
+import gg.fotia.enchantment.bootstrap.api.FotiaBootstrapImplementation;
+import gg.fotia.enchantment.bootstrap.paper.v1_21_R1.PaperV1_21_R1Bootstrap;
+import gg.fotia.enchantment.bootstrap.paper.v1_21_R6.PaperV1_21_R6Bootstrap;
 import io.papermc.paper.ServerBuildInfo;
 import io.papermc.paper.plugin.bootstrap.BootstrapContext;
 import io.papermc.paper.plugin.bootstrap.PluginBootstrap;
@@ -19,9 +22,9 @@ public final class FotiaEnchantmentBootstrap implements PluginBootstrap {
     static FotiaBootstrapImplementation implementationFor(String minecraftVersionId) {
         MinecraftVersion version = MinecraftVersion.parse(minecraftVersionId);
         if (version.compareTo(COMPOSE_REGISTRY_MIN_VERSION) >= 0) {
-            return new FotiaEnchantmentBootstrapCurrent();
+            return new PaperV1_21_R6Bootstrap();
         }
-        return new FotiaEnchantmentBootstrap1211();
+        return new PaperV1_21_R1Bootstrap();
     }
 
     record MinecraftVersion(int major, int minor, int patch) implements Comparable<MinecraftVersion> {

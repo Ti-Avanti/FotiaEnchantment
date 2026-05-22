@@ -173,7 +173,7 @@
                 <version>3.1.0</version>
                 <executions>
                     <execution>
-                        <id>compile-paper-1.21.1-bootstrap</id>
+                        <id>compile-versioned-bootstraps</id>
                         <phase>process-classes</phase>
                         <goals>
                             <goal>run</goal>
@@ -184,11 +184,45 @@
                                        encoding="UTF-8"
                                        release="21"
                                        includeantruntime="false">
-                                    <src path="${project.basedir}/src/compat-paper-1.21.1/java"/>
-                                    <src path="${project.basedir}/src/bootstrap/java"/>
+                                    <src path="${project.basedir}/src/bootstrap/api/java"/>
+                                    <include name="**/*.java"/>
+                                    <classpath>
+                                        <path refid="maven.compile.classpath"/>
+                                    </classpath>
+                                    <compilerarg value="-proc:none"/>
+                                </javac>
+                                <javac destdir="${project.build.outputDirectory}"
+                                       encoding="UTF-8"
+                                       release="21"
+                                       includeantruntime="false">
+                                    <src path="${project.basedir}/src/bootstrap/paper-v1_21_R6/java"/>
+                                    <include name="**/*.java"/>
+                                    <classpath>
+                                        <pathelement location="${project.build.outputDirectory}"/>
+                                        <path refid="maven.compile.classpath"/>
+                                    </classpath>
+                                    <compilerarg value="-proc:none"/>
+                                </javac>
+                                <javac destdir="${project.build.outputDirectory}"
+                                       encoding="UTF-8"
+                                       release="21"
+                                       includeantruntime="false">
+                                    <src path="${project.basedir}/src/bootstrap/paper-v1_21_R1/java"/>
                                     <include name="**/*.java"/>
                                     <classpath>
                                         <pathelement location="${settings.localRepository}/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar"/>
+                                        <pathelement location="${project.build.outputDirectory}"/>
+                                        <path refid="maven.compile.classpath"/>
+                                    </classpath>
+                                    <compilerarg value="-proc:none"/>
+                                </javac>
+                                <javac destdir="${project.build.outputDirectory}"
+                                       encoding="UTF-8"
+                                       release="21"
+                                       includeantruntime="false">
+                                    <src path="${project.basedir}/src/bootstrap/dispatcher/java"/>
+                                    <include name="**/*.java"/>
+                                    <classpath>
                                         <pathelement location="${project.build.outputDirectory}"/>
                                         <path refid="maven.compile.classpath"/>
                                     </classpath>

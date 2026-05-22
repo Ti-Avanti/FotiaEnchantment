@@ -1,5 +1,6 @@
-package gg.fotia.enchantment.bootstrap;
+package gg.fotia.enchantment.bootstrap.paper.v1_21_R1;
 
+import gg.fotia.enchantment.bootstrap.api.FotiaBootstrapImplementation;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import io.papermc.paper.plugin.bootstrap.BootstrapContext;
@@ -42,7 +43,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 @SuppressWarnings("UnstableApiUsage")
-final class FotiaEnchantmentBootstrapCurrent implements FotiaBootstrapImplementation {
+public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementation {
 
     private static final String[] DEFAULT_ENCHANTMENT_RESOURCES = {
             "enchantments/melee/blazing_blade.yml",
@@ -70,7 +71,7 @@ final class FotiaEnchantmentBootstrapCurrent implements FotiaBootstrapImplementa
                 .filter(BootstrapEnchantment::enabled)
                 .toList();
 
-        context.getLifecycleManager().registerEventHandler(RegistryEvents.ENCHANTMENT.compose(), event -> {
+        context.getLifecycleManager().registerEventHandler(RegistryEvents.ENCHANTMENT.freeze(), event -> {
             for (BootstrapEnchantment enchantment : enchantments) {
                 RegistryKeySet<ItemType> supportedItems = enchantment.applicableItems().isEmpty()
                         ? event.getOrCreateTag(ItemTypeTagKeys.ENCHANTABLE_DURABILITY)
@@ -149,7 +150,7 @@ final class FotiaEnchantmentBootstrapCurrent implements FotiaBootstrapImplementa
     }
 
     private static BootstrapData loadBootstrapData(Path dataDirectory) {
-        ClassLoader classLoader = FotiaEnchantmentBootstrapCurrent.class.getClassLoader();
+        ClassLoader classLoader = PaperV1_21_R1Bootstrap.class.getClassLoader();
         Map<String, String> names = loadNames(dataDirectory, classLoader);
         Map<String, BootstrapEnchantment> enchantments = new LinkedHashMap<>();
 
