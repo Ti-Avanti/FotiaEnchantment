@@ -2,8 +2,8 @@ package gg.fotia.enchantment.command.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.command.SubCommand;
-import gg.fotia.enchantment.gui.AdminGUI;
-import gg.fotia.enchantment.gui.EnchantmentGuideGUI;
+import gg.fotia.enchantment.gui.admin.AdminGUI;
+import gg.fotia.enchantment.gui.guide.EnchantmentGuideGUI;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 

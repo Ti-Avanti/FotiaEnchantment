@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import gg.fotia.enchantment.lore.EnchantmentDisplayPolicy;
+import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -64,8 +64,11 @@ public class PDCManager {
                 meta.addEnchant(trueEnchantment, level, true);
             }
 
+            String normalized = normalizeId(enchantId);
             Map<String, Integer> legacy = readEnchantments(meta);
-            if (legacy.remove(normalizeId(enchantId)) != null) {
+            boolean removedLegacy = legacy.remove(normalized) != null;
+            removedLegacy |= legacy.remove(EnchantmentRegistry.getNamespace() + ":" + normalized) != null;
+            if (removedLegacy) {
                 writeEnchantments(meta, legacy);
             }
             hideNativeEnchantDisplay(meta);
@@ -74,7 +77,9 @@ public class PDCManager {
         }
 
         Map<String, Integer> enchants = readEnchantments(meta);
-        enchants.put(normalizeId(enchantId), level);
+        String normalized = normalizeId(enchantId);
+        enchants.remove(EnchantmentRegistry.getNamespace() + ":" + normalized);
+        enchants.put(normalized, level);
         writeEnchantments(meta, enchants);
         hideNativeEnchantDisplay(meta);
         item.setItemMeta(meta);
@@ -285,9 +290,10 @@ public class PDCManager {
                 if (entry.getKey() == null || value == null || !value.isJsonPrimitive()) {
                     continue;
                 }
+                String id = normalizeStoredId(entry.getKey());
                 int level = value.getAsInt();
                 if (level > 0) {
-                    enchants.put(entry.getKey(), level);
+                    enchants.merge(id, level, Math::max);
                 }
             }
             return enchants;
@@ -369,5 +375,15 @@ public class PDCManager {
 
     private String normalizeId(String enchantId) {
         return enchantId.toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeStoredId(String enchantId) {
+        String id = normalizeId(enchantId);
+        int colon = id.indexOf(':');
+        if (colon > 0 && colon < id.length() - 1
+                && EnchantmentRegistry.getNamespace().equals(id.substring(0, colon))) {
+            return id.substring(colon + 1);
+        }
+        return id;
     }
 }

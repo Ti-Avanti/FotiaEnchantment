@@ -5,6 +5,7 @@ import gg.fotia.enchantment.integration.WorldGuardHook;
 import gg.fotia.enchantment.pipeline.condition.Condition;
 import gg.fotia.enchantment.pipeline.condition.ConditionContext;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
+import gg.fotia.enchantment.util.ExpressionPredicate;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -168,8 +169,8 @@ public class CatalogCondition implements Condition {
             case "all_of" -> nested(context, -1, false);
             case "none_of" -> nested(context, 1, true);
             case "at_least_of" -> nested(context, (int) number(context, "required", 1), false);
-            case "expression_true" -> context.evaluateExpression(text(cfg, "expression", "value", "0")) > 0;
-            case "expression_false" -> context.evaluateExpression(text(cfg, "expression", "value", "0")) <= 0;
+            case "expression_true" -> ExpressionPredicate.evaluate(text(cfg, "expression", "value", "0"), context.getVariables());
+            case "expression_false" -> !ExpressionPredicate.evaluate(text(cfg, "expression", "value", "0"), context.getVariables());
             case "cooldown_ready" -> !hasScoreboardTag(player, tagName(cfg, "cooldown_active"));
             case "cooldown_active" -> hasScoreboardTag(player, tagName(cfg, "cooldown_active"));
             case "random_weight_passed" -> Math.random() * 100.0 < number(context, "value", 50);

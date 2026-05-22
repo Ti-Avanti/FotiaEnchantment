@@ -6,6 +6,7 @@ import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.PDCManager;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -15,6 +16,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.enchantment.EnchantItemEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.entity.HumanEntity;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -115,6 +118,7 @@ public class EnchantListener implements Listener {
             for (PendingCustomEnchant pending : pdcOnlyAdds) {
                 pdc.addEnchantment(modified, pending.id(), pending.level());
             }
+            EnchantmentLoreCleaner.stripGeneratedLore(plugin, event.getEnchanter(), modified);
             event.setItem(modified);
         }
     }
@@ -188,6 +192,10 @@ public class EnchantListener implements Listener {
         }
 
         if (modified) {
+            HumanEntity viewer = event.getView().getPlayer();
+            if (viewer instanceof Player player) {
+                EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, result);
+            }
             event.setResult(result);
             event.getView().setRepairCost(Math.max(1, event.getView().getRepairCost()));
         }

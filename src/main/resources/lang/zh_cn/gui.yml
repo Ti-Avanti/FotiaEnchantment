@@ -122,7 +122,7 @@ guide-gui:
   effect-phrase-EXPLODE: "产生 {power} 强度爆炸"
   effect-phrase-SPEED_BOOST: "提升速度 {amplifier} 级，持续 {seconds} 秒"
   effect-phrase-SMELT: "自动熔炼掉落物"
-  effect-phrase-VEIN_MINE: "连锁挖掘 {radius} 格范围"
+  effect-phrase-VEIN_MINE: "最多连锁挖掘 {blocks} 个方块"
   effect-phrase-HELD_ITEM_REPAIR: "修复手持物品 {amount} 点耐久"
   effect-action-line: "<!i><dark_gray>  - <gray>{action}{params_suffix}"
   params-suffix: " <dark_gray>({params})"

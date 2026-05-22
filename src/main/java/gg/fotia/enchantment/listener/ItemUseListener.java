@@ -1,9 +1,9 @@
 package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.FotiaEnchantment;
-import gg.fotia.enchantment.gui.CodexGUI;
-import gg.fotia.enchantment.gui.DisenchantGUI;
-import gg.fotia.enchantment.gui.FragmentCraftGUI;
+import gg.fotia.enchantment.gui.codex.CodexGUI;
+import gg.fotia.enchantment.gui.disenchant.DisenchantGUI;
+import gg.fotia.enchantment.gui.fragment.FragmentCraftGUI;
 import gg.fotia.enchantment.item.CustomItemManager;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;

@@ -1,9 +1,10 @@
-package gg.fotia.enchantment.gui;
+package gg.fotia.enchantment.gui.disenchant;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
+import gg.fotia.enchantment.gui.BaseGUI;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
 import gg.fotia.enchantment.item.DisenchantStone;

@@ -1,4 +1,4 @@
-package gg.fotia.enchantment.gui;
+package gg.fotia.enchantment.gui.admin;
 
 import org.junit.jupiter.api.Test;
 

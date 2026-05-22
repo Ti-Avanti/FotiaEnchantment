@@ -1,7 +1,8 @@
-package gg.fotia.enchantment.gui;
+package gg.fotia.enchantment.gui.admin;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.gui.BaseGUI;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
 import gg.fotia.enchantment.gui.menu.MenuText;

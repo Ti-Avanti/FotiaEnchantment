@@ -4,7 +4,7 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
-import gg.fotia.enchantment.lore.EnchantmentLoreCleaner;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;

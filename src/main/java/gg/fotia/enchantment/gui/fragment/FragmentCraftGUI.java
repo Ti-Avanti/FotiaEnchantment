@@ -1,6 +1,7 @@
-package gg.fotia.enchantment.gui;
+package gg.fotia.enchantment.gui.fragment;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.gui.BaseGUI;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
 import gg.fotia.enchantment.item.StarweaveFragment;

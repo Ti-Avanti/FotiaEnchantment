@@ -1,6 +1,7 @@
-package gg.fotia.enchantment.lore;
+package gg.fotia.enchantment.lore.description;
 
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.util.ExpressionPredicate;
 import gg.fotia.enchantment.util.ExpressionParser;
 
 import java.util.ArrayList;
@@ -49,6 +50,9 @@ public final class EnchantmentEffectDescriptionFormatter {
         List<LevelSummary> summaries = new ArrayList<>();
         for (int level : levels) {
             for (EnchantmentData.EffectBlock block : data.getEffects()) {
+                if (!blockAppliesToLevel(block, level)) {
+                    continue;
+                }
                 List<Phrase> phrases = actionPhrases(block, level);
                 if (phrases.isEmpty()) {
                     continue;
@@ -57,6 +61,32 @@ public final class EnchantmentEffectDescriptionFormatter {
             }
         }
         return List.copyOf(summaries);
+    }
+
+    private static boolean blockAppliesToLevel(EnchantmentData.EffectBlock block, int level) {
+        for (EnchantmentData.ConditionConfig condition : block.getConditions()) {
+            String type = condition.getType() == null ? "" : condition.getType().toLowerCase(Locale.ROOT);
+            if (!type.equals("expression_true") && !type.equals("expression_false")) {
+                continue;
+            }
+
+            String expression = condition.getString("expression", condition.getValue());
+            if (expression == null || expression.isBlank()) {
+                continue;
+            }
+            try {
+                boolean matched = ExpressionPredicate.evaluate(expression, Map.of("level", (double) level));
+                if (type.equals("expression_false")) {
+                    matched = !matched;
+                }
+                if (!matched) {
+                    return false;
+                }
+            } catch (RuntimeException ignored) {
+                // Runtime-only expressions may depend on trigger values; keep them visible in static lore.
+            }
+        }
+        return true;
     }
 
     private static String renderSummary(LevelSummary summary, Function<String, String> languageResolver) {
@@ -159,7 +189,9 @@ public final class EnchantmentEffectDescriptionFormatter {
                 case "LIFESTEAL" -> phrase("LIFESTEAL", Map.of("percent", number(value(action, level))));
                 case "IGNITE_TARGET" -> phrase("IGNITE_TARGET", Map.of("seconds", ticks(action, level)));
                 case "THORNS" -> phrase("THORNS", Map.of("percent", number(value(action, level))));
-                case "BONUS_DROP" -> phrase("BONUS_DROP", Map.of("multiplier", number(value(action, level))));
+                case "BONUS_DROP" -> phrase("BONUS_DROP", Map.of(
+                        "multiplier", number(paramOrValue(action, "multiplier", level))
+                ));
                 case "LAUNCH" -> phrase("LAUNCH", Map.of("power", number(value(action, level))));
                 case "LIGHTNING" -> phrase("LIGHTNING", Map.of());
                 case "EXPLODE" -> phrase("EXPLODE", Map.of("power", number(param(action, "power", level))));
@@ -168,7 +200,16 @@ public final class EnchantmentEffectDescriptionFormatter {
                         "seconds", ticks(action, level, 100.0)
                 ));
                 case "SMELT" -> phrase("SMELT", Map.of());
-                case "VEIN_MINE" -> phrase("VEIN_MINE", Map.of("radius", number(param(action, "radius", level))));
+                case "VEIN_MINE" -> {
+                    double blocks = paramOrValue(action, "max-blocks", level);
+                    if (blocks <= 0) {
+                        blocks = param(action, "radius", level);
+                    }
+                    yield phrase("VEIN_MINE", Map.of(
+                            "blocks", number(blocks),
+                            "radius", number(blocks)
+                    ));
+                }
                 case "HELD_ITEM_REPAIR" -> phrase("HELD_ITEM_REPAIR", Map.of("amount", number(value(action, level))));
                 default -> null;
             };
@@ -201,6 +242,11 @@ public final class EnchantmentEffectDescriptionFormatter {
             return 0.0;
         }
         return evaluate(String.valueOf(raw), level);
+    }
+
+    private static double paramOrValue(EnchantmentData.ActionConfig action, String key, int level) {
+        Object raw = action.getExtraParamsView().get(key);
+        return raw == null ? value(action, level) : evaluate(String.valueOf(raw), level);
     }
 
     private static String stringParam(EnchantmentData.ActionConfig action, String key, String fallback) {

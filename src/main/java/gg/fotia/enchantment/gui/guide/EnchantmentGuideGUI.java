@@ -1,10 +1,11 @@
-package gg.fotia.enchantment.gui;
+package gg.fotia.enchantment.gui.guide;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.gui.BaseGUI;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
-import gg.fotia.enchantment.lore.EnchantmentEffectDescriptionFormatter;
+import gg.fotia.enchantment.lore.description.EnchantmentEffectDescriptionFormatter;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;

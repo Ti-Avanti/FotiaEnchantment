@@ -1,4 +1,4 @@
-package gg.fotia.enchantment.lore;
+package gg.fotia.enchantment.lore.item;
 
 public final class EnchantmentDisplayPolicy {
 

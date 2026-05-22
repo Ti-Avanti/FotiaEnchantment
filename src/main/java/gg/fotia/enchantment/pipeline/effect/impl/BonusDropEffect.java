@@ -24,7 +24,7 @@ public class BonusDropEffect implements Effect {
         Event event = context.getTriggerContext().getEvent();
         if (!(event instanceof BlockDropItemEvent dropEvent)) return;
 
-        String valueStr = context.getConfigValue();
+        String valueStr = context.getExtraParam("multiplier", context.getConfigValue());
         if (valueStr == null || valueStr.isEmpty()) return;
 
         double multiplier = context.evaluateExpression(valueStr);

@@ -24,7 +24,7 @@ class BootstrapCompatibilityStructureTest {
 
     @Test
     void unifiedBootstrapperDoesNotDirectlyUseVersionSpecificRegistryEvent() throws IOException {
-        String dispatcher = read("src/bootstrap/dispatcher/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java");
+        String dispatcher = read("src/bootstrap/entrypoint/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java");
 
         assertTrue(dispatcher.contains("ServerBuildInfo.buildInfo()"));
         assertTrue(dispatcher.contains("PaperV1_21_R1Bootstrap"));
@@ -41,18 +41,18 @@ class BootstrapCompatibilityStructureTest {
         String pom = read("pom.xml");
 
         assertTrue(Files.isRegularFile(ROOT.resolve(
-                "src/bootstrap/api/java/gg/fotia/enchantment/bootstrap/api/FotiaBootstrapImplementation.java")));
+                "src/bootstrap/shared/java/gg/fotia/enchantment/bootstrap/api/FotiaBootstrapImplementation.java")));
         assertTrue(Files.isRegularFile(ROOT.resolve(
-                "src/bootstrap/dispatcher/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java")));
+                "src/bootstrap/entrypoint/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java")));
         assertTrue(Files.isRegularFile(ROOT.resolve(
-                "src/bootstrap/paper-v1_21_R1/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R1/PaperV1_21_R1Bootstrap.java")));
+                "src/bootstrap/paper/v1_21_R1/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R1/PaperV1_21_R1Bootstrap.java")));
         assertTrue(Files.isRegularFile(ROOT.resolve(
-                "src/bootstrap/paper-v1_21_R6/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R6/PaperV1_21_R6Bootstrap.java")));
+                "src/bootstrap/paper/v1_21_R6/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R6/PaperV1_21_R6Bootstrap.java")));
         assertTrue(pom.contains("compile-versioned-bootstraps"));
-        assertTrue(pom.contains("src/bootstrap/api/java"));
-        assertTrue(pom.contains("src/bootstrap/dispatcher/java"));
-        assertTrue(pom.contains("src/bootstrap/paper-v1_21_R1/java"));
-        assertTrue(pom.contains("src/bootstrap/paper-v1_21_R6/java"));
+        assertTrue(pom.contains("src/bootstrap/shared/java"));
+        assertTrue(pom.contains("src/bootstrap/entrypoint/java"));
+        assertTrue(pom.contains("src/bootstrap/paper/v1_21_R1/java"));
+        assertTrue(pom.contains("src/bootstrap/paper/v1_21_R6/java"));
         assertFalse(pom.contains("<id>paper-1.21.1</id>"));
         assertFalse(pom.contains("src/compat-paper-1.21.1/java"));
         assertFalse(pom.contains("src/bootstrap/java"));

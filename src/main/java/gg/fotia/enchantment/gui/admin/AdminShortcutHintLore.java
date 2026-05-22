@@ -1,4 +1,4 @@
-package gg.fotia.enchantment.gui;
+package gg.fotia.enchantment.gui.admin;
 
 import java.util.ArrayList;
 import java.util.List;

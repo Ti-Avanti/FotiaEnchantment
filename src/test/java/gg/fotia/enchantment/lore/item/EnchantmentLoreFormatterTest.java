@@ -1,4 +1,4 @@
-package gg.fotia.enchantment.lore;
+package gg.fotia.enchantment.lore.item;
 
 import org.junit.jupiter.api.Test;
 

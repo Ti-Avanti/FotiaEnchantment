@@ -7,6 +7,7 @@ import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lang.MessageHelper;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -143,6 +144,7 @@ public class GiveCommand implements SubCommand {
 
         // 添加附魔
         pdcManager.addEnchantment(item, enchantId, level);
+        EnchantmentLoreCleaner.stripGeneratedLore(plugin, target, item);
         target.getInventory().setItemInMainHand(item);
 
         // 获取附魔显示名称

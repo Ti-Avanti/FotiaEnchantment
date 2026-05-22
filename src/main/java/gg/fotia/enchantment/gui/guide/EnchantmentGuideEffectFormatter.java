@@ -1,4 +1,4 @@
-package gg.fotia.enchantment.gui;
+package gg.fotia.enchantment.gui.guide;
 
 import gg.fotia.enchantment.core.EnchantmentData;
 

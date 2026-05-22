@@ -5,7 +5,7 @@ import gg.fotia.enchantment.command.SubCommand;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lang.MessageHelper;
-import gg.fotia.enchantment.lore.EnchantmentLoreCleaner;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;

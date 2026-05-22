@@ -6,7 +6,7 @@
 
     <groupId>gg.fotia</groupId>
     <artifactId>FotiaEnchantment</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -184,7 +184,7 @@
                                        encoding="UTF-8"
                                        release="21"
                                        includeantruntime="false">
-                                    <src path="${project.basedir}/src/bootstrap/api/java"/>
+                                    <src path="${project.basedir}/src/bootstrap/shared/java"/>
                                     <include name="**/*.java"/>
                                     <classpath>
                                         <path refid="maven.compile.classpath"/>
@@ -195,7 +195,7 @@
                                        encoding="UTF-8"
                                        release="21"
                                        includeantruntime="false">
-                                    <src path="${project.basedir}/src/bootstrap/paper-v1_21_R6/java"/>
+                                    <src path="${project.basedir}/src/bootstrap/paper/v1_21_R6/java"/>
                                     <include name="**/*.java"/>
                                     <classpath>
                                         <pathelement location="${project.build.outputDirectory}"/>
@@ -207,7 +207,7 @@
                                        encoding="UTF-8"
                                        release="21"
                                        includeantruntime="false">
-                                    <src path="${project.basedir}/src/bootstrap/paper-v1_21_R1/java"/>
+                                    <src path="${project.basedir}/src/bootstrap/paper/v1_21_R1/java"/>
                                     <include name="**/*.java"/>
                                     <classpath>
                                         <pathelement location="${settings.localRepository}/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar"/>
@@ -220,7 +220,7 @@
                                        encoding="UTF-8"
                                        release="21"
                                        includeantruntime="false">
-                                    <src path="${project.basedir}/src/bootstrap/dispatcher/java"/>
+                                    <src path="${project.basedir}/src/bootstrap/entrypoint/java"/>
                                     <include name="**/*.java"/>
                                     <classpath>
                                         <pathelement location="${project.build.outputDirectory}"/>

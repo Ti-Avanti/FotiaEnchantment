@@ -17,8 +17,9 @@ import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
-import gg.fotia.enchantment.lore.EnchantmentEffectDescriptionFormatter;
-import gg.fotia.enchantment.lore.EnchantmentLoreFormatter;
+import gg.fotia.enchantment.lore.description.EnchantmentEffectDescriptionFormatter;
+import gg.fotia.enchantment.lore.item.EnchantmentGeneratedLoreStripper;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreFormatter;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.kyori.adventure.text.Component;
@@ -362,33 +363,7 @@ public class PacketEventsHook {
     }
 
     static List<Component> stripGeneratedLoreCopies(List<Component> existingLore, List<Component> generatedLore) {
-        if (existingLore == null || existingLore.isEmpty()) {
-            return List.of();
-        }
-        if (generatedLore == null || generatedLore.isEmpty()) {
-            return new ArrayList<>(existingLore);
-        }
-
-        int cursor = 0;
-        while (startsWith(existingLore, cursor, generatedLore)) {
-            cursor += generatedLore.size();
-            if (cursor < existingLore.size() && Component.empty().equals(existingLore.get(cursor))) {
-                cursor++;
-            }
-        }
-        return new ArrayList<>(existingLore.subList(cursor, existingLore.size()));
-    }
-
-    private static boolean startsWith(List<Component> lore, int offset, List<Component> prefix) {
-        if (offset < 0 || offset + prefix.size() > lore.size()) {
-            return false;
-        }
-        for (int i = 0; i < prefix.size(); i++) {
-            if (!prefix.get(i).equals(lore.get(offset + i))) {
-                return false;
-            }
-        }
-        return true;
+        return EnchantmentGeneratedLoreStripper.stripGeneratedLoreCopies(existingLore, generatedLore);
     }
 
     private String normalizeId(String id) {

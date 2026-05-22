@@ -3,7 +3,7 @@ package gg.fotia.enchantment.listener;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
-import gg.fotia.enchantment.lore.EnchantmentDisplayPolicy;
+import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
