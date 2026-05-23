@@ -1,9 +1,13 @@
 # ============================================
 # 祛魔 GUI
+# EN: Disenchant GUI
 # ============================================
 # layout 每行必须为 9 个字符，字符通过 roles 绑定到功能槽位。
+# EN: Each layout row must contain 9 characters; roles bind characters to functional slots.
 # 文本支持 MiniMessage、旧颜色码 &/§、&#RRGGBB 和 lang:语言键。
+# EN: Text supports MiniMessage, legacy &/§ color codes, &#RRGGBB, and lang: language keys.
 # items 下的物品支持 material、modeldata、tooltip-style、itemmodel、name、lore。
+# EN: Items support material, modeldata, tooltip-style, itemmodel, name, and lore.
 
 rows: 4
 title: "lang:disenchant-gui.title"

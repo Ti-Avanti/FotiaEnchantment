@@ -1,12 +1,16 @@
 # ============================================
 # FotiaEnchantment 中文消息配置
+# EN: FotiaEnchantment Chinese message configuration
 # 支持 MiniMessage 格式和旧版颜色码(&/§)
+# EN: Supports MiniMessage and legacy color codes (&/§)
 # ============================================
 
 # 消息前缀
+# EN: Message prefix
 prefix: "<!i><gray>[<gradient:#ff6b35:#ff8c42>附魔</gradient>]</gray> "
 
 # 附魔操作消息
+# EN: Enchantment operation messages
 enchant-applied: "{prefix}<!i><green>成功为物品附魔 <gold>{enchant_name} {level}</gold>"
 enchant-removed: "{prefix}<!i><green>已移除附魔 <gold>{enchant_name}</gold>"
 enchant-conflict: "{prefix}<!i><red>该附魔与 <gold>{conflict_name}</gold> 冲突"
@@ -15,6 +19,7 @@ max-enchants-reached: "{prefix}<!i><red>此物品已达到附魔数量上限 (<g
 group-limit-reached: "{prefix}<!i><red>此物品已达到 <gold>{group}</gold> 组附魔上限"
 
 # 权限和错误消息
+# EN: Permission and error messages
 no-permission: "{prefix}<!i><red>你没有权限执行此操作"
 player-not-found: "{prefix}<!i><red>找不到玩家 <gold>{player}</gold>"
 enchant-not-found: "{prefix}<!i><red>找不到附魔 <gold>{enchant_id}</gold>"
@@ -23,6 +28,7 @@ not-holding-item: "{prefix}<!i><red>请手持一个物品"
 item-not-found: "{prefix}<!i><red>找不到道具 <gold>{item_id}</gold>"
 
 # 命令消息
+# EN: Command messages
 command-help: "{prefix}<!i><gold>命令: <yellow>/fe list [分类] [页码]</yellow><gray>, <yellow>/fe info <附魔ID></yellow><gray>, <yellow>/fe gui [guide|admin]</yellow><gray>, <yellow>/fe reload</yellow>"
 give-success: "{prefix}<!i><green>已给予 <gold>{player}</gold> 附魔书: <gold>{enchant_name} {level}</gold>"
 admin-gui-give-book-success: "{prefix}<!i><green>已获得附魔书: <gold>{enchant_name} {level}</gold>"
@@ -39,6 +45,7 @@ info-applicable: "  <!i><gray>适用: <white>{items}"
 info-conflicts: "  <!i><gray>冲突: <white>{conflicts}"
 
 # 道具消息
+# EN: Item messages
 codex-reveal-success: "{prefix}<!i><green>揭示成功！获得附魔: {rarity_color}{enchant_name} {level}"
 codex-craft-success: "{prefix}<!i><green>合成成功！获得 {rarity_color}{rarity_name} <!i><green>星芒魔典"
 disenchant-success: "{prefix}<!i><green>拆卸成功！获得附魔书: <gold>{enchant_name} {level}</gold>"
@@ -48,6 +55,7 @@ fragment-not-enough: "{prefix}<!i><red>星辉残页不足，需要 <gold>{cost}<
 update-available: "{prefix}<!i><yellow>發現新版本 <gold>{latest}</gold><gray>，目前版本 <white>{current}</white><gray>。下載: <aqua>{url}</aqua>"
 
 # 稀有度名称
+# EN: Rarity names
 rarity-dustlight: "尘光"
 rarity-moonlit: "月华"
 rarity-radiant: "辉芒"

@@ -1,7 +1,9 @@
 # ============================================
 # 碎片合成 GUI
+# EN: Fragment crafting GUI
 # ============================================
 # F = 碎片展示，A = 箭头提示，R = 随机魔典预览，C = 合成按钮。
+# EN: F = fragment display; A = arrow hint; R = random codex preview; C = craft button.
 
 rows: 3
 title: "lang:craft-gui.title"

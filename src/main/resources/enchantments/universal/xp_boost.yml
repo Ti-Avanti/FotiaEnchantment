@@ -1,22 +1,28 @@
 # ============================================
 # 经验增幅 (XP Boost)
+# EN: XP Boost (经验增幅)
 # 获取经验时倍增获得的经验值
 # 通用型附魔，适用于大多数装备
 # ============================================
 
 # 附魔ID（唯一标识，不可重复）
+# EN: Enchantment ID; must be unique
 id: xp_boost
 
 # 是否启用此附魔
+# EN: Whether this enchantment is enabled
 enabled: true
 
 # 最大等级
+# EN: Maximum level
 max-level: 3
 
 # 稀有度（对应 rarity.yml 中定义的稀有度ID）
+# EN: Rarity ID defined in rarity.yml
 rarity: dustlight
 
 # 所属附魔组（对应 groups.yml）
+# EN: Enchantment group defined in groups.yml
 group: utility
 
 # 可应用的物品类型（通用型，可附在多种装备上）
@@ -29,9 +35,11 @@ applicable-items:
   - PICKAXE
 
 # 冲突的附魔ID列表
+# EN: Conflicting enchantment IDs
 conflicts: []
 
 # 获取方式配置
+# EN: Acquisition method configuration
 obtain:
   enchanting-table: true
   anvil: true
@@ -42,11 +50,13 @@ obtain:
 enchanting-table-weight: 22
 
 # 星芒魔典抽取池配置
+# EN: Stellaris Codex roll pool configuration
 codex-pools:
   dustlight: 18
   moonlit: 10
 
 # 效果配置（核心：Trigger → Condition → Effect 管道）
+# EN: Effect configuration; core pipeline is Trigger -> Condition -> Effect
 effects:
   # 获取经验时触发倍增
   - trigger: GAIN_XP

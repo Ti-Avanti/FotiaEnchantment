@@ -1,7 +1,9 @@
 # ============================================
 # 开启书 GUI
+# EN: Codex reveal GUI
 # ============================================
 # B = 待开启魔典展示，C = 确认开启按钮。
+# EN: B = codex preview slot; C = confirm reveal button.
 
 rows: 3
 title: "lang:codex-gui.title"

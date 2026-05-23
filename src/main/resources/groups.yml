@@ -1,7 +1,10 @@
 # ============================================
 # 附魔组定义
+# EN: Enchantment group definitions
 # 同组附魔在同一物品上的数量受限
+# EN: Enchantments in the same group are limited on the same item
 # max-per-item: 同一物品上该组附魔最大数量
+# EN: max-per-item: maximum number of enchantments from this group on one item
 # ============================================
 
 fire:

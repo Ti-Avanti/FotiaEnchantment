@@ -1,10 +1,14 @@
 # ============================================
 # 自定义道具属性配置
+# EN: Custom item property configuration
 # 物品的文本（name/lore）在 lang/ 语言文件中配置
+# EN: Item text such as name and lore is configured in lang/ language files
 # 此处只配置非文本属性
+# EN: Only non-text properties are configured here
 # ============================================
 
 # 星辉残页 - 基础碎片道具
+# EN: Starweave Fragment - basic fragment item
 starweave-fragment:
   material: AMETHYST_SHARD
   custom-model-data: 10001
@@ -14,7 +18,9 @@ starweave-fragment:
   glow: true
 
 # 星芒魔典 - 随机附魔书（preview 为合成 GUI 预览，其他为合成后随机出的品质）
+# EN: Stellaris Codex - random enchantment book; preview is used in the crafting GUI, others are craft result rarities
 # 每个节点都可以配置 material、modeldata/custom-model-data、itemmodel/item-model、tooltip-style、craftengine-item、glow
+# EN: Each node can configure material, modeldata/custom-model-data, itemmodel/item-model, tooltip-style, craftengine-item, and glow
 stellaris-codex:
   preview:
     material: ENCHANTED_BOOK
@@ -60,9 +66,11 @@ stellaris-codex:
     glow: true
 
 # 祛魔之石 - 三个等级
+# EN: Disenchant stones - three tiers
 disenchant-stone:
   tiers:
     # 祛魔碎石 - 随机拆卸1个附魔
+    # EN: Disenchant Shard - randomly removes 1 enchantment
     tier-1:
       material: PRISMARINE_SHARD
       custom-model-data: 10020
@@ -75,6 +83,7 @@ disenchant-stone:
       allow-vanilla: true
       max-rarity: radiant
     # 祛魔晶石 - 可选择拆卸最多3个
+    # EN: Disenchant Crystal - can select up to 3 enchantments to remove
     tier-2:
       material: PRISMARINE_CRYSTALS
       custom-model-data: 10021
@@ -87,6 +96,7 @@ disenchant-stone:
       allow-vanilla: true
       max-rarity: aureate
     # 祛魔神石 - 可选择拆卸最多5个，100%成功
+    # EN: Disenchant Divine Stone - can select up to 5 enchantments, 100% success
     tier-3:
       material: HEART_OF_THE_SEA
       custom-model-data: 10022

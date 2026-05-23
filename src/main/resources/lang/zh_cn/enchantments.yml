@@ -1,6 +1,8 @@
 # ============================================
 # 附魔名称和描述翻译（中文）
+# EN: Enchantment name and description translations (Chinese)
 # 键名对应附魔文件名（即附魔ID）
+# EN: Keys match enchantment file names, also used as enchantment IDs
 # ============================================
 
 blazing_blade:

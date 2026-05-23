@@ -1,9 +1,13 @@
 # ============================================
 # 附魔管理 GUI
+# EN: Enchantment admin GUI
 # ============================================
 # layout 每行 9 个字符，对应一行箱子槽位。
+# EN: Each layout row has 9 characters, matching one inventory row.
 # roles 将字符绑定到功能，items 配置对应功能物品的外观。
+# EN: roles bind layout characters to functions; items configure the appearance for those functions.
 # 文本支持 MiniMessage、旧颜色码 &/§、&#RRGGBB、lang:语言键。
+# EN: Text supports MiniMessage, legacy &/§ color codes, &#RRGGBB, and lang: language keys.
 
 rows: 6
 title: "lang:admin-gui.title"
