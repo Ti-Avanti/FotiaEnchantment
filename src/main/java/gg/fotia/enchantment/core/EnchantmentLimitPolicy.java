@@ -3,6 +3,7 @@ package gg.fotia.enchantment.core;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
@@ -27,16 +28,49 @@ public final class EnchantmentLimitPolicy {
             return defaultLimit;
         }
 
-        String materialName = material.name();
-        if (config != null && config.contains("materials." + materialName)) {
-            return config.getInt("materials." + materialName, defaultLimit);
+        Integer materialLimit = configuredLimit(config, "materials", material.name());
+        if (materialLimit != null) {
+            return materialLimit;
         }
 
         String group = groupFor(material);
-        if (group != null && config != null && config.contains("item-groups." + group)) {
-            return config.getInt("item-groups." + group, defaultLimit);
+        Integer groupLimit = configuredLimit(config, "item-groups", group);
+        if (groupLimit != null) {
+            return groupLimit;
         }
         return defaultLimit;
+    }
+
+    private static Integer configuredLimit(YamlConfiguration config, String sectionPath, String expectedKey) {
+        if (config == null || expectedKey == null) {
+            return null;
+        }
+        ConfigurationSection section = config.getConfigurationSection(sectionPath);
+        if (section == null) {
+            return null;
+        }
+
+        String normalizedExpected = normalizeConfigKey(expectedKey);
+        for (String key : section.getKeys(false)) {
+            if (normalizeConfigKey(key).equals(normalizedExpected)) {
+                return section.getInt(key);
+            }
+        }
+        return null;
+    }
+
+    private static String normalizeConfigKey(String key) {
+        if (key == null) {
+            return "";
+        }
+        String normalized = key.trim().toLowerCase(Locale.ROOT);
+        int namespace = normalized.indexOf(':');
+        if (namespace >= 0 && namespace < normalized.length() - 1) {
+            normalized = normalized.substring(namespace + 1);
+        }
+        return normalized
+                .replace('-', '_')
+                .replace(' ', '_');
     }
 
     public static boolean canAddNewEnchantment(int currentCount, int max) {

@@ -134,11 +134,16 @@ public class EnchantmentManager {
      * @param id      附魔ID
      * @param enabled 是否启用
      */
-    public void setEnabled(String id, boolean enabled) {
+    public boolean setEnabled(String id, boolean enabled) {
         EnchantmentData data = getEnchantment(id);
-        if (data != null) {
+        if (data == null) {
+            return false;
+        }
+        boolean persisted = enchantmentConfig.setEnabled(id, enabled);
+        if (!persisted) {
             data.setEnabled(enabled);
         }
+        return persisted;
     }
 
     /**

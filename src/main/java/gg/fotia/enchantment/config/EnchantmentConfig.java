@@ -11,6 +11,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,6 +34,7 @@ public class EnchantmentConfig {
 
     /** 已加载附魔（按 ID 索引，保持加载顺序） */
     private final Map<String, EnchantmentData> enchantments = new LinkedHashMap<>();
+    private final Map<String, File> sourceFiles = new HashMap<>();
 
     /** 物品类别标签 → 实际 Material 列表 */
     private static final Map<String, List<Material>> CATEGORY_MATERIALS = buildCategoryMaterials();
@@ -48,6 +50,7 @@ public class EnchantmentConfig {
      */
     public void loadAll() {
         enchantments.clear();
+        sourceFiles.clear();
 
         File baseDir = new File(plugin.getDataFolder(), "enchantments");
         if (!baseDir.exists() || !baseDir.isDirectory()) {
@@ -76,6 +79,7 @@ public class EnchantmentConfig {
                                 + data.getId() + " (来自 " + file.getAbsolutePath() + ")");
                         continue;
                     }
+                    sourceFiles.put(data.getId(), file);
                     enchantments.put(data.getId(), data);
                     count++;
                 }
@@ -95,6 +99,7 @@ public class EnchantmentConfig {
                             + data.getId() + " (来自 " + file.getAbsolutePath() + ")");
                     continue;
                 }
+                sourceFiles.put(data.getId(), file);
                 enchantments.put(data.getId(), data);
                 count++;
             }
@@ -125,6 +130,36 @@ public class EnchantmentConfig {
             return null;
         }
         return enchantments.get(id.toLowerCase(Locale.ROOT));
+    }
+
+    public boolean setEnabled(String id, boolean enabled) {
+        if (id == null) {
+            return false;
+        }
+        String normalized = id.toLowerCase(Locale.ROOT);
+        File sourceFile = sourceFiles.get(normalized);
+        if (!saveEnabledFlag(sourceFile, enabled)) {
+            return false;
+        }
+        EnchantmentData data = enchantments.get(normalized);
+        if (data != null) {
+            data.setEnabled(enabled);
+        }
+        return true;
+    }
+
+    static boolean saveEnabledFlag(File file, boolean enabled) {
+        if (file == null || !file.exists() || !file.isFile()) {
+            return false;
+        }
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        yaml.set("enabled", enabled);
+        try {
+            yaml.save(file);
+            return true;
+        } catch (IOException ex) {
+            return false;
+        }
     }
 
     /**

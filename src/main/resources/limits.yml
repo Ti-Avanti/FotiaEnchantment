@@ -12,6 +12,7 @@
 default-max-enchantments: 8
 
 # 按物品类型组限制
+# 支持 fishing-rods / fishing_rods 这类写法，大小写不敏感。
 item-groups:
   helmets: 8
   chestplates: 8
@@ -30,6 +31,7 @@ item-groups:
   books: 8
 
 # 按具体材料单独覆盖
+# 支持 DIAMOND_CHESTPLATE / diamond-chestplate / minecraft:diamond_chestplate 这类写法。
 materials:
   # 示例：钻石胸甲最多 7 个附魔
   # DIAMOND_CHESTPLATE: 7

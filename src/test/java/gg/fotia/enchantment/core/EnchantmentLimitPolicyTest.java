@@ -33,6 +33,28 @@ class EnchantmentLimitPolicyTest {
     }
 
     @Test
+    void materialLimitAcceptsCommonKeyFormats() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("default-max-enchantments", 8);
+        config.set("materials.netherite-helmet", 2);
+        config.set("materials.minecraft:diamond_chestplate", 4);
+
+        assertEquals(2, EnchantmentLimitPolicy.resolveLimit(config, Material.NETHERITE_HELMET, 10));
+        assertEquals(4, EnchantmentLimitPolicy.resolveLimit(config, Material.DIAMOND_CHESTPLATE, 10));
+    }
+
+    @Test
+    void groupLimitAcceptsCommonKeyFormats() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("default-max-enchantments", 8);
+        config.set("item-groups.fishing_rods", 1);
+        config.set("item-groups.crossBows", 2);
+
+        assertEquals(1, EnchantmentLimitPolicy.resolveLimit(config, Material.FISHING_ROD, 10));
+        assertEquals(2, EnchantmentLimitPolicy.resolveLimit(config, Material.CROSSBOW, 10));
+    }
+
+    @Test
     void negativeLimitMeansUnlimitedAndZeroBlocksNewEnchantments() {
         assertTrue(EnchantmentLimitPolicy.canAddNewEnchantment(128, -1));
         assertFalse(EnchantmentLimitPolicy.canAddNewEnchantment(0, 0));
