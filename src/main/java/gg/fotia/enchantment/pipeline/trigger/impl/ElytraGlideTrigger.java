@@ -34,6 +34,9 @@ public class ElytraGlideTrigger implements Trigger, Listener {
                     if (!player.isGliding()) {
                         continue;
                     }
+                    if (!ElytraGlideTrigger.this.pipeline.hasActiveEnchantment(player, getId())) {
+                        continue;
+                    }
                     Vector v = player.getVelocity();
                     double speed = v == null ? 0 : v.length();
                     TriggerContext context = TriggerContext.builder()

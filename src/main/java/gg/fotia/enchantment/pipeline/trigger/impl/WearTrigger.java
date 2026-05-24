@@ -50,6 +50,9 @@ public class WearTrigger implements Trigger {
         if (armor == null || armor.getType().isAir()) {
             return;
         }
+        if (!WearTrigger.this.pipeline.hasActiveEnchantment(armor, getId())) {
+            return;
+        }
         TriggerContext ctx = TriggerContext.builder()
                 .player(player)
                 .item(armor)

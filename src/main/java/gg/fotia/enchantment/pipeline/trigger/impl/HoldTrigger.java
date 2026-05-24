@@ -39,6 +39,9 @@ public class HoldTrigger implements Trigger {
                     if (hand == null || hand.getType().isAir()) {
                         continue;
                     }
+                    if (!HoldTrigger.this.pipeline.hasActiveEnchantment(hand, getId())) {
+                        continue;
+                    }
                     TriggerContext ctx = TriggerContext.builder()
                             .player(player)
                             .item(hand)

@@ -143,6 +143,9 @@ public class EnchantmentManager {
         if (!persisted) {
             data.setEnabled(enabled);
         }
+        if (plugin.getEffectPipeline() != null) {
+            plugin.getEffectPipeline().rebuildTriggerIndex();
+        }
         return persisted;
     }
 

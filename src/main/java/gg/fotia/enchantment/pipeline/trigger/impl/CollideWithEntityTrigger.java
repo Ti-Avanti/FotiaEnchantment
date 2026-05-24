@@ -46,6 +46,9 @@ public class CollideWithEntityTrigger implements Trigger, Listener {
                     if (last != null && now - last < 500L) {
                         continue;
                     }
+                    if (!CollideWithEntityTrigger.this.pipeline.hasActiveEnchantment(player, getId())) {
+                        continue;
+                    }
                     for (Entity entity : player.getNearbyEntities(
                             COLLIDE_DISTANCE, COLLIDE_DISTANCE, COLLIDE_DISTANCE)) {
                         if (!(entity instanceof LivingEntity living)) {

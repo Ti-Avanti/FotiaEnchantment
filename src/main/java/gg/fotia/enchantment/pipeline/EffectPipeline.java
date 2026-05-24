@@ -22,9 +22,11 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -52,6 +54,7 @@ public class EffectPipeline {
     private Object tickResetTask;
     private Object cooldownPurgeTask;
     private final ThreadLocal<List<String>> executionStack = ThreadLocal.withInitial(ArrayList::new);
+    private Map<String, List<TriggerBinding>> triggerIndex = Collections.emptyMap();
 
     public EffectPipeline(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -70,6 +73,7 @@ public class EffectPipeline {
         registerBuiltinTriggers();
         registerBuiltinConditions();
         registerBuiltinEffects();
+        rebuildTriggerIndex();
         startMaintenanceTasks();
         triggerRegistry.activateAll(this);
         plugin.getLogger().info("效果管道已初始化");
@@ -92,6 +96,7 @@ public class EffectPipeline {
         maxEffectsPerTick = plugin.getConfigManager().getMainConfig()
                 .getInt("performance.max-effects-per-tick", 50);
         currentTickEffects = 0;
+        rebuildTriggerIndex();
         triggerRegistry.activateAll(this);
     }
 
@@ -109,12 +114,12 @@ public class EffectPipeline {
             return;
         }
 
-        String triggerId = context.getTriggerId();
-        if (triggerId == null || triggerId.isEmpty()) {
+        String triggerId = normalizeTriggerId(context.getTriggerId());
+        if (triggerId.isEmpty()) {
             return;
         }
 
-        String executionKey = player.getUniqueId() + ":" + triggerId.toUpperCase(Locale.ROOT);
+        String executionKey = player.getUniqueId() + ":" + triggerId;
         List<String> stack = executionStack.get();
         if (stack.contains(executionKey)) {
             return;
@@ -234,14 +239,51 @@ public class EffectPipeline {
         }
     }
 
-    /**
-     * 获取玩家装备上匹配指定触发器的活跃附魔
-     */
+    public boolean hasActiveEnchantment(Player player, String triggerId) {
+        if (player == null) {
+            return false;
+        }
+        PlayerInventory inv = player.getInventory();
+        ItemStack[] itemsToCheck = {
+                inv.getItemInMainHand(),
+                inv.getItemInOffHand(),
+                inv.getHelmet(),
+                inv.getChestplate(),
+                inv.getLeggings(),
+                inv.getBoots()
+        };
+        for (ItemStack item : itemsToCheck) {
+            if (hasActiveEnchantment(item, triggerId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean hasActiveEnchantment(ItemStack item, String triggerId) {
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+        List<TriggerBinding> bindings = triggerIndex.get(normalizeTriggerId(triggerId));
+        if (bindings == null || bindings.isEmpty()) {
+            return false;
+        }
+        for (TriggerBinding binding : bindings) {
+            if (getEnchantLevel(item, binding.getData()) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private List<ActiveEnchantment> getActiveEnchantments(Player player, String triggerId) {
         List<ActiveEnchantment> result = new ArrayList<>();
-        PlayerInventory inv = player.getInventory();
+        List<TriggerBinding> bindings = triggerIndex.get(normalizeTriggerId(triggerId));
+        if (bindings == null || bindings.isEmpty()) {
+            return result;
+        }
 
-        // 检查所有可能携带附魔的槽位
+        PlayerInventory inv = player.getInventory();
         ItemStack[] itemsToCheck = {
                 inv.getItemInMainHand(),
                 inv.getItemInOffHand(),
@@ -251,42 +293,19 @@ public class EffectPipeline {
                 inv.getBoots()
         };
 
-        // 从 EnchantmentManager 获取所有已注册附魔
-        // 注意：EnchantmentManager 尚未完全实现，这里预留接口
-        Map<String, EnchantmentData> allEnchantments = getRegisteredEnchantments();
-        if (allEnchantments == null || allEnchantments.isEmpty()) {
-            return result;
-        }
-
         for (ItemStack item : itemsToCheck) {
             if (item == null || item.getType().isAir()) {
                 continue;
             }
 
-            for (Map.Entry<String, EnchantmentData> entry : allEnchantments.entrySet()) {
-                EnchantmentData data = entry.getValue();
-                if (data == null || !data.isEnabled()) {
-                    continue;
-                }
-
+            for (TriggerBinding binding : bindings) {
+                EnchantmentData data = binding.getData();
                 int level = getEnchantLevel(item, data);
                 if (level <= 0) {
                     continue;
                 }
-
-                List<EnchantmentData.EffectBlock> effects = data.getEffects();
-                if (effects == null || effects.isEmpty()) {
-                    continue;
-                }
-                for (int effectIndex = 0; effectIndex < effects.size(); effectIndex++) {
-                    EnchantmentData.EffectBlock block = effects.get(effectIndex);
-                    if (block == null) {
-                        continue;
-                    }
-                    if (triggerId.equalsIgnoreCase(block.getTrigger())) {
-                        result.add(new ActiveEnchantment(data, level, item, block, effectIndex));
-                    }
-                }
+                result.add(new ActiveEnchantment(
+                        data, level, item, binding.getEffectBlock(), binding.getEffectIndex()));
             }
         }
 
@@ -317,6 +336,56 @@ public class EffectPipeline {
             return Collections.emptyMap();
         }
         return enchantmentManager.getRegistry().getAllEnchantments();
+    }
+
+    public void rebuildTriggerIndex() {
+        triggerIndex = buildTriggerIndex(getRegisteredEnchantments().values());
+    }
+
+    static Map<String, List<TriggerBinding>> buildTriggerIndex(Collection<EnchantmentData> enchantments) {
+        if (enchantments == null || enchantments.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, List<TriggerBinding>> index = new LinkedHashMap<>();
+        for (EnchantmentData data : enchantments) {
+            if (data == null || !data.isEnabled()) {
+                continue;
+            }
+            List<EnchantmentData.EffectBlock> effects = data.getEffects();
+            if (effects == null || effects.isEmpty()) {
+                continue;
+            }
+
+            for (int effectIndex = 0; effectIndex < effects.size(); effectIndex++) {
+                EnchantmentData.EffectBlock effectBlock = effects.get(effectIndex);
+                if (effectBlock == null) {
+                    continue;
+                }
+                String triggerId = normalizeTriggerId(effectBlock.getTrigger());
+                if (triggerId.isEmpty()) {
+                    continue;
+                }
+                index.computeIfAbsent(triggerId, ignored -> new ArrayList<>())
+                        .add(new TriggerBinding(data, effectBlock, effectIndex));
+            }
+        }
+
+        if (index.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, List<TriggerBinding>> immutable = new LinkedHashMap<>();
+        for (Map.Entry<String, List<TriggerBinding>> entry : index.entrySet()) {
+            immutable.put(entry.getKey(), List.copyOf(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(immutable);
+    }
+
+    private static String normalizeTriggerId(String triggerId) {
+        if (triggerId == null) {
+            return "";
+        }
+        return triggerId.trim().toUpperCase(Locale.ROOT);
     }
 
     private void startMaintenanceTasks() {
@@ -707,6 +776,32 @@ public class EffectPipeline {
      */
     public void resetTickCounter() {
         currentTickEffects = 0;
+    }
+
+    static class TriggerBinding {
+        private final EnchantmentData data;
+        private final EnchantmentData.EffectBlock effectBlock;
+        private final int effectIndex;
+
+        TriggerBinding(EnchantmentData data,
+                       EnchantmentData.EffectBlock effectBlock,
+                       int effectIndex) {
+            this.data = data;
+            this.effectBlock = effectBlock;
+            this.effectIndex = effectIndex;
+        }
+
+        public EnchantmentData getData() {
+            return data;
+        }
+
+        public EnchantmentData.EffectBlock getEffectBlock() {
+            return effectBlock;
+        }
+
+        public int getEffectIndex() {
+            return effectIndex;
+        }
     }
 
     /**
