@@ -542,7 +542,10 @@ public class EnchantmentConfig {
     private static void validateObtain(YamlConfiguration yaml, File file, String enchantmentId,
                                        List<ConfigIssue> issues) {
         validatePositiveInt(yaml, file, enchantmentId, "enchanting-table-weight", 0, issues);
-        validateIntegerRange(yaml, file, enchantmentId, "villager-trade-price-range", issues);
+        boolean villagerTradeDisabled = isVillagerTradeDisabled(yaml);
+        if (!villagerTradeDisabled) {
+            validateIntegerRange(yaml, file, enchantmentId, "villager-trade-price-range", issues);
+        }
 
         if (!yaml.contains("obtain")) {
             return;
@@ -558,8 +561,18 @@ public class EnchantmentConfig {
         validateBoolean(obtain, file, enchantmentId, "villager-trade", "obtain.villager-trade", issues);
         validatePositiveInt(obtain, file, enchantmentId,
                 "enchanting-table-weight", "obtain.enchanting-table-weight", 0, issues);
-        validateIntegerRange(obtain, file, enchantmentId,
-                "villager-trade-price-range", "obtain.villager-trade-price-range", issues);
+        if (!villagerTradeDisabled) {
+            validateIntegerRange(obtain, file, enchantmentId,
+                    "villager-trade-price-range", "obtain.villager-trade-price-range", issues);
+        }
+    }
+
+    private static boolean isVillagerTradeDisabled(YamlConfiguration yaml) {
+        if (yaml == null || !yaml.isConfigurationSection("obtain")) {
+            return false;
+        }
+        ConfigurationSection obtain = yaml.getConfigurationSection("obtain");
+        return obtain != null && obtain.isBoolean("villager-trade") && !obtain.getBoolean("villager-trade");
     }
 
     private static void validateIntegerRange(ConfigurationSection section, File file, String enchantmentId,

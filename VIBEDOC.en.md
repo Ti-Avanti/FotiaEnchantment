@@ -22,7 +22,7 @@ Output YAML snippets by file path. Keep YAML as UTF-8 without BOM.
 - Use `applicable-items`, not `item-groups` or `materials`.
 - Use `codex-pools`, not `codex.enabled` or `codex.weight`.
 - Put probability in `effects[].conditions` with `type: chance`; do not put `chance` directly in the effect block.
-- `villager-trade-price-range` must be a two-integer list such as `[16, 40]` or a block list. Do not write `min` / `max`.
+- If `obtain.villager-trade: false`, `villager-trade-price-range` is ignored by the plugin. If villager trading is enabled or not explicitly disabled, `villager-trade-price-range` must be a two-integer list such as `[16, 40]` or a block list. Do not write `min` / `max`.
 - `conflicts` may only reference existing enchantment IDs, IDs generated in the same answer, or IDs the user explicitly told you to keep. If unsure, write `conflicts: []`.
 
 ## Naming Rules
@@ -119,7 +119,7 @@ BOOTS
 
 `enchanting-table-weight`: integer weight. Higher means more common.
 
-`villager-trade-price-range`: two integers: minimum and maximum emerald cost. It must satisfy `0 <= min <= max`.
+`villager-trade-price-range`: two integers: minimum and maximum emerald cost. It must satisfy `0 <= min <= max` when villager trading is enabled or not explicitly disabled. When `obtain.villager-trade: false`, omit this field when possible; an empty list is tolerated because the plugin ignores it.
 
 `codex-pools`: map from rarity ID to integer weight.
 
@@ -222,7 +222,7 @@ Before returning or writing an enchantment, check:
 - No legacy keys are present.
 - `rarity`, `group`, `category`, and `applicable-items` are valid.
 - Every `conflicts` entry is a known enchantment ID; otherwise use `conflicts: []`.
-- `villager-trade-price-range` is a two-integer list, not a `min/max` map.
+- If villager trading is enabled or not explicitly disabled, `villager-trade-price-range` is a two-integer list, not a `min/max` map. If `obtain.villager-trade: false`, the field is omitted or known to be ignored.
 - Every effect block has `trigger`.
 - Every effect block has at least one `actions` entry.
 - Trigger, condition, and action IDs are supported by this guide or `VIBEDOC.md`.

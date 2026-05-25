@@ -95,6 +95,23 @@ class EnchantmentConfigValidationTest {
     }
 
     @Test
+    void emptyVillagerTradePriceRangeIsIgnoredWhenVillagerTradeDisabled() {
+        File file = tempDir.resolve("disabled_villager_trade.yml").toFile();
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("id", "disabled_villager_trade");
+        yaml.set("villager-trade-price-range", List.of());
+        yaml.createSection("obtain", Map.of(
+                "villager-trade", false,
+                "villager-trade-price-range", List.of()
+        ));
+
+        List<EnchantmentConfig.ConfigIssue> issues = EnchantmentConfig.validateForLoad(yaml, file);
+
+        assertTrue(issues.stream().noneMatch(issue ->
+                issue.path().contains("villager-trade-price-range")), () -> issues.toString());
+    }
+
+    @Test
     void bundledEnchantmentResourcesPassRuntimeValidation() throws IOException, InvalidConfigurationException {
         Path enchantments = Path.of("src", "main", "resources", "enchantments");
         try (Stream<Path> stream = Files.walk(enchantments)) {
