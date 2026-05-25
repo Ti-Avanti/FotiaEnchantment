@@ -325,9 +325,9 @@ public class EnchantmentConfig {
         obtain.setEnchantingTableWeight(weight);
 
         // 村民交易价格区间
-        List<Integer> priceRange = yaml.getIntegerList("villager-trade-price-range");
+        List<Integer> priceRange = readIntegerRange(yaml, "villager-trade-price-range");
         if ((priceRange == null || priceRange.size() < 2) && sec != null) {
-            priceRange = sec.getIntegerList("villager-trade-price-range");
+            priceRange = readIntegerRange(sec, "villager-trade-price-range");
         }
         if (priceRange != null && priceRange.size() >= 2) {
             obtain.setVillagerTradePriceRange(new int[]{priceRange.get(0), priceRange.get(1)});
@@ -572,19 +572,26 @@ public class EnchantmentConfig {
         if (!section.contains(key)) {
             return;
         }
-        if (!section.isList(key)) {
-            issues.add(issue(enchantmentId, file, displayPath, "必须是包含两个整数的列表"));
+        Integer min;
+        Integer max;
+        if (section.isList(key)) {
+            List<?> list = section.getList(key);
+            if (list == null || list.size() != 2) {
+                issues.add(issue(enchantmentId, file, displayPath, "必须包含两个整数: [最低, 最高]"));
+                return;
+            }
+            min = readInteger(list.get(0));
+            max = readInteger(list.get(1));
+        } else if (section.isConfigurationSection(key)) {
+            ConfigurationSection range = section.getConfigurationSection(key);
+            min = range == null ? null : readInteger(range.get("min"));
+            max = range == null ? null : readInteger(range.get("max"));
+        } else {
+            issues.add(issue(enchantmentId, file, displayPath, "必须是包含两个整数的列表，或包含 min/max 的配置段"));
             return;
         }
-        List<?> list = section.getList(key);
-        if (list == null || list.size() != 2) {
-            issues.add(issue(enchantmentId, file, displayPath, "必须包含两个整数: [最低, 最高]"));
-            return;
-        }
-        Integer min = readInteger(list.get(0));
-        Integer max = readInteger(list.get(1));
         if (min == null || max == null) {
-            issues.add(issue(enchantmentId, file, displayPath, "必须包含两个整数: [最低, 最高]"));
+            issues.add(issue(enchantmentId, file, displayPath, "必须包含两个整数: [最低, 最高] 或 min/max"));
             return;
         }
         if (min < 0 || max < 0 || min > max) {
@@ -758,7 +765,36 @@ public class EnchantmentConfig {
         if (obj instanceof Number n) {
             return n.intValue();
         }
+        if (obj instanceof String text) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
         return null;
+    }
+
+    private static List<Integer> readIntegerRange(ConfigurationSection section, String key) {
+        if (section == null || !section.contains(key)) {
+            return Collections.emptyList();
+        }
+        if (section.isList(key)) {
+            return section.getIntegerList(key);
+        }
+        if (!section.isConfigurationSection(key)) {
+            return Collections.emptyList();
+        }
+        ConfigurationSection range = section.getConfigurationSection(key);
+        if (range == null) {
+            return Collections.emptyList();
+        }
+        Integer min = readInteger(range.get("min"));
+        Integer max = readInteger(range.get("max"));
+        if (min == null || max == null) {
+            return Collections.emptyList();
+        }
+        return List.of(min, max);
     }
 
     private static boolean isValidMaterialToken(String token) {

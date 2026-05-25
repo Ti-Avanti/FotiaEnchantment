@@ -3,7 +3,6 @@ package gg.fotia.enchantment.command;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.command.impl.*;
 import io.papermc.paper.command.brigadier.BasicCommand;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -73,73 +72,46 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     private boolean registerDynamicCommand() {
-        Command command = new Command("fe", "FotiaEnchantment command", "/fe <subcommand>",
-                List.of("fotia", "fotiaenchant")) {
-            @Override
-            public boolean execute(@NotNull CommandSender sender, @NotNull String commandLabel,
-                                   @NotNull String[] args) {
-                return CommandManager.this.onCommand(sender, this, commandLabel, args);
-            }
-
-            @Override
-            public @NotNull List<String> tabComplete(@NotNull CommandSender sender,
-                                                     @NotNull String alias,
-                                                     @NotNull String[] args)
-                    throws IllegalArgumentException {
-                List<String> result = CommandManager.this.onTabComplete(sender, this, alias, args);
-                return result == null ? Collections.emptyList() : result;
-            }
-        };
         return plugin.getServer().getCommandMap()
-                .register(plugin.getName().toLowerCase(Locale.ROOT), command);
+                .register(plugin.getName().toLowerCase(Locale.ROOT), new FeBukkitCommand(this));
     }
 
     private void registerPaperCommand() {
         try {
-            plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
+            plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+                try {
                     event.registrar().register(
                             plugin.getPluginMeta(),
                             "fe",
                             "FotiaEnchantment command",
                             List.of("fotia", "fotiaenchant"),
-                            createPaperCommandBridge()));
-        } catch (IllegalArgumentException | IllegalStateException | LinkageError ex) {
-            boolean legacyRegistered = registerDynamicCommand();
-            if (!legacyRegistered) {
-                throw ex;
-            }
-            plugin.getLogger().fine("Paper command registration skipped because /fe is already registered.");
+                            createPaperCommandBridge());
+                } catch (RuntimeException | LinkageError ex) {
+                    fallbackToDynamicCommand(ex);
+                }
+            });
+        } catch (RuntimeException | LinkageError ex) {
+            fallbackToDynamicCommand(ex);
         }
     }
 
     private BasicCommand createPaperCommandBridge() {
-        Command bridge = new Command("fe") {
-            @Override
-            public boolean execute(@NotNull CommandSender sender, @NotNull String commandLabel,
-                                   @NotNull String[] args) {
-                return true;
-            }
-        };
-        return new BasicCommand() {
-            @Override
-            public void execute(@NotNull CommandSourceStack source, @NotNull String[] args) {
-                CommandManager.this.onCommand(
-                        source.getSender(), bridge, "fe", normalizeArgsForSuggestions(args));
-            }
+        return new FePaperCommand(this, new FeBukkitCommand(this));
+    }
 
-            @Override
-            public @NotNull List<String> suggest(@NotNull CommandSourceStack source,
-                                                 @NotNull String[] args) {
-                List<String> result = CommandManager.this.onTabComplete(
-                        source.getSender(), bridge, "fe", normalizeArgsForSuggestions(args));
-                return result == null ? Collections.emptyList() : result;
+    private void fallbackToDynamicCommand(Throwable cause) {
+        boolean legacyRegistered = registerDynamicCommand();
+        if (!legacyRegistered) {
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
             }
-
-            @Override
-            public boolean canUse(@NotNull CommandSender sender) {
-                return true;
+            if (cause instanceof LinkageError linkageError) {
+                throw linkageError;
             }
-        };
+            throw new IllegalStateException(cause);
+        }
+        plugin.getLogger().warning("Paper command registration failed; using Bukkit command fallback. Cause: "
+                + cause.getClass().getSimpleName() + ": " + String.valueOf(cause.getMessage()));
     }
 
     static String[] normalizeArgsForSuggestions(String[] args) {

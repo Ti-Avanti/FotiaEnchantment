@@ -79,6 +79,22 @@ class EnchantmentConfigValidationTest {
     }
 
     @Test
+    void villagerTradePriceRangeAcceptsLegacyMinMaxSection() {
+        File file = tempDir.resolve("legacy_price_range.yml").toFile();
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("id", "legacy_price_range");
+        yaml.createSection("villager-trade-price-range", Map.of(
+                "min", 12,
+                "max", 32
+        ));
+
+        List<EnchantmentConfig.ConfigIssue> issues = EnchantmentConfig.validateForLoad(yaml, file);
+
+        assertTrue(issues.stream().noneMatch(issue ->
+                "villager-trade-price-range".equals(issue.path())), () -> issues.toString());
+    }
+
+    @Test
     void bundledEnchantmentResourcesPassRuntimeValidation() throws IOException, InvalidConfigurationException {
         Path enchantments = Path.of("src", "main", "resources", "enchantments");
         try (Stream<Path> stream = Files.walk(enchantments)) {
