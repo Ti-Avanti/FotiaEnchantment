@@ -2,17 +2,22 @@ package gg.fotia.enchantment.core;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.config.EnchantmentConfig;
+import gg.fotia.enchantment.config.EnchantmentConfig.ConfigIssue;
 import org.bukkit.inventory.ItemStack;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -29,6 +34,7 @@ public class EnchantmentManager {
 
     /** 附魔ID → EnchantmentData 缓存（启用与禁用都包含） */
     private final Map<String, EnchantmentData> enchantments = new LinkedHashMap<>();
+    private List<UndefinedConflict> undefinedConflicts = Collections.emptyList();
 
     public EnchantmentManager(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -255,6 +261,14 @@ public class EnchantmentManager {
         return enchantmentConfig;
     }
 
+    public List<UndefinedConflict> getUndefinedConflicts() {
+        return undefinedConflicts;
+    }
+
+    public List<ConfigIssue> getConfigIssues() {
+        return enchantmentConfig.getConfigIssues();
+    }
+
     // ==================== 内部方法 ====================
 
     /**
@@ -266,5 +280,78 @@ public class EnchantmentManager {
             enchantments.put(data.getId(), data);
         }
         registry.registerAll(loaded);
+        undefinedConflicts = findUndefinedConflicts(enchantments.values(), id -> {
+            File file = enchantmentConfig.getSourceFile(id);
+            return file != null ? file.getAbsolutePath() : "未知文件";
+        });
+        logUndefinedConflicts(undefinedConflicts);
+    }
+
+    static List<UndefinedConflict> findUndefinedConflicts(Collection<EnchantmentData> enchantments,
+                                                          Function<String, String> sourceFileResolver) {
+        if (enchantments.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Set<String> definedIds = new LinkedHashSet<>();
+        for (EnchantmentData data : enchantments) {
+            if (data != null && data.getId() != null) {
+                definedIds.add(data.getId());
+            }
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        List<UndefinedConflict> result = new ArrayList<>();
+
+        for (EnchantmentData data : enchantments) {
+            if (data == null || data.getId() == null) {
+                continue;
+            }
+            List<String> conflicts = data.getConflicts();
+            if (conflicts == null || conflicts.isEmpty()) {
+                continue;
+            }
+            for (String rawConflict : conflicts) {
+                String conflictId = normalizeCustomConflictId(rawConflict);
+                if (conflictId == null || definedIds.contains(conflictId)) {
+                    continue;
+                }
+
+                String key = data.getId() + "::" + conflictId;
+                if (seen.add(key)) {
+                    result.add(new UndefinedConflict(data.getId(), conflictId, sourceFileResolver.apply(data.getId())));
+                }
+            }
+        }
+
+        return result.isEmpty() ? Collections.emptyList() : List.copyOf(result);
+    }
+
+    private static String normalizeCustomConflictId(String rawConflict) {
+        if (rawConflict == null || rawConflict.isBlank()) {
+            return null;
+        }
+
+        String id = rawConflict.trim().toLowerCase(Locale.ROOT);
+        int separator = id.indexOf(':');
+        if (separator < 0) {
+            return id;
+        }
+
+        String namespace = id.substring(0, separator);
+        if (!EnchantmentRegistry.getNamespace().equals(namespace) || separator >= id.length() - 1) {
+            return null;
+        }
+        return id.substring(separator + 1);
+    }
+
+    private void logUndefinedConflicts(List<UndefinedConflict> conflicts) {
+        for (UndefinedConflict conflict : conflicts) {
+            plugin.getLogger().warning("附魔 " + conflict.sourceId()
+                    + " 的 conflicts 引用了未定义附魔: " + conflict.conflictId()
+                    + " (文件: " + conflict.sourceFile() + ", 位置: conflicts)");
+        }
+    }
+
+    public record UndefinedConflict(String sourceId, String conflictId, String sourceFile) {
     }
 }

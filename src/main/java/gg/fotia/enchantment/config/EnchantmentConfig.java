@@ -7,6 +7,7 @@ import gg.fotia.enchantment.core.EnchantmentData.ConditionConfig;
 import gg.fotia.enchantment.core.EnchantmentData.EffectBlock;
 import gg.fotia.enchantment.core.EnchantmentData.ObtainSettings;
 import org.bukkit.Material;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -21,6 +22,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 附魔配置加载器 - 从 YAML 文件解析附魔配置为 {@link EnchantmentData} 对象。
@@ -35,9 +38,11 @@ public class EnchantmentConfig {
     /** 已加载附魔（按 ID 索引，保持加载顺序） */
     private final Map<String, EnchantmentData> enchantments = new LinkedHashMap<>();
     private final Map<String, File> sourceFiles = new HashMap<>();
+    private final List<ConfigIssue> configIssues = new ArrayList<>();
 
     /** 物品类别标签 → 实际 Material 列表 */
     private static final Map<String, List<Material>> CATEGORY_MATERIALS = buildCategoryMaterials();
+    private static final Pattern YAML_LOCATION_PATTERN = Pattern.compile("line (\\d+), column (\\d+)");
 
     public EnchantmentConfig(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -51,6 +56,7 @@ public class EnchantmentConfig {
     public void loadAll() {
         enchantments.clear();
         sourceFiles.clear();
+        configIssues.clear();
 
         File baseDir = new File(plugin.getDataFolder(), "enchantments");
         if (!baseDir.exists() || !baseDir.isDirectory()) {
@@ -132,6 +138,17 @@ public class EnchantmentConfig {
         return enchantments.get(id.toLowerCase(Locale.ROOT));
     }
 
+    public File getSourceFile(String id) {
+        if (id == null) {
+            return null;
+        }
+        return sourceFiles.get(id.toLowerCase(Locale.ROOT));
+    }
+
+    public List<ConfigIssue> getConfigIssues() {
+        return List.copyOf(configIssues);
+    }
+
     public boolean setEnabled(String id, boolean enabled) {
         if (id == null) {
             return false;
@@ -171,12 +188,77 @@ public class EnchantmentConfig {
         }
         YamlConfiguration yaml;
         try {
-            yaml = YamlConfiguration.loadConfiguration(file);
-        } catch (Exception ex) {
-            plugin.getLogger().warning("无法加载附魔配置文件 " + file.getName() + ": " + ex.getMessage());
+            yaml = loadYaml(file);
+        } catch (IOException | InvalidConfigurationException ex) {
+            ConfigIssue issue = yamlLoadIssue(file, ex);
+            configIssues.add(issue);
+            plugin.getLogger().warning(formatConfigIssue(issue));
             return null;
         }
-        return parse(yaml, file);
+
+        List<ConfigIssue> issues = validateForLoad(yaml, file);
+        if (!issues.isEmpty()) {
+            configIssues.addAll(issues);
+            for (ConfigIssue issue : issues) {
+                plugin.getLogger().warning(formatConfigIssue(issue));
+            }
+            return null;
+        }
+
+        try {
+            return parse(yaml, file);
+        } catch (RuntimeException ex) {
+            ConfigIssue issue = new ConfigIssue(resolveIssueId(yaml, file), file.getAbsolutePath(),
+                    "<parse>", "解析附魔配置时出现错误: " + nullToUnknown(ex.getMessage()));
+            configIssues.add(issue);
+            plugin.getLogger().warning(formatConfigIssue(issue));
+            return null;
+        }
+    }
+
+    static YamlConfiguration loadYaml(File file) throws IOException, InvalidConfigurationException {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.load(file);
+        return yaml;
+    }
+
+    static List<ConfigIssue> validateForLoad(YamlConfiguration yaml, File file) {
+        if (yaml == null || file == null) {
+            return Collections.emptyList();
+        }
+
+        String enchantmentId = resolveIssueId(yaml, file);
+        List<ConfigIssue> issues = new ArrayList<>();
+
+        validateString(yaml, file, enchantmentId, "id", false, issues);
+        validateBoolean(yaml, file, enchantmentId, "enabled", issues);
+        validateBoolean(yaml, file, enchantmentId, "curse", issues);
+        validatePositiveInt(yaml, file, enchantmentId, "max-level", 1, issues);
+        validateString(yaml, file, enchantmentId, "rarity", false, issues);
+        validateString(yaml, file, enchantmentId, "group", false, issues);
+        validateString(yaml, file, enchantmentId, "category", false, issues);
+        validateStringList(yaml, file, enchantmentId, "conflicts", false, issues);
+        validateApplicableItems(yaml, file, enchantmentId, issues);
+        validateObtain(yaml, file, enchantmentId, issues);
+        validateCodexPools(yaml, file, enchantmentId, issues);
+        validateEffects(yaml, file, enchantmentId, issues);
+
+        return issues.isEmpty() ? Collections.emptyList() : List.copyOf(issues);
+    }
+
+    static ConfigIssue yamlLoadIssue(File file, Exception ex) {
+        return new ConfigIssue(fileNameId(file), file.getAbsolutePath(), extractYamlLocation(ex),
+                "YAML 语法错误: " + firstLine(nullToUnknown(ex.getMessage())));
+    }
+
+    static String formatConfigIssue(ConfigIssue issue) {
+        String enchantment = issue.enchantmentId() == null || issue.enchantmentId().isBlank()
+                ? "未知"
+                : issue.enchantmentId();
+        return "配置错误，已跳过相关配置。附魔: " + enchantment
+                + "，文件: " + issue.filePath()
+                + "，位置: " + issue.path()
+                + "，原因: " + issue.message();
     }
 
     // ==================== 解析 ====================
@@ -367,6 +449,262 @@ public class EnchantmentConfig {
         return result;
     }
 
+    private static void validateString(ConfigurationSection section, File file, String enchantmentId,
+                                       String path, boolean required, List<ConfigIssue> issues) {
+        if (!section.contains(path)) {
+            if (required) {
+                issues.add(issue(enchantmentId, file, path, "缺少必填字段"));
+            }
+            return;
+        }
+        if (!section.isString(path) || section.getString(path, "").isBlank()) {
+            issues.add(issue(enchantmentId, file, path, "必须是非空字符串"));
+        }
+    }
+
+    private static void validateBoolean(ConfigurationSection section, File file, String enchantmentId,
+                                        String path, List<ConfigIssue> issues) {
+        validateBoolean(section, file, enchantmentId, path, path, issues);
+    }
+
+    private static void validateBoolean(ConfigurationSection section, File file, String enchantmentId,
+                                        String key, String displayPath, List<ConfigIssue> issues) {
+        if (section.contains(key) && !section.isBoolean(key)) {
+            issues.add(issue(enchantmentId, file, displayPath, "必须是 true 或 false"));
+        }
+    }
+
+    private static void validatePositiveInt(ConfigurationSection section, File file, String enchantmentId,
+                                            String path, int min, List<ConfigIssue> issues) {
+        validatePositiveInt(section, file, enchantmentId, path, path, min, issues);
+    }
+
+    private static void validatePositiveInt(ConfigurationSection section, File file, String enchantmentId,
+                                            String key, String displayPath, int min, List<ConfigIssue> issues) {
+        if (!section.contains(key)) {
+            return;
+        }
+        if (!section.isInt(key)) {
+            issues.add(issue(enchantmentId, file, displayPath, "必须是整数"));
+            return;
+        }
+        if (section.getInt(key) < min) {
+            issues.add(issue(enchantmentId, file, displayPath, "不能小于 " + min));
+        }
+    }
+
+    private static void validateStringList(ConfigurationSection section, File file, String enchantmentId,
+                                           String path, boolean required, List<ConfigIssue> issues) {
+        if (!section.contains(path)) {
+            if (required) {
+                issues.add(issue(enchantmentId, file, path, "缺少必填字段"));
+            }
+            return;
+        }
+        if (!section.isList(path)) {
+            issues.add(issue(enchantmentId, file, path, "必须是字符串列表"));
+            return;
+        }
+        List<?> list = section.getList(path);
+        for (int i = 0; list != null && i < list.size(); i++) {
+            Object item = list.get(i);
+            if (!(item instanceof String value) || value.isBlank()) {
+                issues.add(issue(enchantmentId, file, path + "[" + i + "]", "必须是非空字符串"));
+            }
+        }
+    }
+
+    private static void validateApplicableItems(YamlConfiguration yaml, File file, String enchantmentId,
+                                                List<ConfigIssue> issues) {
+        String path = "applicable-items";
+        if (!yaml.contains(path)) {
+            return;
+        }
+        if (!yaml.isList(path)) {
+            issues.add(issue(enchantmentId, file, path, "必须是字符串列表"));
+            return;
+        }
+
+        List<?> items = yaml.getList(path);
+        for (int i = 0; items != null && i < items.size(); i++) {
+            Object item = items.get(i);
+            String itemPath = path + "[" + i + "]";
+            if (!(item instanceof String value) || value.isBlank()) {
+                issues.add(issue(enchantmentId, file, itemPath, "必须是非空字符串"));
+                continue;
+            }
+            if (!isValidMaterialToken(value)) {
+                issues.add(issue(enchantmentId, file, itemPath, "未知物品或物品类别: " + value));
+            }
+        }
+    }
+
+    private static void validateObtain(YamlConfiguration yaml, File file, String enchantmentId,
+                                       List<ConfigIssue> issues) {
+        validatePositiveInt(yaml, file, enchantmentId, "enchanting-table-weight", 0, issues);
+        validateIntegerRange(yaml, file, enchantmentId, "villager-trade-price-range", issues);
+
+        if (!yaml.contains("obtain")) {
+            return;
+        }
+        if (!yaml.isConfigurationSection("obtain")) {
+            issues.add(issue(enchantmentId, file, "obtain", "必须是配置段"));
+            return;
+        }
+
+        ConfigurationSection obtain = yaml.getConfigurationSection("obtain");
+        validateBoolean(obtain, file, enchantmentId, "enchanting-table", "obtain.enchanting-table", issues);
+        validateBoolean(obtain, file, enchantmentId, "anvil", "obtain.anvil", issues);
+        validateBoolean(obtain, file, enchantmentId, "villager-trade", "obtain.villager-trade", issues);
+        validatePositiveInt(obtain, file, enchantmentId,
+                "enchanting-table-weight", "obtain.enchanting-table-weight", 0, issues);
+        validateIntegerRange(obtain, file, enchantmentId,
+                "villager-trade-price-range", "obtain.villager-trade-price-range", issues);
+    }
+
+    private static void validateIntegerRange(ConfigurationSection section, File file, String enchantmentId,
+                                             String path, List<ConfigIssue> issues) {
+        validateIntegerRange(section, file, enchantmentId, path, path, issues);
+    }
+
+    private static void validateIntegerRange(ConfigurationSection section, File file, String enchantmentId,
+                                             String key, String displayPath, List<ConfigIssue> issues) {
+        if (!section.contains(key)) {
+            return;
+        }
+        if (!section.isList(key)) {
+            issues.add(issue(enchantmentId, file, displayPath, "必须是包含两个整数的列表"));
+            return;
+        }
+        List<?> list = section.getList(key);
+        if (list == null || list.size() != 2) {
+            issues.add(issue(enchantmentId, file, displayPath, "必须包含两个整数: [最低, 最高]"));
+            return;
+        }
+        Integer min = readInteger(list.get(0));
+        Integer max = readInteger(list.get(1));
+        if (min == null || max == null) {
+            issues.add(issue(enchantmentId, file, displayPath, "必须包含两个整数: [最低, 最高]"));
+            return;
+        }
+        if (min < 0 || max < 0 || min > max) {
+            issues.add(issue(enchantmentId, file, displayPath, "必须满足 0 <= 最低 <= 最高"));
+        }
+    }
+
+    private static void validateCodexPools(YamlConfiguration yaml, File file, String enchantmentId,
+                                           List<ConfigIssue> issues) {
+        if (!yaml.contains("codex-pools")) {
+            return;
+        }
+        if (!yaml.isConfigurationSection("codex-pools")) {
+            issues.add(issue(enchantmentId, file, "codex-pools", "必须是配置段"));
+            return;
+        }
+        ConfigurationSection section = yaml.getConfigurationSection("codex-pools");
+        for (String key : section.getKeys(false)) {
+            String path = "codex-pools." + key;
+            if (!section.isInt(key)) {
+                issues.add(issue(enchantmentId, file, path, "必须是整数权重"));
+                continue;
+            }
+            if (section.getInt(key) < 0) {
+                issues.add(issue(enchantmentId, file, path, "不能小于 0"));
+            }
+        }
+    }
+
+    private static void validateEffects(YamlConfiguration yaml, File file, String enchantmentId,
+                                        List<ConfigIssue> issues) {
+        if (!yaml.contains("effects")) {
+            return;
+        }
+        if (!yaml.isList("effects")) {
+            issues.add(issue(enchantmentId, file, "effects", "必须是效果块列表"));
+            return;
+        }
+
+        List<?> effects = yaml.getList("effects");
+        for (int i = 0; effects != null && i < effects.size(); i++) {
+            String effectPath = "effects[" + i + "]";
+            Object rawEffect = effects.get(i);
+            if (!(rawEffect instanceof Map<?, ?> effect)) {
+                issues.add(issue(enchantmentId, file, effectPath, "必须是配置段"));
+                continue;
+            }
+
+            Object trigger = effect.get("trigger");
+            if (!(trigger instanceof String value) || value.isBlank()) {
+                issues.add(issue(enchantmentId, file, effectPath + ".trigger", "缺少必填字段或不是非空字符串"));
+            }
+
+            if (effect.containsKey("cooldown")) {
+                Integer cooldown = readInteger(effect.get("cooldown"));
+                if (cooldown == null) {
+                    issues.add(issue(enchantmentId, file, effectPath + ".cooldown", "必须是整数"));
+                } else if (cooldown < 0) {
+                    issues.add(issue(enchantmentId, file, effectPath + ".cooldown", "不能小于 0"));
+                }
+            }
+
+            validateConditionList(effect.get("conditions"), effect.containsKey("conditions"),
+                    file, enchantmentId, effectPath + ".conditions", issues);
+            validateActionList(effect.get("actions"), effect.containsKey("actions"),
+                    file, enchantmentId, effectPath + ".actions", issues);
+        }
+    }
+
+    private static void validateConditionList(Object rawConditions, boolean present, File file, String enchantmentId,
+                                              String path, List<ConfigIssue> issues) {
+        if (!present) {
+            return;
+        }
+        if (!(rawConditions instanceof List<?> conditions)) {
+            issues.add(issue(enchantmentId, file, path, "必须是条件列表"));
+            return;
+        }
+        for (int i = 0; i < conditions.size(); i++) {
+            Object rawCondition = conditions.get(i);
+            String conditionPath = path + "[" + i + "]";
+            if (!(rawCondition instanceof Map<?, ?> condition)) {
+                issues.add(issue(enchantmentId, file, conditionPath, "必须是配置段"));
+                continue;
+            }
+            Object type = condition.get("type");
+            if (!(type instanceof String value) || value.isBlank()) {
+                issues.add(issue(enchantmentId, file, conditionPath + ".type", "缺少必填字段或不是非空字符串"));
+            }
+        }
+    }
+
+    private static void validateActionList(Object rawActions, boolean present, File file, String enchantmentId,
+                                           String path, List<ConfigIssue> issues) {
+        if (!present) {
+            issues.add(issue(enchantmentId, file, path, "缺少必填字段"));
+            return;
+        }
+        if (!(rawActions instanceof List<?> actions)) {
+            issues.add(issue(enchantmentId, file, path, "必须是动作列表"));
+            return;
+        }
+        if (actions.isEmpty()) {
+            issues.add(issue(enchantmentId, file, path, "至少需要一个动作"));
+            return;
+        }
+        for (int i = 0; i < actions.size(); i++) {
+            Object rawAction = actions.get(i);
+            String actionPath = path + "[" + i + "]";
+            if (!(rawAction instanceof Map<?, ?> action)) {
+                issues.add(issue(enchantmentId, file, actionPath, "必须是配置段"));
+                continue;
+            }
+            Object type = action.get("type");
+            if (!(type instanceof String value) || value.isBlank()) {
+                issues.add(issue(enchantmentId, file, actionPath + ".type", "缺少必填字段或不是非空字符串"));
+            }
+        }
+    }
+
     private List<Material> parseMaterials(List<String> tokens) {
         List<Material> result = new ArrayList<>();
         if (tokens == null) {
@@ -414,6 +752,77 @@ public class EnchantmentConfig {
         } catch (NumberFormatException ex) {
             return defaultValue;
         }
+    }
+
+    private static Integer readInteger(Object obj) {
+        if (obj instanceof Number n) {
+            return n.intValue();
+        }
+        return null;
+    }
+
+    private static boolean isValidMaterialToken(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+        String upper = token.trim().toUpperCase(Locale.ROOT);
+        if (CATEGORY_MATERIALS.containsKey(upper)) {
+            return true;
+        }
+        try {
+            Material.valueOf(upper);
+            return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    private static ConfigIssue issue(String enchantmentId, File file, String path, String message) {
+        return new ConfigIssue(enchantmentId, file.getAbsolutePath(), path, message);
+    }
+
+    private static String resolveIssueId(YamlConfiguration yaml, File file) {
+        if (yaml != null && yaml.isString("id")) {
+            String configured = yaml.getString("id");
+            if (configured != null && !configured.isBlank()) {
+                return configured.toLowerCase(Locale.ROOT);
+            }
+        }
+        return fileNameId(file);
+    }
+
+    private static String fileNameId(File file) {
+        if (file == null) {
+            return "unknown";
+        }
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        return (dot > 0 ? name.substring(0, dot) : name).toLowerCase(Locale.ROOT);
+    }
+
+    private static String extractYamlLocation(Exception ex) {
+        String message = ex != null ? ex.getMessage() : null;
+        if (message == null) {
+            return "YAML";
+        }
+        Matcher matcher = YAML_LOCATION_PATTERN.matcher(message);
+        String location = null;
+        while (matcher.find()) {
+            location = "line " + matcher.group(1) + ", column " + matcher.group(2);
+        }
+        return location != null ? location : "YAML";
+    }
+
+    private static String firstLine(String message) {
+        int lineBreak = message.indexOf('\n');
+        return lineBreak >= 0 ? message.substring(0, lineBreak).trim() : message.trim();
+    }
+
+    private static String nullToUnknown(String value) {
+        return value == null || value.isBlank() ? "未知原因" : value;
+    }
+
+    public record ConfigIssue(String enchantmentId, String filePath, String path, String message) {
     }
 
     // ==================== 类别 → 材质表 ====================

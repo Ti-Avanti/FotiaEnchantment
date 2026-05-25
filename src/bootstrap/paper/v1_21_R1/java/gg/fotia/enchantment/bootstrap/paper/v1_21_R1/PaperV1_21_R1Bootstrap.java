@@ -70,6 +70,9 @@ public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementatio
         List<BootstrapEnchantment> enchantments = bootstrapData.enchantments().stream()
                 .filter(BootstrapEnchantment::enabled)
                 .toList();
+        Set<String> enabledIds = new LinkedHashSet<>(enchantments.stream()
+                .map(BootstrapEnchantment::id)
+                .toList());
 
         context.getLifecycleManager().registerEventHandler(RegistryEvents.ENCHANTMENT.freeze(), event -> {
             for (BootstrapEnchantment enchantment : enchantments) {
@@ -78,7 +81,7 @@ public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementatio
                         : itemKeySet(enchantment.applicableItems());
                 RegistryKeySet<Enchantment> exclusiveWith = enchantment.conflicts().isEmpty()
                         ? RegistrySet.keySet(RegistryKey.ENCHANTMENT, Collections.emptyList())
-                        : RegistrySet.keySet(RegistryKey.ENCHANTMENT, enchantment.conflictKeys());
+                        : RegistrySet.keySet(RegistryKey.ENCHANTMENT, enchantment.conflictKeys(enabledIds));
 
                 event.registry().register(enchantment.typedKey(), builder -> builder
                         .description(enchantment.displayName())
@@ -435,10 +438,24 @@ public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementatio
             return TypedKey.create(RegistryKey.ENCHANTMENT, Key.key(EnchantmentRegistry.getNamespace(), id));
         }
 
-        private List<TypedKey<Enchantment>> conflictKeys() {
+        private List<TypedKey<Enchantment>> conflictKeys(Set<String> enabledIds) {
             return conflicts.stream()
+                    .filter(conflict -> shouldRegisterConflict(conflict, enabledIds))
                     .map(BootstrapEnchantment::toEnchantmentKey)
                     .toList();
+        }
+
+        private static boolean shouldRegisterConflict(String id, Set<String> enabledIds) {
+            int separator = id.indexOf(':');
+            if (separator < 0) {
+                return enabledIds.contains(id);
+            }
+
+            String namespace = id.substring(0, separator);
+            if (EnchantmentRegistry.getNamespace().equals(namespace)) {
+                return enabledIds.contains(id.substring(separator + 1));
+            }
+            return true;
         }
 
         private static TypedKey<Enchantment> toEnchantmentKey(String id) {

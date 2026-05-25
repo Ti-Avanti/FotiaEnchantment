@@ -32,6 +32,7 @@ public class ConfigManager {
     private YamlConfiguration enchantmentBooksConfig;
     private YamlConfiguration limitsConfig;
     private Map<String, YamlConfiguration> guiConfigs = new HashMap<>();
+    private List<EnchantmentConfig.ConfigIssue> configIssues = Collections.emptyList();
 
     private static final List<String> GUI_CONFIG_IDS = List.of(
             "admin", "fragment-craft", "codex", "enchantment-guide", "disenchant");
@@ -44,6 +45,7 @@ public class ConfigManager {
      * 加载所有配置文件
      */
     public void loadAll() {
+        List<EnchantmentConfig.ConfigIssue> issues = new ArrayList<>();
         // 保存默认配置文件
         saveDefaultResource("config.yml");
         saveDefaultResource("rarity.yml");
@@ -61,37 +63,48 @@ public class ConfigManager {
         saveDefaultEnchantments();
 
         // 加载配置
-        mainConfig = loadConfig("config.yml");
-        rarityConfig = loadConfig("rarity.yml");
-        groupsConfig = loadConfig("groups.yml");
-        loadGuiConfigs();
-        limitsConfig = loadConfig("limits.yml");
-        itemsConfig = loadConfig("items/custom-items.yml");
-        enchantmentBooksConfig = loadConfig("items/enchantment-books.yml");
+        mainConfig = loadConfig("config.yml", issues);
+        rarityConfig = loadConfig("rarity.yml", issues);
+        groupsConfig = loadConfig("groups.yml", issues);
+        loadGuiConfigs(issues);
+        limitsConfig = loadConfig("limits.yml", issues);
+        itemsConfig = loadConfig("items/custom-items.yml", issues);
+        enchantmentBooksConfig = loadConfig("items/enchantment-books.yml", issues);
+        configIssues = List.copyOf(issues);
     }
 
     /**
      * 重载所有配置文件
      */
     public void reload() {
-        mainConfig = loadConfig("config.yml");
-        rarityConfig = loadConfig("rarity.yml");
-        groupsConfig = loadConfig("groups.yml");
-        loadGuiConfigs();
-        limitsConfig = loadConfig("limits.yml");
-        itemsConfig = loadConfig("items/custom-items.yml");
-        enchantmentBooksConfig = loadConfig("items/enchantment-books.yml");
+        List<EnchantmentConfig.ConfigIssue> issues = new ArrayList<>();
+        mainConfig = loadConfig("config.yml", issues);
+        rarityConfig = loadConfig("rarity.yml", issues);
+        groupsConfig = loadConfig("groups.yml", issues);
+        loadGuiConfigs(issues);
+        limitsConfig = loadConfig("limits.yml", issues);
+        itemsConfig = loadConfig("items/custom-items.yml", issues);
+        enchantmentBooksConfig = loadConfig("items/enchantment-books.yml", issues);
+        configIssues = List.copyOf(issues);
     }
 
     /**
      * 加载指定配置文件
      */
-    private YamlConfiguration loadConfig(String path) {
+    private YamlConfiguration loadConfig(String path, List<EnchantmentConfig.ConfigIssue> issues) {
         File file = new File(plugin.getDataFolder(), path);
         if (!file.exists()) {
             saveDefaultResource(path);
         }
-        return YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration yaml = new YamlConfiguration();
+        try {
+            yaml.load(file);
+        } catch (Exception ex) {
+            EnchantmentConfig.ConfigIssue issue = EnchantmentConfig.yamlLoadIssue(file, ex);
+            issues.add(issue);
+            plugin.getLogger().warning(EnchantmentConfig.formatConfigIssue(issue));
+        }
+        return yaml;
     }
 
     /**
@@ -133,10 +146,10 @@ public class ConfigManager {
         }
     }
 
-    private void loadGuiConfigs() {
+    private void loadGuiConfigs(List<EnchantmentConfig.ConfigIssue> issues) {
         Map<String, YamlConfiguration> loaded = new HashMap<>();
         for (String id : GUI_CONFIG_IDS) {
-            loaded.put(id, loadConfig("gui/" + id + ".yml"));
+            loaded.put(id, loadConfig("gui/" + id + ".yml", issues));
         }
         guiConfigs = Map.copyOf(loaded);
     }
@@ -145,9 +158,16 @@ public class ConfigManager {
      * 保存内置的示例自定义附魔配置。
      */
     private void saveDefaultEnchantments() {
+        if (!shouldSaveDefaultEnchantments(plugin.getDataFolder())) {
+            return;
+        }
         for (String resource : listBundledEnchantmentResources()) {
             saveDefaultResource(resource);
         }
+    }
+
+    static boolean shouldSaveDefaultEnchantments(File dataFolder) {
+        return !new File(dataFolder, "enchantments").exists();
     }
 
     private List<String> listBundledEnchantmentResources() {
@@ -238,7 +258,18 @@ public class ConfigManager {
         if (config != null) {
             return config;
         }
-        return loadConfig("gui/" + id + ".yml");
+        List<EnchantmentConfig.ConfigIssue> issues = new ArrayList<>();
+        YamlConfiguration loaded = loadConfig("gui/" + id + ".yml", issues);
+        if (!issues.isEmpty()) {
+            List<EnchantmentConfig.ConfigIssue> combined = new ArrayList<>(configIssues);
+            combined.addAll(issues);
+            configIssues = List.copyOf(combined);
+        }
+        return loaded;
+    }
+
+    public List<EnchantmentConfig.ConfigIssue> getConfigIssues() {
+        return configIssues;
     }
 
     /**
