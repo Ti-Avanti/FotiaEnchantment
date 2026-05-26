@@ -156,7 +156,21 @@ public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementatio
         ClassLoader classLoader = PaperV1_21_R1Bootstrap.class.getClassLoader();
         Map<String, String> names = loadNames(dataDirectory, classLoader);
         Map<String, BootstrapEnchantment> enchantments = new LinkedHashMap<>();
+        Path externalEnchantments = dataDirectory.resolve("enchantments");
 
+        if (Files.isDirectory(externalEnchantments)) {
+            loadExternalEnchantments(externalEnchantments, names, enchantments);
+        } else {
+            loadBundledDefaultEnchantments(classLoader, names, enchantments);
+        }
+
+        boolean globalEnchantingTable = loadGlobalEnchantingTableFlag(dataDirectory, classLoader);
+        return new BootstrapData(globalEnchantingTable, new ArrayList<>(enchantments.values()));
+    }
+
+    private static void loadBundledDefaultEnchantments(ClassLoader classLoader,
+                                                       Map<String, String> names,
+                                                       Map<String, BootstrapEnchantment> enchantments) {
         for (String resource : DEFAULT_ENCHANTMENT_RESOURCES) {
             try (InputStream input = classLoader.getResourceAsStream(resource)) {
                 if (input == null) {
@@ -172,27 +186,25 @@ public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementatio
                 // Invalid default resources are ignored here; the normal plugin loader will log detailed errors.
             }
         }
+    }
 
-        Path externalEnchantments = dataDirectory.resolve("enchantments");
-        if (Files.isDirectory(externalEnchantments)) {
-            try (Stream<Path> stream = Files.walk(externalEnchantments)) {
-                stream.filter(Files::isRegularFile)
-                        .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".yml"))
-                        .forEach(path -> {
-                            BootstrapEnchantment enchantment = parseEnchantment(
-                                    YamlConfiguration.loadConfiguration(path.toFile()),
-                                    path.getFileName().toString(), names);
-                            if (enchantment != null) {
-                                enchantments.put(enchantment.id(), enchantment);
-                            }
-                        });
-            } catch (Exception ignored) {
-                // Runtime config loading still reports detailed file errors after the plugin is enabled.
-            }
+    private static void loadExternalEnchantments(Path externalEnchantments,
+                                                 Map<String, String> names,
+                                                 Map<String, BootstrapEnchantment> enchantments) {
+        try (Stream<Path> stream = Files.walk(externalEnchantments)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".yml"))
+                    .forEach(path -> {
+                        BootstrapEnchantment enchantment = parseEnchantment(
+                                YamlConfiguration.loadConfiguration(path.toFile()),
+                                path.getFileName().toString(), names);
+                        if (enchantment != null) {
+                            enchantments.put(enchantment.id(), enchantment);
+                        }
+                    });
+        } catch (Exception ignored) {
+            // Runtime config loading still reports detailed file errors after the plugin is enabled.
         }
-
-        boolean globalEnchantingTable = loadGlobalEnchantingTableFlag(dataDirectory, classLoader);
-        return new BootstrapData(globalEnchantingTable, new ArrayList<>(enchantments.values()));
     }
 
     private static boolean loadGlobalEnchantingTableFlag(Path dataDirectory, ClassLoader classLoader) {

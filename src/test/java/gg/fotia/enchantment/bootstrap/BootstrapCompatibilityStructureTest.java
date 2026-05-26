@@ -63,7 +63,32 @@ class BootstrapCompatibilityStructureTest {
         assertFalse(pom.contains("${project.artifactId}-${project.version}-paper-1.21.1"));
     }
 
+    @Test
+    void versionedBootstrapsOnlyLoadBundledDefaultsWhenExternalEnchantmentsDirectoryIsMissing() throws IOException {
+        assertBootstrapUsesExternalDirectoryAsAuthoritative(
+                "src/bootstrap/paper/v1_21_R1/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R1/PaperV1_21_R1Bootstrap.java");
+        assertBootstrapUsesExternalDirectoryAsAuthoritative(
+                "src/bootstrap/paper/v1_21_R6/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R6/PaperV1_21_R6Bootstrap.java");
+    }
+
     private static String read(String path) throws IOException {
         return Files.readString(ROOT.resolve(path));
+    }
+
+    private static void assertBootstrapUsesExternalDirectoryAsAuthoritative(String path) throws IOException {
+        String source = read(path);
+        int externalDirectory = source.indexOf("Path externalEnchantments = dataDirectory.resolve(\"enchantments\");");
+        int externalCheck = source.indexOf("if (Files.isDirectory(externalEnchantments))", externalDirectory);
+        int externalLoad = source.indexOf("loadExternalEnchantments(externalEnchantments, names, enchantments);", externalCheck);
+        int elseBranch = source.indexOf("} else {", externalLoad);
+        int bundledLoad = source.indexOf("loadBundledDefaultEnchantments(classLoader, names, enchantments);", elseBranch);
+        int bootstrapDataReturn = source.indexOf("return new BootstrapData", bundledLoad);
+
+        assertTrue(externalDirectory >= 0, path + " must resolve the external enchantments directory");
+        assertTrue(externalCheck > externalDirectory, path + " must check the external directory before loading defaults");
+        assertTrue(externalLoad > externalCheck, path + " must load external enchantments when the directory exists");
+        assertTrue(elseBranch > externalLoad, path + " must keep bundled defaults in the missing-directory branch");
+        assertTrue(bundledLoad > elseBranch, path + " must load bundled defaults only when the directory is missing");
+        assertTrue(bootstrapDataReturn > bundledLoad, path + " must finish bootstrap data after choosing one source");
     }
 }
