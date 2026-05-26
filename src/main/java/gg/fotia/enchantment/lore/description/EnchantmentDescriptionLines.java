@@ -57,6 +57,7 @@ public final class EnchantmentDescriptionLines {
 
     private static Map<String, String> descriptionPlaceholders(EnchantmentData data, int level) {
         Map<String, String> placeholders = new LinkedHashMap<>();
+        Map<String, Integer> placeholderIndexes = new LinkedHashMap<>();
         putPlaceholder(placeholders, "level", String.valueOf(level));
         if (data == null || data.getEffects().isEmpty()) {
             return placeholders;
@@ -66,51 +67,61 @@ public final class EnchantmentDescriptionLines {
             if (!blockAppliesToLevel(block, level)) {
                 continue;
             }
-            collectConditionPlaceholders(placeholders, block, level);
-            collectActionPlaceholders(placeholders, block, level);
+            collectConditionPlaceholders(placeholders, placeholderIndexes, block, level);
+            collectActionPlaceholders(placeholders, placeholderIndexes, block, level);
         }
         return placeholders;
     }
 
     private static void collectConditionPlaceholders(
             Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
             EnchantmentData.EffectBlock block,
             int level
     ) {
         for (EnchantmentData.ConditionConfig condition : block.getConditions()) {
             String type = condition.getType() == null ? "" : condition.getType().toLowerCase(Locale.ROOT);
             if ("chance".equals(type)) {
-                putPlaceholder(placeholders, "chance", evaluatedValue(condition.getValue(), level));
+                putNumberedPlaceholder(placeholders, placeholderIndexes, "chance",
+                        evaluatedValue(condition.getValue(), level));
             }
             for (Map.Entry<String, Object> entry : condition.getExtraParamsView().entrySet()) {
-                putPlaceholder(placeholders, entry.getKey(), evaluatedValue(entry.getValue(), level));
+                putNumberedPlaceholder(placeholders, placeholderIndexes, entry.getKey(),
+                        evaluatedValue(entry.getValue(), level));
             }
         }
     }
 
     private static void collectActionPlaceholders(
             Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
             EnchantmentData.EffectBlock block,
             int level
     ) {
         for (EnchantmentData.ActionConfig action : block.getActions()) {
+            String type = action.getType() == null ? "" : action.getType().toUpperCase(Locale.ROOT);
             String actionValue = null;
             if (action.getValue() != null && !action.getValue().isBlank()) {
                 actionValue = evaluatedValue(action.getValue(), level);
-                putPlaceholder(placeholders, "value", actionValue);
+                putNumberedPlaceholder(placeholders, placeholderIndexes, "value", actionValue);
             }
 
             for (Map.Entry<String, Object> entry : action.getExtraParamsView().entrySet()) {
-                putPlaceholder(placeholders, entry.getKey(), evaluatedValue(entry.getValue(), level));
+                String key = entry.getKey();
+                if (isPotionAction(type) && "amplifier".equals(normalizedKey(key))) {
+                    continue;
+                }
+                putActionParamPlaceholder(placeholders, placeholderIndexes, key,
+                        evaluatedValue(entry.getValue(), level));
             }
 
-            putActionAliases(placeholders, action, actionValue, level);
-            putDerivedAliases(placeholders);
+            putActionAliases(placeholders, placeholderIndexes, action, actionValue, level);
         }
     }
 
     private static void putActionAliases(
             Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
             EnchantmentData.ActionConfig action,
             String actionValue,
             int level
@@ -118,66 +129,95 @@ public final class EnchantmentDescriptionLines {
         String type = action.getType() == null ? "" : action.getType().toUpperCase(Locale.ROOT);
         switch (type) {
             case "DAMAGE_ADD", "TRUE_DAMAGE" -> {
-                    putPlaceholder(placeholders, "amount", actionValue);
-                    putPlaceholder(placeholders, "damage", actionValue);
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "amount", actionValue);
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "damage", actionValue);
             }
             case "HEAL" -> {
-                    putPlaceholder(placeholders, "amount", actionValue);
-                    putPercentFromActionValue(placeholders, actionValue, 5.0);
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "amount", actionValue);
+                    putPercentFromActionValue(placeholders, placeholderIndexes, actionValue, 5.0);
             }
             case "HELD_ITEM_REPAIR" ->
-                    putPlaceholder(placeholders, "amount", actionValue);
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "amount", actionValue);
             case "DAMAGE_REDUCE", "LIFESTEAL", "THORNS" ->
-                    putPlaceholder(placeholders, "percent", actionValue);
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "percent", actionValue);
             case "DAMAGE_MULTIPLY", "BONUS_DROP" ->
-                    putPlaceholder(placeholders, "multiplier", actionValue);
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "multiplier", actionValue);
             case "LAUNCH" ->
-                    putPlaceholder(placeholders, "power", actionValue);
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "power", actionValue);
             case "SPEED_BOOST" ->
-                    putDisplayedLevelFromActionValue(placeholders, "amplifier", actionValue);
+                    putDisplayedLevelFromActionValue(placeholders, placeholderIndexes, "amplifier", actionValue);
             case "IGNITE_TARGET" ->
-                    putSecondsFromActionValue(placeholders, actionValue);
+                    putDurationPlaceholders(placeholders, placeholderIndexes, actionValue);
             case "ADD_POTION_SELF", "ADD_POTION_TARGET" ->
-                    putPotionAliases(placeholders, action, level);
+                    putPotionAliases(placeholders, placeholderIndexes, action, level);
             default -> {
-                putPlaceholder(placeholders, "amount", actionValue);
-                putPlaceholder(placeholders, "damage", actionValue);
+                putNumberedPlaceholder(placeholders, placeholderIndexes, "amount", actionValue);
+                putNumberedPlaceholder(placeholders, placeholderIndexes, "damage", actionValue);
             }
+        }
+    }
+
+    private static void putActionParamPlaceholder(
+            Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
+            String key,
+            String value
+    ) {
+        String normalized = normalizedKey(key);
+        if ("duration".equals(normalized)) {
+            putDurationPlaceholders(placeholders, placeholderIndexes, value);
+            return;
+        }
+
+        putNumberedPlaceholder(placeholders, placeholderIndexes, key, value);
+        if ("max-blocks".equals(normalized.replace('_', '-'))) {
+            putNumberedPlaceholder(placeholders, placeholderIndexes, "blocks", value);
+            putNumberedPlaceholder(placeholders, placeholderIndexes, "radius", value);
         }
     }
 
     private static void putPercentFromActionValue(
             Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
             String actionValue,
             double multiplier
     ) {
         Double value = parseNumber(actionValue);
         if (value != null) {
-            putPlaceholder(placeholders, "percent", EnchantmentEffectDescriptionFormatter.number(value * multiplier));
+            putNumberedPlaceholder(placeholders, placeholderIndexes, "percent",
+                    EnchantmentEffectDescriptionFormatter.number(value * multiplier));
         }
     }
 
     private static void putDisplayedLevelFromActionValue(
             Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
             String key,
             String actionValue
     ) {
         Double value = parseNumber(actionValue);
         if (value != null) {
-            putPlaceholder(placeholders, key, EnchantmentEffectDescriptionFormatter.number(value + 1.0));
+            putNumberedPlaceholder(placeholders, placeholderIndexes, key,
+                    EnchantmentEffectDescriptionFormatter.number(value + 1.0));
         }
     }
 
-    private static void putSecondsFromActionValue(Map<String, String> placeholders, String actionValue) {
-        Double ticks = parseNumber(actionValue);
+    private static void putDurationPlaceholders(
+            Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
+            String ticksValue
+    ) {
+        putNumberedPlaceholder(placeholders, placeholderIndexes, "duration", ticksValue);
+        Double ticks = parseNumber(ticksValue);
         if (ticks != null) {
-            putPlaceholder(placeholders, "duration", EnchantmentEffectDescriptionFormatter.number(ticks));
-            putPlaceholder(placeholders, "seconds", EnchantmentEffectDescriptionFormatter.number(ticks / 20.0));
+            putNumberedPlaceholder(placeholders, placeholderIndexes, "seconds",
+                    EnchantmentEffectDescriptionFormatter.number(ticks / 20.0));
         }
     }
 
     private static void putPotionAliases(
             Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
             EnchantmentData.ActionConfig action,
             int level
     ) {
@@ -188,34 +228,13 @@ public final class EnchantmentDescriptionLines {
 
         Double amplifier = parseNumber(evaluatedValue(rawAmplifier, level));
         if (amplifier != null) {
-            setPlaceholder(placeholders, "amplifier", EnchantmentEffectDescriptionFormatter.number(amplifier + 1.0));
+            putNumberedPlaceholder(placeholders, placeholderIndexes, "amplifier",
+                    EnchantmentEffectDescriptionFormatter.number(amplifier + 1.0));
         }
     }
 
-    private static void putDerivedAliases(Map<String, String> placeholders) {
-        String duration = firstPresent(placeholders, "duration");
-        if (duration != null) {
-            Double ticks = parseNumber(duration);
-            if (ticks != null) {
-                putPlaceholder(placeholders, "seconds", EnchantmentEffectDescriptionFormatter.number(ticks / 20.0));
-            }
-        }
-
-        String maxBlocks = firstPresent(placeholders, "max-blocks", "max_blocks");
-        if (maxBlocks != null) {
-            putPlaceholder(placeholders, "blocks", maxBlocks);
-            putPlaceholder(placeholders, "radius", maxBlocks);
-        }
-    }
-
-    private static String firstPresent(Map<String, String> placeholders, String... keys) {
-        for (String key : keys) {
-            String value = placeholders.get(key);
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return null;
+    private static boolean isPotionAction(String type) {
+        return "ADD_POTION_SELF".equals(type) || "ADD_POTION_TARGET".equals(type);
     }
 
     private static boolean blockAppliesToLevel(EnchantmentData.EffectBlock block, int level) {
@@ -281,24 +300,36 @@ public final class EnchantmentDescriptionLines {
         }
     }
 
+    private static void putNumberedPlaceholder(
+            Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
+            String key,
+            String value
+    ) {
+        if (key == null || key.isBlank() || value == null) {
+            return;
+        }
+        String normalized = normalizedKey(key);
+        String indexKey = normalized.replace('_', '-');
+        int index = placeholderIndexes.merge(indexKey, 1, Integer::sum);
+        if (index == 1) {
+            putPlaceholder(placeholders, normalized, value);
+        }
+        putPlaceholder(placeholders, normalized + index, value);
+    }
+
     private static void putPlaceholder(Map<String, String> placeholders, String key, String value) {
         if (key == null || key.isBlank() || value == null) {
             return;
         }
-        String normalized = key.trim().toLowerCase(Locale.ROOT);
+        String normalized = normalizedKey(key);
         placeholders.putIfAbsent(normalized, value);
         placeholders.putIfAbsent(normalized.replace('-', '_'), value);
         placeholders.putIfAbsent(normalized.replace('_', '-'), value);
     }
 
-    private static void setPlaceholder(Map<String, String> placeholders, String key, String value) {
-        if (key == null || key.isBlank() || value == null) {
-            return;
-        }
-        String normalized = key.trim().toLowerCase(Locale.ROOT);
-        placeholders.put(normalized, value);
-        placeholders.put(normalized.replace('-', '_'), value);
-        placeholders.put(normalized.replace('_', '-'), value);
+    private static String normalizedKey(String key) {
+        return key == null ? "" : key.trim().toLowerCase(Locale.ROOT);
     }
 
     private static String renderLine(String raw, Map<String, String> placeholders) {

@@ -72,6 +72,29 @@ class EnchantmentDescriptionLinesTest {
     }
 
     @Test
+    void configuredLanguageDescriptionRendersNumberedRepeatedPlaceholders() {
+        EnchantmentData data = repeatedPlaceholderEnchant();
+
+        List<String> lines = EnchantmentDescriptionLines.customDescriptionOrGenerated(
+                List.of(
+                        "first {chance}/{chance1} for {seconds}/{seconds1}s",
+                        "second {chance2}%",
+                        "third {chance3}% for {seconds2}s"
+                ),
+                data,
+                3,
+                key -> key,
+                "missing"
+        );
+
+        assertEquals(List.of(
+                "first 20/20 for 3/3s",
+                "second 13%",
+                "third 12% for 6s"
+        ), lines);
+    }
+
+    @Test
     void generatedEffectTextIsFallbackWhenLanguageDescriptionMissing() {
         EnchantmentData data = damageEnchant();
 
@@ -133,6 +156,33 @@ class EnchantmentDescriptionLinesTest {
         block.setActions(List.of(action));
         data.setEffects(List.of(block));
         return data;
+    }
+
+    private static EnchantmentData repeatedPlaceholderEnchant() {
+        EnchantmentData data = new EnchantmentData();
+        data.setEffects(List.of(
+                potionBlock("JUMP", "20", "{level} * 20"),
+                potionBlock("TAKE_DAMAGE", "10 + {level}", null),
+                potionBlock("TAKE_DAMAGE", "{level} * 4", "{level} * 40")
+        ));
+        return data;
+    }
+
+    private static EnchantmentData.EffectBlock potionBlock(String trigger, String chanceValue, String duration) {
+        EnchantmentData.EffectBlock block = new EnchantmentData.EffectBlock();
+        block.setTrigger(trigger);
+        block.setConditions(List.of(new EnchantmentData.ConditionConfig("chance", chanceValue)));
+
+        EnchantmentData.ActionConfig potion = new EnchantmentData.ActionConfig("ADD_POTION_SELF", null);
+        Map<String, Object> params = new java.util.LinkedHashMap<>();
+        params.put("potion", "REGENERATION");
+        params.put("amplifier", 0);
+        if (duration != null) {
+            params.put("duration", duration);
+        }
+        potion.setExtraParams(params);
+        block.setActions(List.of(potion));
+        return block;
     }
 
     private static EnchantmentData healingPotionEnchant() {

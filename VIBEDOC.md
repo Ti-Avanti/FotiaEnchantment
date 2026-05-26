@@ -1265,6 +1265,30 @@ effects:
 | `{amplifier}` | 药水显示等级，插件会把配置里的 `amplifier: 0` 显示为 1 级。 |
 | `{potion}` | 药水类型原文。 |
 
+同一个附魔里如果有多个同类数值，插件会按 `effects` 中从上到下、每个动作从前到后的出现顺序生成编号占位符。未编号占位符永远等同于第一个值：
+
+| 写法 | 含义 |
+| --- | --- |
+| `{chance}` / `{chance1}` | 第一个 `chance` 条件。 |
+| `{chance2}` | 第二个 `chance` 条件。 |
+| `{chance3}` | 第三个 `chance` 条件。 |
+| `{seconds}` / `{seconds1}` | 第一个 `duration` 换算后的秒数。 |
+| `{seconds2}` | 第二个 `duration` 换算后的秒数。 |
+| `{amount2}`、`{damage2}`、`{radius2}`、`{amplifier2}` | 同类数值的第二次出现，规则同上。 |
+
+例如一个附魔有三个独立概率时，语言描述应该逐条引用对应编号，不要把所有文字都写成 `{chance}`：
+
+```yaml
+sacred_blessing:
+  name: "圣光祝福"
+  description:
+    - "跳跃时有 {chance}% 概率获得 {seconds} 秒生命恢复 I。"
+    - "受到攻击时，有 {chance2}% 概率获得瞬间治疗 II。"
+    - "受到攻击时，有 {chance3}% 概率获得 {seconds2} 秒抗性提升 I。"
+```
+
+如果某一条效果没有 `duration`，它不会生成 `{seconds}` 编号；编号只统计实际存在并能计算的同类数值。AI 必须让描述里的编号和 `effects` 里实际出现的顺序一致。
+
 动作或条件里的额外参数也可以用同名占位符读取，例如 `range: "{level} + 3"` 可以在描述里写 `{range}`。带连字符的参数同时支持下划线写法，例如 `{max-blocks}` 和 `{max_blocks}` 都可以。未知占位符会原样显示，所以 AI 不要写本文没定义、配置里也不存在的占位符。
 
 公式只支持 `{level}`、数字、空格、括号和 `+ - * /` 四则运算；不要写 `floor()`、`ceil()`、`min()`、`max()` 这类函数。

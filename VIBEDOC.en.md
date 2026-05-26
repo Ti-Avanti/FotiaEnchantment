@@ -251,6 +251,30 @@ Common description placeholders:
 | `{amplifier}` | Displayed potion level; config `amplifier: 0` displays as level 1. |
 | `{potion}` | Raw potion type. |
 
+When one enchantment has multiple values of the same kind, the plugin numbers them by encounter order in `effects`, from top to bottom and from the first action to the last action in each block. The unnumbered placeholder always means the first value:
+
+| Placeholder | Meaning |
+| --- | --- |
+| `{chance}` / `{chance1}` | First `chance` condition. |
+| `{chance2}` | Second `chance` condition. |
+| `{chance3}` | Third `chance` condition. |
+| `{seconds}` / `{seconds1}` | First calculated `duration / 20` value. |
+| `{seconds2}` | Second calculated `duration / 20` value. |
+| `{amount2}`, `{damage2}`, `{radius2}`, `{amplifier2}` | Second value of the same kind; later values follow the same rule. |
+
+For an enchantment with three independent probabilities, write each description line against the matching numbered placeholder instead of reusing `{chance}` for every line:
+
+```yaml
+sacred_blessing:
+  name: "Sacred Blessing"
+  description:
+    - "Jumping has a {chance}% chance to grant Regeneration I for {seconds}s."
+    - "Taking damage has a {chance2}% chance to grant Instant Health II."
+    - "Taking damage has a {chance3}% chance to grant Resistance I for {seconds2}s."
+```
+
+If one effect has no `duration`, it does not consume a `{secondsN}` slot. Numbering only counts values that actually exist and can be calculated. Keep description numbering aligned with the order of the real `effects` entries.
+
 Extra action or condition params can also be referenced by the same key. For example, `range: "{level} + 3"` can be displayed with `{range}`. Hyphen and underscore forms are both accepted for the same key. Unknown placeholders stay visible, so do not invent placeholders that are not listed here and not present in the effect params.
 
 Formulas support `{level}`, numbers, spaces, parentheses, and `+ - * /` only. Do not use functions such as `floor()`, `ceil()`, `min()`, or `max()`.
