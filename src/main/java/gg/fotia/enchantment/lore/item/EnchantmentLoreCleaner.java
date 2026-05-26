@@ -6,7 +6,7 @@ import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.PDCManager;
-import gg.fotia.enchantment.lore.description.EnchantmentEffectDescriptionFormatter;
+import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -142,18 +142,14 @@ public final class EnchantmentLoreCleaner {
 
     private static List<String> descriptionLines(FotiaEnchantment plugin, Player player, LoreEntry entry) {
         if (entry.custom()) {
-            if (entry.data() != null) {
-                List<String> generated = EnchantmentEffectDescriptionFormatter.renderLines(
-                        entry.data(),
-                        entry.level(),
-                        key -> plugin.getLanguageManager().getGUIText(player, key)
-                );
-                if (!generated.isEmpty()) {
-                    return generated;
-                }
-            }
             List<String> description = plugin.getLanguageManager().getEnchantDescription(player, entry.id());
-            return description.isEmpty() ? List.of("Unconfigured enchantment description.") : description;
+            return EnchantmentDescriptionLines.customDescriptionOrGenerated(
+                    description,
+                    entry.data(),
+                    entry.level(),
+                    key -> plugin.getLanguageManager().getGUIText(player, key),
+                    "Unconfigured enchantment description."
+            );
         }
 
         VanillaOverride override = vanillaOverride(plugin, entry.id());

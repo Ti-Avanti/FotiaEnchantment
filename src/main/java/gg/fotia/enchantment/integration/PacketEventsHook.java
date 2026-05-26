@@ -17,7 +17,7 @@ import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
-import gg.fotia.enchantment.lore.description.EnchantmentEffectDescriptionFormatter;
+import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
 import gg.fotia.enchantment.lore.item.EnchantmentGeneratedLoreStripper;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreFormatter;
 import gg.fotia.enchantment.util.LegacyColorConverter;
@@ -330,18 +330,14 @@ public class PacketEventsHook {
 
     private List<String> descriptionLines(Player player, LoreEntry entry) {
         if (entry.custom()) {
-            if (entry.data() != null) {
-                List<String> generated = EnchantmentEffectDescriptionFormatter.renderLines(
-                        entry.data(),
-                        entry.level(),
-                        key -> plugin.getLanguageManager().getGUIText(player, key)
-                );
-                if (!generated.isEmpty()) {
-                    return generated;
-                }
-            }
             List<String> description = plugin.getLanguageManager().getEnchantDescription(player, entry.id());
-            return description.isEmpty() ? List.of("未配置附魔描述。") : description;
+            return EnchantmentDescriptionLines.customDescriptionOrGenerated(
+                    description,
+                    entry.data(),
+                    entry.level(),
+                    key -> plugin.getLanguageManager().getGUIText(player, key),
+                    "未配置附魔描述。"
+            );
         }
 
         VanillaOverride override = vanillaOverride(entry.id());

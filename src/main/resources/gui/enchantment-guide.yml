@@ -88,6 +88,8 @@ items:
       - "lang:guide-gui.applicable-line"
       - "{curse_line}"
       - ""
+      - "{description_lines}"
+      - ""
       - "{effect_lines}"
     description-line: "<!i><dark_gray>  - <gray>{description}"
     effect-action-line: "lang:guide-gui.effect-action-line"

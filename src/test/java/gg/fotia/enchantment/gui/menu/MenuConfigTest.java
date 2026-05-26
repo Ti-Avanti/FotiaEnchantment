@@ -124,8 +124,8 @@ class MenuConfigTest {
         assertEquals(Material.ENCHANTED_BOOK, item.material());
         assertEquals("lang:guide-gui.enchantment-name", item.name());
         assertTrue(item.glow());
+        assertTrue(item.lore().contains("{description_lines}"));
         assertTrue(item.lore().contains("{effect_lines}"));
-        assertFalse(item.lore().contains("{description_lines}"));
     }
 
     @Test

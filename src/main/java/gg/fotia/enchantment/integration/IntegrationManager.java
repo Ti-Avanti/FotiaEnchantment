@@ -2,6 +2,7 @@ package gg.fotia.enchantment.integration;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import org.bukkit.Bukkit;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.logging.Logger;
 
@@ -23,6 +24,8 @@ public class IntegrationManager {
     private MythicMobsHook mythicMobsHook;
     private PacketEventsHook packetEventsHook;
     private PlaceholderAPIHook placeholderAPIHook;
+    private BukkitTask packetEventsRetryTask;
+    private int packetEventsRetryAttempts;
 
     public IntegrationManager(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -80,6 +83,10 @@ public class IntegrationManager {
      * 关闭所有集成
      */
     public void shutdown() {
+        if (packetEventsRetryTask != null) {
+            packetEventsRetryTask.cancel();
+            packetEventsRetryTask = null;
+        }
         if (packetEventsHook != null) {
             packetEventsHook.shutdown();
         }
@@ -108,23 +115,55 @@ public class IntegrationManager {
     }
 
     private void initPacketEventsHook() {
-        if (packetEventsHook != null && packetEventsHook.isAvailable()) {
+        if (tryInitPacketEventsHook()) {
             return;
         }
-        if (Bukkit.getPluginManager().isPluginEnabled("packetevents")) {
-            packetEventsHook = new PacketEventsHook(plugin);
-            packetEventsHook.init();
+
+        if (packetEventsRetryTask != null) {
             return;
         }
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (packetEventsHook != null && packetEventsHook.isAvailable()) {
+
+        packetEventsRetryAttempts = 0;
+        packetEventsRetryTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            packetEventsRetryAttempts++;
+            if (tryInitPacketEventsHook()) {
+                cancelPacketEventsRetry();
                 return;
             }
-            if (Bukkit.getPluginManager().isPluginEnabled("packetevents")) {
-                packetEventsHook = new PacketEventsHook(plugin);
-                packetEventsHook.init();
+            if (packetEventsRetryAttempts >= 30) {
+                logger.warning("检测到 PacketEvents 已安装，但等待启用超时，已跳过 PacketEvents 集成。");
+                cancelPacketEventsRetry();
             }
-        });
+        }, 1L, 20L);
+    }
+
+    private boolean tryInitPacketEventsHook() {
+        if (packetEventsHook != null && packetEventsHook.isAvailable()) {
+            return true;
+        }
+        if (!Bukkit.getPluginManager().isPluginEnabled("packetevents")) {
+            return false;
+        }
+        try {
+            packetEventsHook = new PacketEventsHook(plugin);
+            packetEventsHook.init();
+            if (packetEventsHook.isAvailable()) {
+                return true;
+            }
+            packetEventsHook = null;
+            return false;
+        } catch (LinkageError | RuntimeException e) {
+            packetEventsHook = null;
+            logger.warning("检测到 PacketEvents，但初始化集成失败: " + e.getMessage());
+            return true;
+        }
+    }
+
+    private void cancelPacketEventsRetry() {
+        if (packetEventsRetryTask != null) {
+            packetEventsRetryTask.cancel();
+            packetEventsRetryTask = null;
+        }
     }
 
     // ==================== Getter ====================

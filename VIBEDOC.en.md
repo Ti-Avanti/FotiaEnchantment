@@ -25,6 +25,15 @@ Output YAML snippets by file path. Keep YAML as UTF-8 without BOM.
 - If `obtain.villager-trade: false`, `villager-trade-price-range` is ignored by the plugin. If villager trading is enabled or not explicitly disabled, `villager-trade-price-range` must be a two-integer list such as `[16, 40]` or a block list. Do not write `min` / `max`.
 - `conflicts` may only reference existing enchantment IDs, IDs generated in the same answer, or IDs the user explicitly told you to keep. If unsure, write `conflicts: []`.
 
+## Log Triage Boundary
+
+When a user provides a server log and asks whether it is an enchantment config issue, separate config errors from plugin jar or Paper remap cache errors first.
+
+- If the log contains `[FotiaEnchantment] 配置错误`, `位置: <config path>`, `未定义附魔`, or `conflicts 引用了未定义附魔`, inspect the enchantment YAML using this guide.
+- If the log contains `NoClassDefFoundError` or `ClassNotFoundException` for a class under `gg.fotia.enchantment.`, such as `TriggerContext`, `MenuConfig`, `PacketEventsHook`, or `FePaperCommand`, do not tell the user to edit enchantment YAML. This usually means the server loaded an incomplete plugin jar, the wrong jar, an abnormal filename, or a stale/broken Paper `.paper-remapped` cache.
+- If the jar name in the log looks like `FotiaEnchantment-1.0.6 .jar` with an extra space after the version, tell the user to stop the server, delete the bad jar and `plugins/.paper-remapped/FotiaEnchantment*.jar`, then install the official `FotiaEnchantment-<version>.jar`. The extra space is not itself a YAML config error.
+- Do not explain missing internal plugin classes as bad triggers, conditions, actions, language entries, or enchantment config.
+
 ## Naming Rules
 
 - Enchantment IDs must be lowercase snake_case, for example `resilience` or `chain_miner`.
@@ -209,6 +218,42 @@ example_enchant:
 ```
 
 Descriptions should explain the player-visible result. Do not describe config keys. If the effect has chance, duration, range, damage, healing, drop multiplier, potion amplifier, or cooldown gameplay impact, include that information in a player-friendly way.
+
+Descriptions are rendered dynamically. The plugin prefers the language file `description` for item lore and guide text, and only falls back to generated effect text when the language description is empty.
+
+Use placeholders instead of hardcoding level-scaled values:
+
+```yaml
+example_enchant:
+  name: "Example Enchant"
+  description:
+    - "Attacks have a {chance}% chance to deal {amount} bonus damage."
+    - "Range: {radius}, duration: {seconds}s, level: {level}."
+```
+
+Common description placeholders:
+
+| Placeholder | Source |
+| --- | --- |
+| `{level}` | Current enchantment level. |
+| `{chance}` | First active `chance` condition at the current level. |
+| `{value}` | First action `value` at the current level. |
+| `{amount}` | Damage, healing, repair, or similar amount; falls back to action `value` when no `amount` param exists. |
+| `{damage}` | Damage action value. |
+| `{percent}` | Percent action value such as reduction, lifesteal, or thorns. |
+| `{multiplier}` | Multiplier param or action value. |
+| `{radius}` | `radius` param, or `max-blocks` for vein mining when no radius is set. |
+| `{range}` | `range` param. |
+| `{duration}` | Raw `duration` ticks. |
+| `{seconds}` | `duration / 20`. |
+| `{power}` | `power` param or launch strength. |
+| `{max-blocks}` / `{max_blocks}` / `{blocks}` | Vein mining block count. |
+| `{amplifier}` | Displayed potion level; config `amplifier: 0` displays as level 1. |
+| `{potion}` | Raw potion type. |
+
+Extra action or condition params can also be referenced by the same key. For example, `range: "{level} + 3"` can be displayed with `{range}`. Hyphen and underscore forms are both accepted for the same key. Unknown placeholders stay visible, so do not invent placeholders that are not listed here and not present in the effect params.
+
+Formulas support `{level}`, numbers, spaces, parentheses, and `+ - * /` only. Do not use functions such as `floor()`, `ceil()`, `min()`, or `max()`.
 
 ## Scope Boundary
 

@@ -165,10 +165,11 @@ public class EnchantmentGuideGUI extends BaseGUI {
         listPlaceholders.put("curse_line", data.isCurse()
                 ? List.of(lang("guide-gui.curse-line"))
                 : Collections.emptyList());
-        listPlaceholders.put("description_lines", Collections.emptyList());
+        List<String> descriptionLines = descriptionLines(data);
+        listPlaceholders.put("description_lines", descriptionLines);
         List<String> effectLines = effectLinesWithLabel(effectLines(data));
         listPlaceholders.put("effect_lines", effectLines);
-        listPlaceholders.put("trigger_lines", effectLines);
+        listPlaceholders.put("trigger_lines", descriptionLines);
         return listPlaceholders;
     }
 
@@ -180,6 +181,8 @@ public class EnchantmentGuideGUI extends BaseGUI {
                 "lang:guide-gui.max-level",
                 "lang:guide-gui.applicable-line",
                 "{curse_line}",
+                "",
+                "{description_lines}",
                 "",
                 "{effect_lines}"
         );

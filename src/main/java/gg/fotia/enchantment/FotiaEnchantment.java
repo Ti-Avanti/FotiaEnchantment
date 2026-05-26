@@ -7,6 +7,7 @@ import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.core.VanillaManager;
 import gg.fotia.enchantment.gui.GUIManager;
 import gg.fotia.enchantment.integration.IntegrationManager;
+import gg.fotia.enchantment.integration.RequiredPluginChecker;
 import gg.fotia.enchantment.item.CustomItemManager;
 import gg.fotia.enchantment.lang.LanguageManager;
 import gg.fotia.enchantment.lang.MessageHelper;
@@ -45,6 +46,10 @@ public class FotiaEnchantment extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
+
+        if (!RequiredPluginChecker.verifyOrDisable(this)) {
+            return;
+        }
 
         // 初始化配置管理器
         configManager = new ConfigManager(this);

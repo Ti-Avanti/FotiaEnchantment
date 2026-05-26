@@ -78,6 +78,7 @@ public class ConfigManager {
      */
     public void reload() {
         List<EnchantmentConfig.ConfigIssue> issues = new ArrayList<>();
+        saveDefaultGuiConfigs();
         mainConfig = loadConfig("config.yml", issues);
         rarityConfig = loadConfig("rarity.yml", issues);
         groupsConfig = loadConfig("groups.yml", issues);
@@ -142,8 +143,76 @@ public class ConfigManager {
 
     private void saveDefaultGuiConfigs() {
         for (String id : GUI_CONFIG_IDS) {
-            saveDefaultResource("gui/" + id + ".yml");
+            String resourcePath = "gui/" + id + ".yml";
+            saveDefaultResource(resourcePath);
+            refreshExistingGuiConfig(resourcePath);
         }
+    }
+
+    private void refreshExistingGuiConfig(String resourcePath) {
+        if (!"gui/enchantment-guide.yml".equals(resourcePath)) {
+            return;
+        }
+
+        File file = new File(plugin.getDataFolder(), resourcePath);
+        if (!file.exists() || !file.isFile()) {
+            return;
+        }
+
+        try {
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+            String path = "menus.enchantment-guide.items.enchantment.lore";
+            List<String> current = yaml.getStringList(path);
+            List<String> refreshed = refreshEnchantmentGuideLore(current);
+            if (refreshed != current) {
+                yaml.set(path, refreshed);
+                yaml.save(file);
+            }
+        } catch (IOException ex) {
+            plugin.getLogger().warning("无法更新图鉴 GUI 配置: " + resourcePath + "，" + ex.getMessage());
+        }
+    }
+
+    static List<String> refreshEnchantmentGuideLore(List<String> lore) {
+        if (lore == null || lore.isEmpty()) {
+            return lore;
+        }
+
+        boolean changed = false;
+        List<String> refreshed = new ArrayList<>(lore.size() + 2);
+        for (String line : lore) {
+            if (isPlaceholder(line, "trigger_lines")) {
+                refreshed.add("{description_lines}");
+                changed = true;
+            } else {
+                refreshed.add(line);
+            }
+        }
+
+        boolean hasDescriptionLines = refreshed.stream().anyMatch(line -> isPlaceholder(line, "description_lines"));
+        if (!hasDescriptionLines) {
+            int effectIndex = indexOfPlaceholder(refreshed, "effect_lines");
+            if (effectIndex >= 0) {
+                refreshed.add(effectIndex, "");
+                refreshed.add(effectIndex, "{description_lines}");
+                changed = true;
+            }
+        }
+
+        return changed ? List.copyOf(refreshed) : lore;
+    }
+
+    private static int indexOfPlaceholder(List<String> lines, String placeholder) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (isPlaceholder(lines.get(i), placeholder)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean isPlaceholder(String line, String placeholder) {
+        return line != null && line.trim().equals("{" + placeholder + "}");
     }
 
     private void loadGuiConfigs(List<EnchantmentConfig.ConfigIssue> issues) {
