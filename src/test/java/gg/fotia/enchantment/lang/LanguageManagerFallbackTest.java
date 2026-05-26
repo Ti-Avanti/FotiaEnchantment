@@ -76,6 +76,26 @@ class LanguageManagerFallbackTest {
     }
 
     @Test
+    void skipsBundledEnchantmentLanguageWhenExternalEnchantmentsAlreadyExist() {
+        assertFalse(LanguageManager.shouldMaterializeBundledLanguageResource(
+                "lang/zh_cn/enchantments.yml",
+                false
+        ));
+        assertFalse(LanguageManager.shouldMaterializeBundledLanguageResource(
+                "lang/en_us/enchantments.yml",
+                false
+        ));
+        assertTrue(LanguageManager.shouldMaterializeBundledLanguageResource(
+                "lang/zh_cn/messages.yml",
+                false
+        ));
+        assertTrue(LanguageManager.shouldMaterializeBundledLanguageResource(
+                "lang/zh_cn/enchantments.yml",
+                true
+        ));
+    }
+
+    @Test
     void bundledAdditionalLanguagesProvideRequiredFiles() {
         for (String locale : Set.of("zh_tw", "ja_jp", "ko_kr")) {
             for (String fileName : Set.of("messages", "enchantments", "items", "gui")) {

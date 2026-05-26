@@ -33,6 +33,7 @@ public class ConfigManager {
     private YamlConfiguration limitsConfig;
     private Map<String, YamlConfiguration> guiConfigs = new HashMap<>();
     private List<EnchantmentConfig.ConfigIssue> configIssues = Collections.emptyList();
+    private boolean bundledDefaultEnchantmentsInstalled;
 
     private static final List<String> GUI_CONFIG_IDS = List.of(
             "admin", "fragment-craft", "codex", "enchantment-guide", "disenchant");
@@ -46,6 +47,7 @@ public class ConfigManager {
      */
     public void loadAll() {
         List<EnchantmentConfig.ConfigIssue> issues = new ArrayList<>();
+        bundledDefaultEnchantmentsInstalled = false;
         // 保存默认配置文件
         saveDefaultResource("config.yml");
         saveDefaultResource("rarity.yml");
@@ -78,6 +80,7 @@ public class ConfigManager {
      */
     public void reload() {
         List<EnchantmentConfig.ConfigIssue> issues = new ArrayList<>();
+        bundledDefaultEnchantmentsInstalled = false;
         saveDefaultGuiConfigs();
         mainConfig = loadConfig("config.yml", issues);
         rarityConfig = loadConfig("rarity.yml", issues);
@@ -230,6 +233,7 @@ public class ConfigManager {
         if (!shouldSaveDefaultEnchantments(plugin.getDataFolder())) {
             return;
         }
+        bundledDefaultEnchantmentsInstalled = true;
         for (String resource : listBundledEnchantmentResources()) {
             saveDefaultResource(resource);
         }
@@ -339,6 +343,10 @@ public class ConfigManager {
 
     public List<EnchantmentConfig.ConfigIssue> getConfigIssues() {
         return configIssues;
+    }
+
+    public boolean wereBundledDefaultEnchantmentsInstalled() {
+        return bundledDefaultEnchantmentsInstalled;
     }
 
     /**

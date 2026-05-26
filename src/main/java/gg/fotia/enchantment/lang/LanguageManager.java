@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.lang;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.config.ConfigManager;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
@@ -96,6 +97,9 @@ public class LanguageManager {
 
     private void ensureBundledLanguageFiles() {
         for (String resourcePath : listBundledLanguageResources()) {
+            if (!shouldMaterializeBundledLanguageResource(resourcePath, wereBundledDefaultEnchantmentsInstalled())) {
+                continue;
+            }
             File file = new File(plugin.getDataFolder(), resourcePath);
             if (!file.exists()) {
                 File parent = file.getParentFile();
@@ -157,6 +161,30 @@ public class LanguageManager {
             case "guide-gui.effect-phrase-SPEED_BOOST" -> !externalValue.contains("{seconds}");
             default -> false;
         };
+    }
+
+    static boolean shouldMaterializeBundledLanguageResource(
+            String resourcePath,
+            boolean bundledDefaultEnchantmentsInstalled
+    ) {
+        if (!isEnchantmentLanguageResource(resourcePath)) {
+            return true;
+        }
+        return bundledDefaultEnchantmentsInstalled;
+    }
+
+    private static boolean isEnchantmentLanguageResource(String resourcePath) {
+        if (resourcePath == null) {
+            return false;
+        }
+        String normalized = resourcePath.replace('\\', '/').toLowerCase(Locale.ROOT);
+        return normalized.startsWith("lang/")
+                && normalized.endsWith("/enchantments.yml");
+    }
+
+    private boolean wereBundledDefaultEnchantmentsInstalled() {
+        ConfigManager configManager = plugin.getConfigManager();
+        return configManager != null && configManager.wereBundledDefaultEnchantmentsInstalled();
     }
 
     private List<String> listBundledLanguageResources() {
@@ -350,6 +378,9 @@ public class LanguageManager {
         File file = new File(plugin.getDataFolder(), resourcePath);
 
         if (!file.exists()) {
+            if (!shouldMaterializeBundledLanguageResource(resourcePath, wereBundledDefaultEnchantmentsInstalled())) {
+                return null;
+            }
             try (InputStream resource = plugin.getResource(resourcePath)) {
                 if (resource != null) {
                     File parent = file.getParentFile();
