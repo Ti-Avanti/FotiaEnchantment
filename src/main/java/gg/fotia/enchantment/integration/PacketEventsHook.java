@@ -19,12 +19,14 @@ import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
 import gg.fotia.enchantment.lore.item.EnchantmentGeneratedLoreStripper;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreFormatter;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
@@ -104,6 +106,10 @@ public class PacketEventsHook {
                 || packetType == PacketType.Play.Server.SET_PLAYER_INVENTORY;
     }
 
+    static boolean shouldDecorateForGameMode(GameMode gameMode) {
+        return gameMode != GameMode.CREATIVE && gameMode != GameMode.SPECTATOR;
+    }
+
     /**
      * 物品包监听器
      */
@@ -137,7 +143,7 @@ public class PacketEventsHook {
         private void handleSetSlot(PacketSendEvent event) {
             WrapperPlayServerSetSlot wrapper = new WrapperPlayServerSetSlot(event);
             Player player = resolvePlayer(event.getUser());
-            if (player == null) return;
+            if (player == null || !shouldDecorateForGameMode(player.getGameMode())) return;
 
             ItemStack bukkit = SpigotConversionUtil.toBukkitItemStack(wrapper.getItem());
             ItemStack modified = decorate(player, bukkit);
@@ -150,7 +156,7 @@ public class PacketEventsHook {
         private void handleWindowItems(PacketSendEvent event) {
             WrapperPlayServerWindowItems wrapper = new WrapperPlayServerWindowItems(event);
             Player player = resolvePlayer(event.getUser());
-            if (player == null) return;
+            if (player == null || !shouldDecorateForGameMode(player.getGameMode())) return;
 
             List<com.github.retrooper.packetevents.protocol.item.ItemStack> items = wrapper.getItems();
             boolean any = false;
@@ -185,7 +191,7 @@ public class PacketEventsHook {
         private void handleSetCursorItem(PacketSendEvent event) {
             WrapperPlayServerSetCursorItem wrapper = new WrapperPlayServerSetCursorItem(event);
             Player player = resolvePlayer(event.getUser());
-            if (player == null) return;
+            if (player == null || !shouldDecorateForGameMode(player.getGameMode())) return;
 
             ItemStack bukkit = SpigotConversionUtil.toBukkitItemStack(wrapper.getStack());
             ItemStack modified = decorate(player, bukkit);
@@ -198,7 +204,7 @@ public class PacketEventsHook {
         private void handleSetPlayerInventory(PacketSendEvent event) {
             WrapperPlayServerSetPlayerInventory wrapper = new WrapperPlayServerSetPlayerInventory(event);
             Player player = resolvePlayer(event.getUser());
-            if (player == null) return;
+            if (player == null || !shouldDecorateForGameMode(player.getGameMode())) return;
 
             ItemStack bukkit = SpigotConversionUtil.toBukkitItemStack(wrapper.getStack());
             ItemStack modified = decorate(player, bukkit);
@@ -243,15 +249,8 @@ public class PacketEventsHook {
             }
         }
 
-        List<Component> retainedLore = stripGeneratedLoreCopies(existingLore, generatedLore);
-        List<Component> newLore = new ArrayList<>(generatedLore);
-        if (!retainedLore.isEmpty()) {
-            newLore.add(Component.empty());
-            newLore.addAll(retainedLore);
-        }
-
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_STORED_ENCHANTS);
-        meta.lore(newLore);
+        meta.lore(EnchantmentLoreCleaner.mergeGeneratedLore(existingLore, generatedLore));
         copy.setItemMeta(meta);
         return copy;
     }

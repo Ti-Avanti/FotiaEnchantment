@@ -56,4 +56,23 @@ class EnchantmentLoreCleanerTest {
 
         assertEquals(List.of(), EnchantmentLoreCleaner.stripGeneratedLoreCopies(existing, generated));
     }
+
+    @Test
+    void prependsGeneratedLoreAndKeepsPlayerLore() {
+        List<Component> generated = List.of(
+                Component.text("Blazing Blade II"),
+                Component.text("  New description")
+        );
+        List<Component> playerLore = List.of(Component.text("player lore"));
+
+        assertEquals(
+                List.of(
+                        Component.text("Blazing Blade II"),
+                        Component.text("  New description"),
+                        Component.empty(),
+                        Component.text("player lore")
+                ),
+                EnchantmentLoreCleaner.mergeGeneratedLore(playerLore, generated)
+        );
+    }
 }

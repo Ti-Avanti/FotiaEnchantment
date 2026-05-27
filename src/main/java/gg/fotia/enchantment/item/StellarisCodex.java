@@ -3,6 +3,7 @@ package gg.fotia.enchantment.item;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentManager;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import gg.fotia.enchantment.util.ItemUtils;
 import org.bukkit.NamespacedKey;
 import net.kyori.adventure.text.Component;
@@ -200,6 +201,7 @@ public class StellarisCodex {
             applyBookAppearance(meta, enchant.getRarity());
             book.setItemMeta(meta);
         }
+        EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, book);
 
         return book;
     }

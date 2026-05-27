@@ -65,6 +65,45 @@ public final class EnchantmentLoreCleaner {
         return EnchantmentGeneratedLoreStripper.stripGeneratedLoreCopies(existingLore, generatedLore);
     }
 
+    public static List<Component> mergeGeneratedLore(List<Component> existingLore, List<Component> generatedLore) {
+        if (generatedLore == null || generatedLore.isEmpty()) {
+            return existingLore == null ? List.of() : new ArrayList<>(existingLore);
+        }
+
+        List<Component> retainedLore = stripGeneratedLoreCopies(existingLore, generatedLore);
+        List<Component> mergedLore = new ArrayList<>(generatedLore);
+        if (!retainedLore.isEmpty()) {
+            mergedLore.add(Component.empty());
+            mergedLore.addAll(retainedLore);
+        }
+        return mergedLore;
+    }
+
+    public static boolean applyGeneratedLore(FotiaEnchantment plugin, Player player, ItemStack item) {
+        if (plugin == null || item == null || item.getType().isAir() || !item.hasItemMeta()) {
+            return false;
+        }
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+
+        List<Component> generatedLore = generatedLore(plugin, player, item, meta);
+        if (generatedLore.isEmpty()) {
+            return false;
+        }
+
+        List<Component> mergedLore = mergeGeneratedLore(meta.lore(), generatedLore);
+        if (mergedLore.equals(meta.lore())) {
+            return false;
+        }
+
+        meta.lore(mergedLore);
+        item.setItemMeta(meta);
+        return true;
+    }
+
     private static List<Component> generatedLore(FotiaEnchantment plugin, Player player, ItemStack item, ItemMeta meta) {
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
         if (enchantManager == null) {

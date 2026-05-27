@@ -2,6 +2,7 @@ package gg.fotia.enchantment.integration;
 
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import net.kyori.adventure.text.Component;
+import org.bukkit.GameMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,6 +17,14 @@ class PacketEventsHookLoreDeduplicationTest {
         assertEquals(true, PacketEventsHook.shouldDecorateItemPacket(PacketType.Play.Server.WINDOW_ITEMS));
         assertEquals(true, PacketEventsHook.shouldDecorateItemPacket(PacketType.Play.Server.SET_CURSOR_ITEM));
         assertEquals(true, PacketEventsHook.shouldDecorateItemPacket(PacketType.Play.Server.SET_PLAYER_INVENTORY));
+    }
+
+    @Test
+    void skipsVisualItemPacketDecorationForCreativeAndSpectatorPlayers() {
+        assertEquals(true, PacketEventsHook.shouldDecorateForGameMode(GameMode.SURVIVAL));
+        assertEquals(true, PacketEventsHook.shouldDecorateForGameMode(GameMode.ADVENTURE));
+        assertEquals(false, PacketEventsHook.shouldDecorateForGameMode(GameMode.CREATIVE));
+        assertEquals(false, PacketEventsHook.shouldDecorateForGameMode(GameMode.SPECTATOR));
     }
 
     @Test

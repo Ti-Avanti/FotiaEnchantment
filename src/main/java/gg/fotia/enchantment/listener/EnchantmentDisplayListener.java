@@ -4,6 +4,7 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
@@ -86,9 +87,13 @@ public class EnchantmentDisplayListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onInventoryCreative(InventoryCreativeEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
+            ItemStack cursor = event.getCursor();
+            if (normalizeItem(player, cursor)) {
+                event.setCursor(cursor);
+            }
             scheduleNormalize(player);
         }
     }
@@ -130,9 +135,9 @@ public class EnchantmentDisplayListener implements Listener {
             return;
         }
 
-        boolean changed = normalizeInventory(player.getInventory());
+        boolean changed = normalizeInventory(player, player.getInventory());
         ItemStack cursor = player.getItemOnCursor();
-        if (normalizeItem(cursor)) {
+        if (normalizeItem(player, cursor)) {
             player.setItemOnCursor(cursor);
             changed = true;
         }
@@ -149,15 +154,15 @@ public class EnchantmentDisplayListener implements Listener {
             return false;
         }
 
-        boolean changed = normalizeInventory(view.getTopInventory());
+        boolean changed = normalizeInventory(player, view.getTopInventory());
         Inventory bottom = view.getBottomInventory();
         if (!(bottom.getHolder() instanceof HumanEntity)) {
-            changed |= normalizeInventory(bottom);
+            changed |= normalizeInventory(player, bottom);
         }
         return changed;
     }
 
-    private boolean normalizeInventory(Inventory inventory) {
+    private boolean normalizeInventory(Player player, Inventory inventory) {
         if (inventory == null) {
             return false;
         }
@@ -165,7 +170,7 @@ public class EnchantmentDisplayListener implements Listener {
         boolean changed = false;
         for (int slot = 0; slot < inventory.getSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
-            if (normalizeItem(stack)) {
+            if (normalizeItem(player, stack)) {
                 inventory.setItem(slot, stack);
                 changed = true;
             }
@@ -173,7 +178,7 @@ public class EnchantmentDisplayListener implements Listener {
         return changed;
     }
 
-    private boolean normalizeItem(ItemStack item) {
+    private boolean normalizeItem(Player player, ItemStack item) {
         if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
             return false;
         }
@@ -198,7 +203,12 @@ public class EnchantmentDisplayListener implements Listener {
             return false;
         }
 
-        boolean changed = false;
+        boolean changed = EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, item);
+        meta = item.getItemMeta();
+        if (meta == null) {
+            return changed;
+        }
+
         if (!meta.hasItemFlag(ItemFlag.HIDE_ENCHANTS)) {
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             changed = true;
