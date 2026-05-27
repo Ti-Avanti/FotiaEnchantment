@@ -1,11 +1,10 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.compat.BukkitAttributes;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -53,11 +52,7 @@ public class NearDeathTrigger implements Trigger, Listener {
             return;
         }
 
-        double maxHealth = 20;
-        AttributeInstance attr = player.getAttribute(Attribute.MAX_HEALTH);
-        if (attr != null) {
-            maxHealth = attr.getValue();
-        }
+        double maxHealth = BukkitAttributes.maxHealthValue(player);
         if (remaining > maxHealth * THRESHOLD) {
             return;
         }

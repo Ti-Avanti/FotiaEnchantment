@@ -1,10 +1,9 @@
 package gg.fotia.enchantment.pipeline.condition.impl;
 
+import gg.fotia.enchantment.compat.BukkitAttributes;
+import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.pipeline.condition.Condition;
 import gg.fotia.enchantment.pipeline.condition.ConditionContext;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
-import gg.fotia.enchantment.core.EnchantmentData;
 import org.bukkit.entity.LivingEntity;
 
 /**
@@ -30,8 +29,7 @@ public class TargetHealthCondition implements Condition {
         double min = context.evaluateExpression(cfg.getString("min", "0"));
         double max = context.evaluateExpression(cfg.getString("max", "100"));
 
-        AttributeInstance maxAttr = target.getAttribute(Attribute.MAX_HEALTH);
-        double maxHealth = maxAttr != null ? maxAttr.getValue() : 20.0;
+        double maxHealth = BukkitAttributes.maxHealthValue(target);
         if (maxHealth <= 0) {
             return false;
         }

@@ -1,10 +1,9 @@
 package gg.fotia.enchantment.pipeline.condition.impl;
 
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.compat.BukkitAttributes;
 import gg.fotia.enchantment.pipeline.condition.Condition;
 import gg.fotia.enchantment.pipeline.condition.ConditionContext;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 
 /**
@@ -33,8 +32,7 @@ public class HealthBelowCondition implements Condition {
         }
         double threshold = context.evaluateExpression(valueStr);
 
-        AttributeInstance maxAttr = player.getAttribute(Attribute.MAX_HEALTH);
-        double max = maxAttr != null ? maxAttr.getValue() : 20.0;
+        double max = BukkitAttributes.maxHealthValue(player);
         if (max <= 0) {
             return false;
         }

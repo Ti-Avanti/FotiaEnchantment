@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.condition.impl;
 
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.compat.BukkitAttributes;
 import gg.fotia.enchantment.integration.WorldGuardHook;
 import gg.fotia.enchantment.pipeline.condition.Condition;
 import gg.fotia.enchantment.pipeline.condition.ConditionContext;
@@ -12,8 +13,6 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Statistic;
 import org.bukkit.World;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Boss;
@@ -82,9 +81,9 @@ public class CatalogCondition implements Condition {
             case "oxygen_above" -> player.getRemainingAir() > number(context, "value", 0);
             case "oxygen_below" -> player.getRemainingAir() < number(context, "value", player.getMaximumAir());
             case "absorption_above" -> player.getAbsorptionAmount() > number(context, "value", 0);
-            case "armor_points_above" -> attribute(player, Attribute.ARMOR) > number(context, "value", 0);
-            case "armor_toughness_above" -> attribute(player, Attribute.ARMOR_TOUGHNESS) > number(context, "value", 0);
-            case "luck_above" -> attribute(player, Attribute.LUCK) > number(context, "value", 0);
+            case "armor_points_above" -> BukkitAttributes.armorValue(player) > number(context, "value", 0);
+            case "armor_toughness_above" -> BukkitAttributes.armorToughnessValue(player) > number(context, "value", 0);
+            case "luck_above" -> BukkitAttributes.luckValue(player) > number(context, "value", 0);
             case "stat_value_above" -> statistic(player, text(cfg, "stat", "value", "PLAY_ONE_MINUTE")) > number(context, "value", 0);
 
             case "is_on_ground" -> player.isOnGround();
@@ -101,7 +100,7 @@ public class CatalogCondition implements Condition {
             case "is_frozen" -> player.getFreezeTicks() > 0;
             case "velocity_below" -> player.getVelocity().length() < number(context, "value", 0);
             case "fall_distance_above" -> player.getFallDistance() > number(context, "value", 0);
-            case "movement_speed_above" -> attribute(player, Attribute.MOVEMENT_SPEED) > number(context, "value", 0);
+            case "movement_speed_above" -> BukkitAttributes.movementSpeedValue(player) > number(context, "value", 0);
             case "looking_at_block" -> lookingAtBlock(player, cfg);
 
             case "mainhand_is" -> materialMatches(player.getInventory().getItemInMainHand(), cfg);
@@ -227,14 +226,8 @@ public class CatalogCondition implements Condition {
     }
 
     private static double healthPercent(LivingEntity entity) {
-        AttributeInstance attr = entity.getAttribute(Attribute.MAX_HEALTH);
-        double max = attr == null ? 20.0D : attr.getValue();
+        double max = BukkitAttributes.maxHealthValue(entity);
         return max <= 0 ? 0 : entity.getHealth() / max * 100.0D;
-    }
-
-    private static double attribute(LivingEntity entity, Attribute attribute) {
-        AttributeInstance instance = entity.getAttribute(attribute);
-        return instance == null ? 0.0D : instance.getValue();
     }
 
     private static int statistic(Player player, String statName) {

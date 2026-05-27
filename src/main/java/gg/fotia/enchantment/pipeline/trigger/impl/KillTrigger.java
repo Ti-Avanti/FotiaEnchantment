@@ -1,10 +1,10 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.compat.BukkitAttributes;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
-import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -43,10 +43,7 @@ public class KillTrigger implements Trigger, Listener {
         Player killer = entity.getKiller();
         if (killer == null) return;
 
-        double maxHealth = 20;
-        if (entity.getAttribute(Attribute.MAX_HEALTH) != null) {
-            maxHealth = entity.getAttribute(Attribute.MAX_HEALTH).getValue();
-        }
+        double maxHealth = BukkitAttributes.maxHealthValue(entity);
 
         TriggerContext context = TriggerContext.builder()
                 .player(killer)

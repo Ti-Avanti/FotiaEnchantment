@@ -1,8 +1,9 @@
 package gg.fotia.enchantment.pipeline.condition.impl;
 
+import gg.fotia.enchantment.compat.BukkitAttributes;
+import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.pipeline.condition.Condition;
 import gg.fotia.enchantment.pipeline.condition.ConditionContext;
-import gg.fotia.enchantment.core.EnchantmentData;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EntityEquipment;
@@ -35,9 +36,7 @@ public class TargetArmorPointsCondition implements Condition {
 
         double armor;
         if (target instanceof Player p) {
-            armor = p.getAttribute(org.bukkit.attribute.Attribute.ARMOR) != null
-                    ? p.getAttribute(org.bukkit.attribute.Attribute.ARMOR).getValue()
-                    : 0;
+            armor = BukkitAttributes.armorValue(p);
         } else {
             armor = computeFromEquipment(target.getEquipment());
         }
