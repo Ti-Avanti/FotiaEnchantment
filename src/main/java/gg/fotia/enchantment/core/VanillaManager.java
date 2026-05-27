@@ -115,13 +115,41 @@ public class VanillaManager implements Listener {
             return enchant.canEnchantItem(item);
         }
         // 使用配置的适用物品类型
-        String itemType = item.getType().name().toUpperCase(Locale.ROOT);
         for (String applicable : override.getApplicableItems()) {
-            if (itemType.contains(applicable.toUpperCase(Locale.ROOT))) {
+            if (matchesApplicableItemToken(item.getType(), applicable)) {
                 return true;
             }
         }
         return false;
+    }
+
+    static boolean matchesApplicableItemToken(Material itemType, String configuredToken) {
+        if (itemType == null || configuredToken == null) {
+            return false;
+        }
+
+        String token = configuredToken.trim().toUpperCase(Locale.ROOT);
+        if (token.isEmpty()) {
+            return false;
+        }
+
+        String itemName = itemType.name();
+        if (itemName.equals(token)) {
+            return true;
+        }
+
+        return switch (token) {
+            case "SWORD" -> itemName.endsWith("_SWORD");
+            case "AXE" -> itemName.endsWith("_AXE");
+            case "PICKAXE" -> itemName.endsWith("_PICKAXE");
+            case "SHOVEL" -> itemName.endsWith("_SHOVEL");
+            case "HOE" -> itemName.endsWith("_HOE");
+            case "HELMET" -> itemName.endsWith("_HELMET");
+            case "CHESTPLATE" -> itemName.endsWith("_CHESTPLATE");
+            case "LEGGINGS" -> itemName.endsWith("_LEGGINGS");
+            case "BOOTS" -> itemName.endsWith("_BOOTS");
+            default -> false;
+        };
     }
 
     /**
