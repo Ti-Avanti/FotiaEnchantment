@@ -54,19 +54,30 @@ public class StellarisCodex {
      * @return 生成的附魔书，失败返回null
      */
     public ItemStack reveal(Player player, ItemStack codex) {
-        String rarity = itemManager.getCodexRarity(codex);
-        if (rarity == null) {
+        String rawRarity = itemManager.getCodexRarity(codex);
+        if (rawRarity == null) {
+            plugin.getMessageHelper().sendMessage(player, "codex-reveal-invalid");
             return null;
         }
 
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
+        String rarity = resolveCodexRarity(rawRarity, enchantManager);
+        if (rarity == null) {
+            plugin.getMessageHelper().sendMessage(player, "codex-reveal-invalid");
+            return null;
+        }
+
         String enchantId = enchantManager.rollCodex(rarity);
         if (enchantId == null) {
+            sendEmptyPoolMessage(player, rawRarity, rarity);
             return null;
         }
 
         EnchantmentData enchantData = enchantManager.getEnchantment(enchantId);
         if (enchantData == null) {
+            plugin.getMessageHelper().sendMessage(player, "codex-reveal-invalid");
+            plugin.getLogger().warning("星芒魔典揭示失败: 抽中的附魔不存在, enchant=" + enchantId
+                    + ", rarity=" + rarity);
             return null;
         }
 
@@ -185,6 +196,42 @@ public class StellarisCodex {
 
         // 通过PDC存储附魔数据
         plugin.getEnchantmentManager().getPdcManager().addEnchantment(book, enchant.getId(), level);
+        updateEnchantedBookDisplay(player, book, enchant, level);
+
+        return book;
+    }
+
+    private String resolveCodexRarity(String rawRarity, EnchantmentManager enchantManager) {
+        return CodexRarityResolver.resolve(
+                rawRarity,
+                rarity -> !enchantManager.getCodexPool(rarity).isEmpty(),
+                rarity -> plugin.getConfigManager().getRarityConfig().isConfigurationSection(rarity)
+        );
+    }
+
+    private void sendEmptyPoolMessage(Player player, String rawRarity, String rarity) {
+        String rarityName = itemManager.getRarityDisplayName(player, rarity);
+        if (rarityName == null || rarityName.equals("rarity-" + rarity)) {
+            rarityName = rarity;
+        }
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("rarity", rarity);
+        placeholders.put("raw_rarity", rawRarity);
+        placeholders.put("rarity_name", rarityName);
+
+        plugin.getMessageHelper().sendMessage(player, "codex-reveal-empty-pool", placeholders);
+        String alias = CodexRarityResolver.isAliasResult(rawRarity, rarity)
+                ? " (resolved from " + rawRarity + ")"
+                : "";
+        plugin.getLogger().warning("星芒魔典揭示失败: 品质 " + rarity + alias
+                + " 没有可抽取的附魔, 请检查 enchantments 目录中附魔配置的 codex-pools。");
+    }
+
+    public void updateEnchantedBookDisplay(Player player, ItemStack book, EnchantmentData enchant, int level) {
+        if (book == null || enchant == null || book.getType() != Material.ENCHANTED_BOOK) {
+            return;
+        }
 
         // 设置显示名称和lore
         String enchantName = plugin.getLanguageManager().getEnchantName(player, enchant.getId());
@@ -202,8 +249,6 @@ public class StellarisCodex {
             book.setItemMeta(meta);
         }
         EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, book);
-
-        return book;
     }
 
     private void applyBookAppearance(ItemMeta meta, String rarity) {

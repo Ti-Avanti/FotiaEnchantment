@@ -142,7 +142,7 @@ public class EnchantListener implements Listener {
         if (second.getType() != Material.ENCHANTED_BOOK) {
             return;
         }
-        Map<String, Integer> bookEnchants = pdc.getLegacyEnchantments(second);
+        Map<String, Integer> bookEnchants = pdc.getEnchantments(second);
         if (bookEnchants.isEmpty()) {
             return;
         }
@@ -159,46 +159,49 @@ public class EnchantListener implements Listener {
             event.setResult(null);
             return;
         }
-        Map<String, Integer> existing = pdc.getEnchantments(result);
-        int currentCount = EnchantmentLimitPolicy.countEnchantments(result, pdc);
-        boolean modified = false;
-
-        for (Map.Entry<String, Integer> entry : bookEnchants.entrySet()) {
-            String id = entry.getKey();
-            int level = entry.getValue();
-
-            EnchantmentData data = enchantManager.getEnchantment(id);
-            if (data == null || !data.isEnabled()) continue;
-            if (!data.getObtain().isAnvil()) continue;
-            if (!pdc.isApplicable(result, data)) continue;
-            if (pdc.hasConflict(result, data)) continue;
-
-            int existingLevel = existing.getOrDefault(id, 0);
-            int newLevel;
-            if (existingLevel == 0) {
-                if (!EnchantmentLimitPolicy.canAddNewEnchantment(currentCount, max)) continue;
-                newLevel = level;
-                currentCount++;
-            } else if (existingLevel == level) {
-                newLevel = Math.min(level + 1, data.getMaxLevel());
-                if (newLevel == existingLevel) continue;
-            } else {
-                newLevel = Math.max(existingLevel, level);
-                if (newLevel == existingLevel) continue;
+        ItemStack mergeTarget = result;
+        Map<String, Integer> existing = pdc.getEnchantments(mergeTarget);
+        AnvilCustomEnchantMerge.Result merge = AnvilCustomEnchantMerge.merge(
+                existing,
+                bookEnchants,
+                enchantManager::getEnchantment,
+                data -> pdc.isApplicable(mergeTarget, data),
+                mergeTarget.getType() == Material.ENCHANTED_BOOK,
+                EnchantmentLimitPolicy.countEnchantments(mergeTarget, pdc),
+                max
+        );
+        if (merge.modified()) {
+            for (Map.Entry<String, Integer> entry : merge.enchantments().entrySet()) {
+                pdc.addEnchantment(result, entry.getKey(), entry.getValue());
             }
-
-            pdc.addEnchantment(result, id, newLevel);
-            modified = true;
-        }
-
-        if (modified) {
             HumanEntity viewer = event.getView().getPlayer();
-            if (viewer instanceof Player player) {
-                EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, result);
+            Player player = viewer instanceof Player p ? p : null;
+            if (!updateSingleBookDisplay(player, result, merge.enchantments(), enchantManager)) {
+                EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, result);
             }
             event.setResult(result);
             event.getView().setRepairCost(Math.max(1, event.getView().getRepairCost()));
         }
+    }
+
+    private boolean updateSingleBookDisplay(Player player,
+                                            ItemStack result,
+                                            Map<String, Integer> enchantments,
+                                            EnchantmentManager enchantManager) {
+        if (result == null || result.getType() != Material.ENCHANTED_BOOK || enchantments.size() != 1) {
+            return false;
+        }
+        if (plugin.getCustomItemManager() == null || plugin.getCustomItemManager().getStellarisCodex() == null) {
+            return false;
+        }
+        Map.Entry<String, Integer> entry = enchantments.entrySet().iterator().next();
+        EnchantmentData data = enchantManager.getEnchantment(entry.getKey());
+        if (data == null) {
+            return false;
+        }
+        plugin.getCustomItemManager().getStellarisCodex()
+                .updateEnchantedBookDisplay(player, result, data, entry.getValue());
+        return true;
     }
 
     private EnchantmentData pickWeighted(List<EnchantmentData> list,

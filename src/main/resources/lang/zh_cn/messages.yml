@@ -53,6 +53,8 @@ info-conflicts: "  <!i><gray>冲突: <white>{conflicts}"
 # 道具消息
 # EN: Item messages
 codex-reveal-success: "{prefix}<!i><green>揭示成功！获得附魔: {rarity_color}{enchant_name} {level}"
+codex-reveal-invalid: "{prefix}<!i><red>这本星芒魔典缺少有效品质数据，无法揭示"
+codex-reveal-empty-pool: "{prefix}<!i><red>品质 <gold>{rarity_name}</gold> 当前没有可抽取的附魔，请检查附魔配置里的 <yellow>codex-pools</yellow>"
 codex-craft-success: "{prefix}<!i><green>合成成功！获得 {rarity_color}{rarity_name} <!i><green>星芒魔典"
 disenchant-success: "{prefix}<!i><green>拆卸成功！获得附魔书: <gold>{enchant_name} {level}</gold>"
 disenchant-fail: "{prefix}<!i><red>拆卸失败..."

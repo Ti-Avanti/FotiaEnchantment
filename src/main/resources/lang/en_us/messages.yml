@@ -46,6 +46,8 @@ info-conflicts: "  <!i><gray>Conflicts: <white>{conflicts}"
 
 # Item messages
 codex-reveal-success: "{prefix}<!i><green>Reveal successful! Obtained enchantment: {rarity_color}{enchant_name} {level}"
+codex-reveal-invalid: "{prefix}<!i><red>This Stellaris Codex is missing valid rarity data and cannot be revealed"
+codex-reveal-empty-pool: "{prefix}<!i><red>Rarity <gold>{rarity_name}</gold> has no available codex enchantments. Check <yellow>codex-pools</yellow> in enchantment configs"
 codex-craft-success: "{prefix}<!i><green>Crafting successful! Obtained {rarity_color}{rarity_name} <!i><green>Stellaris Codex"
 disenchant-success: "{prefix}<!i><green>Disenchant successful! Obtained book: <gold>{enchant_name} {level}</gold>"
 disenchant-fail: "{prefix}<!i><red>Disenchant failed..."

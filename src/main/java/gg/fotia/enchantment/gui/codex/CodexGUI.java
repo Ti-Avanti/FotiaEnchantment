@@ -4,6 +4,7 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.gui.BaseGUI;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
+import gg.fotia.enchantment.item.CodexRarityResolver;
 import gg.fotia.enchantment.item.CustomItemManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -52,7 +53,8 @@ public class CodexGUI extends BaseGUI {
         Map<String, List<String>> listPlaceholders = new HashMap<>();
         listPlaceholders.put("quality_line", Collections.emptyList());
 
-        String rarity = plugin.getCustomItemManager().getCodexRarity(codex);
+        String rawRarity = plugin.getCustomItemManager().getCodexRarity(codex);
+        String rarity = resolveDisplayRarity(rawRarity);
         if (rarity != null) {
             YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
             String color = rarityConfig.getString(rarity + ".color", "<white>");
@@ -128,6 +130,14 @@ public class CodexGUI extends BaseGUI {
             }
         }
         return result;
+    }
+
+    private String resolveDisplayRarity(String rawRarity) {
+        return CodexRarityResolver.resolve(
+                rawRarity,
+                rarity -> !plugin.getEnchantmentManager().getCodexPool(rarity).isEmpty(),
+                rarity -> plugin.getConfigManager().getRarityConfig().isConfigurationSection(rarity)
+        );
     }
 
     private boolean isValidSlot(int slot) {
