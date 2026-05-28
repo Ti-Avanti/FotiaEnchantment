@@ -51,4 +51,66 @@ class VanillaManagerPreparedOfferSyncTest {
         assertTrue(VanillaManager.matchesApplicableItemToken(Material.DIAMOND_PICKAXE, "DIAMOND_PICKAXE"));
         assertFalse(VanillaManager.matchesApplicableItemToken(Material.DIAMOND_AXE, "DIAMOND_PICKAXE"));
     }
+
+    @Test
+    void enchantingTableWeightedPreviewRollIsStableForSameContext() {
+        int first = VanillaManager.stableEnchantingPreviewRoll(
+                64,
+                123456789,
+                Material.DIAMOND_SWORD,
+                2,
+                30,
+                15,
+                "minecraft:sharpness",
+                4
+        );
+
+        int second = VanillaManager.stableEnchantingPreviewRoll(
+                64,
+                123456789,
+                Material.DIAMOND_SWORD,
+                2,
+                30,
+                15,
+                "minecraft:sharpness",
+                4
+        );
+
+        assertTrue(first >= 0 && first < 64);
+        assertTrue(second >= 0 && second < 64);
+        assertTrue(first == second);
+    }
+
+    @Test
+    void enchantingTableWeightedPreviewRollChangesWhenEnchantingSeedChanges() {
+        int first = VanillaManager.stableEnchantingPreviewRoll(
+                64,
+                123456789,
+                Material.DIAMOND_SWORD,
+                2,
+                30,
+                15,
+                "minecraft:sharpness",
+                4
+        );
+        boolean changed = false;
+        for (int seed = 123456790; seed < 123456806; seed++) {
+            int next = VanillaManager.stableEnchantingPreviewRoll(
+                    64,
+                    seed,
+                    Material.DIAMOND_SWORD,
+                    2,
+                    30,
+                    15,
+                    "minecraft:sharpness",
+                    4
+            );
+            if (next != first) {
+                changed = true;
+                break;
+            }
+        }
+
+        assertTrue(changed);
+    }
 }

@@ -23,6 +23,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -30,7 +31,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 原版附魔覆盖管理器
@@ -186,7 +186,10 @@ public class VanillaManager implements Listener {
         }
 
         boolean useConfiguredWeights = hasConfiguredEnchantingWeights();
-        for (EnchantmentOffer offer : event.getOffers()) {
+        EnchantmentOffer[] offers = event.getOffers();
+        int enchantingSeed = event.getEnchanter().getEnchantmentSeed();
+        for (int slot = 0; slot < offers.length; slot++) {
+            EnchantmentOffer offer = offers[slot];
             if (offer == null || offer.getEnchantment() == null) {
                 continue;
             }
@@ -194,7 +197,15 @@ public class VanillaManager implements Listener {
             Enchantment current = offer.getEnchantment();
             boolean invalidOffer = isDisabled(current) || !isApplicable(current, item);
             if (invalidOffer || useConfiguredWeights) {
-                Enchantment replacement = pickEnchantingTableCandidate(item, useConfiguredWeights);
+                Enchantment replacement = pickEnchantingTableCandidate(
+                        item,
+                        useConfiguredWeights,
+                        enchantingSeed,
+                        slot,
+                        offer.getCost(),
+                        event.getEnchantmentBonus(),
+                        current,
+                        offer.getEnchantmentLevel());
                 if (replacement != null) {
                     applyOfferEnchantment(offer, replacement);
                     continue;
@@ -205,7 +216,7 @@ public class VanillaManager implements Listener {
                 clampOfferLevel(offer, current);
             }
         }
-        cachePreparedOffers(event.getEnchanter().getUniqueId(), item.getType(), event.getOffers());
+        cachePreparedOffers(event.getEnchanter().getUniqueId(), item.getType(), offers);
     }
 
     /**
@@ -365,7 +376,14 @@ public class VanillaManager implements Listener {
     /**
      * 按配置挑选一个可用于附魔台的原版候选。
      */
-    private Enchantment pickEnchantingTableCandidate(ItemStack item, boolean useConfiguredWeights) {
+    private Enchantment pickEnchantingTableCandidate(ItemStack item,
+                                                     boolean useConfiguredWeights,
+                                                     int enchantingSeed,
+                                                     int offerSlot,
+                                                     int offerCost,
+                                                     int enchantmentBonus,
+                                                     Enchantment currentOffer,
+                                                     int currentOfferLevel) {
         List<WeightedEnchantment> candidates = new ArrayList<>();
         int totalWeight = 0;
 
@@ -384,12 +402,21 @@ public class VanillaManager implements Listener {
             candidates.add(new WeightedEnchantment(enchantment, weight));
             totalWeight += weight;
         }
+        candidates.sort(Comparator.comparing(candidate -> candidate.enchantment().getKey().asString()));
 
         if (candidates.isEmpty() || totalWeight <= 0) {
             return null;
         }
 
-        int roll = ThreadLocalRandom.current().nextInt(totalWeight);
+        int roll = stableEnchantingPreviewRoll(
+                totalWeight,
+                enchantingSeed,
+                item.getType(),
+                offerSlot,
+                offerCost,
+                enchantmentBonus,
+                keyString(currentOffer),
+                currentOfferLevel);
         int cursor = 0;
         for (WeightedEnchantment candidate : candidates) {
             cursor += candidate.weight();
@@ -398,6 +425,57 @@ public class VanillaManager implements Listener {
             }
         }
         return candidates.get(candidates.size() - 1).enchantment();
+    }
+
+    static int stableEnchantingPreviewRoll(int totalWeight,
+                                           int enchantingSeed,
+                                           Material itemType,
+                                           int offerSlot,
+                                           int offerCost,
+                                           int enchantmentBonus,
+                                           String currentOfferKey,
+                                           int currentOfferLevel) {
+        if (totalWeight <= 0) {
+            return 0;
+        }
+        long hash = 0xcbf29ce484222325L;
+        hash = mix(hash, enchantingSeed);
+        hash = mix(hash, itemType == null ? "" : itemType.name());
+        hash = mix(hash, offerSlot);
+        hash = mix(hash, offerCost);
+        hash = mix(hash, enchantmentBonus);
+        hash = mix(hash, currentOfferKey == null ? "" : currentOfferKey);
+        hash = mix(hash, currentOfferLevel);
+        return (int) Math.floorMod(finalMix(hash), (long) totalWeight);
+    }
+
+    private static long mix(long hash, int value) {
+        return finalMix(hash ^ value);
+    }
+
+    private static long mix(long hash, String value) {
+        long result = hash;
+        for (int i = 0; i < value.length(); i++) {
+            result = mix(result, value.charAt(i));
+        }
+        return result;
+    }
+
+    private static long finalMix(long value) {
+        long result = value;
+        result ^= result >>> 33;
+        result *= 0xff51afd7ed558ccdL;
+        result ^= result >>> 33;
+        result *= 0xc4ceb9fe1a85ec53L;
+        result ^= result >>> 33;
+        return result;
+    }
+
+    private String keyString(Enchantment enchantment) {
+        if (enchantment == null || enchantment.getKey() == null) {
+            return "";
+        }
+        return enchantment.getKey().asString();
     }
 
     /**
