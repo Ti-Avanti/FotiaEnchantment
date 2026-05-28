@@ -1,4 +1,4 @@
-![FotiaEnchantment banner](assets/fotia-enchantment-banner.svg)
+![FotiaEnchantment banner](assets/fotia-enchantment-banner.png)
 
 # FotiaEnchantment
 
@@ -11,11 +11,11 @@ FotiaEnchantment 是一个面向 Paper / Leaf 服务器的配置驱动附魔插�
 
 ## 视觉预览
 
-![Pipeline](assets/readme-architecture.svg)
+![Pipeline](assets/readme-architecture.png)
 
-![Dynamic lore](assets/readme-lore.svg)
+![Dynamic lore](assets/readme-lore.png)
 
-![Release updater](assets/readme-release.svg)
+![Release updater](assets/readme-release.png)
 
 ## 核心特性
 

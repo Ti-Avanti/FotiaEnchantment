@@ -51,11 +51,12 @@ public final class EnchantmentGeneratedLoreStripper {
     private static Set<String> generatedDisplayBases(List<Component> generatedLore) {
         Set<String> bases = new HashSet<>();
         for (Component component : generatedLore) {
-            String plain = semanticPlain(component).trim();
-            if (plain.isEmpty() || isGeneratedDescriptionLine(plain)) {
+            String plain = semanticPlain(component);
+            String trimmed = plain.trim();
+            if (trimmed.isEmpty() || isGeneratedDescriptionLine(plain)) {
                 continue;
             }
-            bases.add(displayBase(plain));
+            bases.add(displayBase(trimmed));
         }
         return bases;
     }
@@ -72,9 +73,13 @@ public final class EnchantmentGeneratedLoreStripper {
 
         int cursor = offset + 1;
         while (cursor < lore.size()) {
-            String plain = semanticPlain(lore.get(cursor)).trim();
-            if (plain.isEmpty()) {
+            String plain = semanticPlain(lore.get(cursor));
+            String trimmed = plain.trim();
+            if (trimmed.isEmpty()) {
                 return skipSingleBlank(lore, cursor);
+            }
+            if (generatedDisplayBases.contains(displayBase(trimmed))) {
+                return cursor;
             }
             if (!isGeneratedDescriptionLine(plain)) {
                 break;
@@ -104,7 +109,14 @@ public final class EnchantmentGeneratedLoreStripper {
     }
 
     private static boolean isGeneratedDescriptionLine(String plain) {
-        return plain.startsWith("- ") || plain.startsWith(" - ");
+        if (plain == null || plain.isEmpty()) {
+            return false;
+        }
+        if (Character.isWhitespace(plain.charAt(0))) {
+            return true;
+        }
+        String trimmed = plain.trim();
+        return trimmed.startsWith("- ");
     }
 
     private static String displayBase(String plain) {

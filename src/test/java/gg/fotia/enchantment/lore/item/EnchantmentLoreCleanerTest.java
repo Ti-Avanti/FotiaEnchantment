@@ -44,6 +44,29 @@ class EnchantmentLoreCleanerTest {
     }
 
     @Test
+    void stripsStaleGeneratedLoreDescriptionsWithoutDashPrefix() {
+        List<Component> generated = List.of(
+                Component.text("Blaze Armor V"),
+                Component.text("  When hit, 27.1% chance to burn attacker."),
+                Component.text("  Also 5% chance to gain fire resistance.")
+        );
+        List<Component> playerLore = List.of(Component.text("player lore"));
+        List<Component> existing = List.of(
+                Component.text("Blaze Armor IV"),
+                Component.text("  When hit, 22.9% chance to burn attacker."),
+                Component.text("  Also 4% chance to gain fire resistance."),
+                Component.empty(),
+                Component.text("Blaze Armor III"),
+                Component.text("  When hit, 18.6% chance to burn attacker."),
+                Component.text("  Also 3% chance to gain fire resistance."),
+                Component.empty(),
+                playerLore.getFirst()
+        );
+
+        assertEquals(playerLore, EnchantmentLoreCleaner.stripGeneratedLoreCopies(existing, generated));
+    }
+
+    @Test
     void stripsStaleGeneratedLoreStoredAsJsonTextLines() {
         List<Component> generated = List.of(
                 Component.text("韧性 V"),

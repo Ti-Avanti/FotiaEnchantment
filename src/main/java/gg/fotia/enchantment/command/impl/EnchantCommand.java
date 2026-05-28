@@ -110,8 +110,8 @@ public class EnchantCommand implements SubCommand {
         }
 
         // 添加附魔
-        pdcManager.addEnchantment(item, enchantId, level);
         EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, item);
+        pdcManager.addEnchantment(item, enchantId, level);
         player.getInventory().setItemInMainHand(item);
 
         // 获取附魔显示名称
