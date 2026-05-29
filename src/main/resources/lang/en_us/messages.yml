@@ -13,6 +13,8 @@ enchant-conflict: "{prefix}<!i><red>This enchantment conflicts with <gold>{confl
 enchant-not-applicable: "{prefix}<!i><red>This enchantment cannot be applied to this item"
 max-enchants-reached: "{prefix}<!i><red>This item has reached the maximum number of enchantments (<gold>{max}</gold>)"
 group-limit-reached: "{prefix}<!i><red>This item has reached the limit for <gold>{group}</gold> group enchantments"
+enchant-slot-empty: "<!i><dark_gray>[Enchant Slot]"
+enchant-slot-summary: "<!i><dark_gray>Enchant Slots: {used}/{max}"
 
 # Permission and error messages
 no-permission: "{prefix}<!i><red>You do not have permission to do this"

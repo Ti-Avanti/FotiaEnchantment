@@ -61,4 +61,11 @@ class EnchantmentLimitPolicyTest {
         assertFalse(EnchantmentLimitPolicy.canAddNewEnchantment(2, 2));
         assertTrue(EnchantmentLimitPolicy.canAddNewEnchantment(1, 2));
     }
+
+    @Test
+    void knownItemGroupsCanDisplayEnchantSlotsBeforeAnyEnchantIsApplied() {
+        assertTrue(EnchantmentLimitPolicy.hasKnownItemGroup(Material.DIAMOND_SWORD));
+        assertTrue(EnchantmentLimitPolicy.hasKnownItemGroup(Material.BOW));
+        assertFalse(EnchantmentLimitPolicy.hasKnownItemGroup(Material.DIRT));
+    }
 }

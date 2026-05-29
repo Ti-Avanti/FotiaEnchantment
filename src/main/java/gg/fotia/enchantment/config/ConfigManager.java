@@ -4,6 +4,7 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.item.CodexCraftRarity;
 import gg.fotia.enchantment.item.CodexRarityWeights;
+import gg.fotia.enchantment.lore.item.EnchantmentSlotLore;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -373,6 +374,14 @@ public class ConfigManager {
     }
 
     /**
+     * 获取物品 lore 中附魔槽位的显示模式。
+     */
+    public String getEnchantSlotDisplayMode() {
+        return EnchantmentSlotLore.normalizeDisplayMode(
+                mainConfig.getString("item-lore.enchant-slots.display-mode", EnchantmentSlotLore.MODE_LINES));
+    }
+
+    /**
      * 获取默认语言
      */
     public String getDefaultLanguage() {
@@ -473,6 +482,10 @@ public class ConfigManager {
      */
     public int getMaxEffectsPerTick() {
         return mainConfig.getInt("performance.max-effects-per-tick", 50);
+    }
+
+    public long getItemValidityCheckInterval() {
+        return Math.max(20L, mainConfig.getLong("performance.item-validity-check-interval", 40L));
     }
 
     /**

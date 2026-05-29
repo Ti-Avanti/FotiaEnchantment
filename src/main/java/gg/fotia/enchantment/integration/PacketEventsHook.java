@@ -14,6 +14,8 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWi
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.config.VanillaConfig.VanillaOverride;
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
+import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
@@ -21,6 +23,8 @@ import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
 import gg.fotia.enchantment.lore.item.EnchantmentGeneratedLoreStripper;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreFormatter;
+import gg.fotia.enchantment.lore.item.EnchantmentRarityOrder;
+import gg.fotia.enchantment.lore.item.EnchantmentSlotLore;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.kyori.adventure.text.Component;
@@ -38,6 +42,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -232,7 +237,6 @@ public class PacketEventsHook {
         if (sourceMeta == null) return null;
 
         List<LoreEntry> entries = collectLoreEntries(item, sourceMeta, enchantManager, pdc);
-        if (entries.isEmpty()) return null;
 
         ItemStack copy = item.clone();
         ItemMeta meta = copy.getItemMeta();
@@ -242,12 +246,17 @@ public class PacketEventsHook {
         List<Component> generatedLore = new ArrayList<>();
         YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
 
+        entries.sort(loreEntryComparator(rarityConfig));
         for (LoreEntry entry : entries) {
             generatedLore.add(deserializeLoreLine(displayNameLine(player, entry, rarityConfig)));
             for (String description : descriptionLines(player, entry)) {
                 generatedLore.add(deserializeLoreLine(EnchantmentLoreFormatter.descriptionLine(description)));
             }
         }
+        for (String slotLine : slotLines(player, item, entries.size())) {
+            generatedLore.add(deserializeLoreLine(slotLine));
+        }
+        if (generatedLore.isEmpty()) return null;
 
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_STORED_ENCHANTS);
         meta.lore(EnchantmentLoreCleaner.mergeGeneratedLore(existingLore, generatedLore));
@@ -267,8 +276,11 @@ public class PacketEventsHook {
             if (id.isEmpty() || level <= 0) {
                 continue;
             }
-            entries.put("custom:" + id, new LoreEntry(id, level, true,
-                    null, enchantManager.getEnchantment(id)));
+            EnchantmentData data = enchantManager.getEnchantment(id);
+            if (!EnchantmentItemSanitizer.isValid(data, item.getType(), level)) {
+                continue;
+            }
+            entries.put("custom:" + id, new LoreEntry(id, level, true, null, data));
         }
 
         for (Map.Entry<Enchantment, Integer> entry : meta.getEnchants().entrySet()) {
@@ -287,6 +299,45 @@ public class PacketEventsHook {
         }
 
         return new ArrayList<>(entries.values());
+    }
+
+    private Comparator<LoreEntry> loreEntryComparator(YamlConfiguration rarityConfig) {
+        return Comparator
+                .comparingInt((LoreEntry entry) -> entry.custom()
+                        ? EnchantmentRarityOrder.rank(
+                                rarityConfig,
+                                entry.data() == null ? null : entry.data().getRarity())
+                        : Integer.MAX_VALUE)
+                .thenComparing(entry -> entry.custom() ? 0 : 1)
+                .thenComparing(LoreEntry::id);
+    }
+
+    private List<String> slotLines(Player player, ItemStack item, int usedSlots) {
+        if (plugin.getConfigManager() == null
+                || plugin.getLanguageManager() == null
+                || plugin.getEnchantmentManager() == null) {
+            return List.of();
+        }
+        if (usedSlots <= 0
+                && !EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
+                && plugin.getEnchantmentManager().getApplicable(item).isEmpty()) {
+            return List.of();
+        }
+        int maxSlots = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
+        String emptySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-empty");
+        if ("enchant-slot-empty".equals(emptySlot)) {
+            emptySlot = EnchantmentSlotLore.FALLBACK_EMPTY_SLOT;
+        }
+        String summarySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-summary");
+        if ("enchant-slot-summary".equals(summarySlot)) {
+            summarySlot = EnchantmentSlotLore.FALLBACK_SLOT_SUMMARY;
+        }
+        return EnchantmentSlotLore.slotLines(
+                maxSlots,
+                usedSlots,
+                plugin.getConfigManager().getEnchantSlotDisplayMode(),
+                emptySlot,
+                summarySlot);
     }
 
     private boolean isSyntheticGuiGlow(ItemMeta meta, Enchantment enchantment) {

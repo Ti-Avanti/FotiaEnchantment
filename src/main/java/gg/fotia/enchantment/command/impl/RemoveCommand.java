@@ -81,7 +81,9 @@ public class RemoveCommand implements SubCommand {
         // 移除附魔
         EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, item);
         pdcManager.removeEnchantment(item, enchantId);
+        EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, item);
         player.getInventory().setItemInMainHand(item);
+        player.updateInventory();
 
         // 获取附魔显示名称
         String enchantName = plugin.getLanguageManager().getEnchantName(player, enchantId);

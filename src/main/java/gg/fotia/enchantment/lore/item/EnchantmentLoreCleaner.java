@@ -3,6 +3,8 @@ package gg.fotia.enchantment.lore.item;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.config.VanillaConfig.VanillaOverride;
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
+import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.PDCManager;
@@ -19,6 +21,7 @@ import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -46,7 +49,7 @@ public final class EnchantmentLoreCleaner {
             return false;
         }
 
-        List<Component> generatedLore = generatedLore(plugin, player, item, meta);
+        List<Component> generatedLore = generatedLore(plugin, player, item, meta, true);
         if (generatedLore.isEmpty()) {
             return false;
         }
@@ -80,7 +83,7 @@ public final class EnchantmentLoreCleaner {
     }
 
     public static boolean applyGeneratedLore(FotiaEnchantment plugin, Player player, ItemStack item) {
-        if (plugin == null || item == null || item.getType().isAir() || !item.hasItemMeta()) {
+        if (plugin == null || item == null || item.getType().isAir()) {
             return false;
         }
 
@@ -89,7 +92,7 @@ public final class EnchantmentLoreCleaner {
             return false;
         }
 
-        List<Component> generatedLore = generatedLore(plugin, player, item, meta);
+        List<Component> generatedLore = generatedLore(plugin, player, item, meta, false);
         if (generatedLore.isEmpty()) {
             return false;
         }
@@ -104,7 +107,11 @@ public final class EnchantmentLoreCleaner {
         return true;
     }
 
-    private static List<Component> generatedLore(FotiaEnchantment plugin, Player player, ItemStack item, ItemMeta meta) {
+    private static List<Component> generatedLore(FotiaEnchantment plugin,
+                                                 Player player,
+                                                 ItemStack item,
+                                                 ItemMeta meta,
+                                                 boolean includeInvalidCustom) {
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
         if (enchantManager == null) {
             return List.of();
@@ -115,8 +122,10 @@ public final class EnchantmentLoreCleaner {
         for (Map.Entry<String, Integer> entry : pdc.getEnchantments(item).entrySet()) {
             String id = normalizeId(entry.getKey());
             int level = entry.getValue();
-            if (!id.isEmpty() && level > 0) {
-                entries.put("custom:" + id, new LoreEntry(id, level, true, null, enchantManager.getEnchantment(id)));
+            EnchantmentData data = enchantManager.getEnchantment(id);
+            if (!id.isEmpty() && level > 0
+                    && (includeInvalidCustom || EnchantmentItemSanitizer.isValid(data, item.getType(), level))) {
+                entries.put("custom:" + id, new LoreEntry(id, level, true, null, data));
             }
         }
 
@@ -129,19 +138,59 @@ public final class EnchantmentLoreCleaner {
             }
         }
 
-        if (entries.isEmpty()) {
-            return List.of();
-        }
-
         YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
         List<Component> generated = new ArrayList<>();
-        for (LoreEntry entry : entries.values()) {
+        List<LoreEntry> sortedEntries = new ArrayList<>(entries.values());
+        sortedEntries.sort(loreEntryComparator(rarityConfig));
+        for (LoreEntry entry : sortedEntries) {
             generated.add(deserialize(displayNameLine(plugin, player, entry, rarityConfig)));
             for (String description : descriptionLines(plugin, player, entry)) {
                 generated.add(deserialize(EnchantmentLoreFormatter.descriptionLine(description)));
             }
         }
+        for (String slotLine : slotLines(plugin, player, item, sortedEntries.size())) {
+            generated.add(deserialize(slotLine));
+        }
         return generated;
+    }
+
+    private static List<String> slotLines(FotiaEnchantment plugin, Player player, ItemStack item, int usedSlots) {
+        if (plugin.getConfigManager() == null
+                || plugin.getLanguageManager() == null
+                || plugin.getEnchantmentManager() == null) {
+            return List.of();
+        }
+        if (usedSlots <= 0
+                && !EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
+                && plugin.getEnchantmentManager().getApplicable(item).isEmpty()) {
+            return List.of();
+        }
+        int maxSlots = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
+        String emptySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-empty");
+        if ("enchant-slot-empty".equals(emptySlot)) {
+            emptySlot = EnchantmentSlotLore.FALLBACK_EMPTY_SLOT;
+        }
+        String summarySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-summary");
+        if ("enchant-slot-summary".equals(summarySlot)) {
+            summarySlot = EnchantmentSlotLore.FALLBACK_SLOT_SUMMARY;
+        }
+        return EnchantmentSlotLore.slotLines(
+                maxSlots,
+                usedSlots,
+                plugin.getConfigManager().getEnchantSlotDisplayMode(),
+                emptySlot,
+                summarySlot);
+    }
+
+    private static Comparator<LoreEntry> loreEntryComparator(YamlConfiguration rarityConfig) {
+        return Comparator
+                .comparingInt((LoreEntry entry) -> entry.custom()
+                        ? EnchantmentRarityOrder.rank(
+                                rarityConfig,
+                                entry.data() == null ? null : entry.data().getRarity())
+                        : Integer.MAX_VALUE)
+                .thenComparing(entry -> entry.custom() ? 0 : 1)
+                .thenComparing(LoreEntry::id);
     }
 
     private static void addVanillaEntry(Map<String, LoreEntry> entries, Enchantment enchantment, int level) {

@@ -7,6 +7,20 @@
 # EN: Maximum number of enchantments allowed on one item
 max-enchantments-per-item: 8
 
+# ============================================
+# 物品 Lore 显示
+# EN: Item lore display
+# ============================================
+item-lore:
+  enchant-slots:
+    # 附魔槽位显示模式:
+    # lines = 每个剩余槽位显示一行 [可附魔槽位]
+    # summary = 显示一行 可附魔槽位: 已用/总数
+    # EN: Enchantment slot display mode:
+    # lines = one [Enchant Slot] line for each remaining slot
+    # summary = one compact Used/Max line
+    display-mode: lines
+
 # 默认语言（玩家客户端语言无对应翻译时回退到此语言）
 # EN: Default language used when the player client language has no matching translation
 default-language: zh_cn
@@ -89,6 +103,9 @@ performance:
   # 每tick最大效果执行数，防止卡服
   # EN: Maximum effect executions per tick to reduce server lag
   max-effects-per-tick: 50
+  # 玩家物品附魔有效性异步检测间隔（tick），用于清理已删除、禁用或不再适用的自定义附魔
+  # EN: Async interval in ticks for cleaning deleted, disabled, or inapplicable custom enchantments from player items
+  item-validity-check-interval: 40
 
 # ============================================
 # 星芒魔典配置

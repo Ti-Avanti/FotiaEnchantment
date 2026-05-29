@@ -81,6 +81,10 @@ public final class EnchantmentLimitPolicy {
         return max >= 0 && count > max;
     }
 
+    public static boolean hasKnownItemGroup(Material material) {
+        return groupFor(material) != null;
+    }
+
     public static boolean canAddEnchantment(ItemStack item, PDCManager pdc, String enchantId, int max) {
         if (max < 0) {
             return true;

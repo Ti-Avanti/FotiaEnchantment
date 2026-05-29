@@ -145,7 +145,9 @@ public class GiveCommand implements SubCommand {
         // 添加附魔
         EnchantmentLoreCleaner.stripGeneratedLore(plugin, target, item);
         pdcManager.addEnchantment(item, enchantId, level);
+        EnchantmentLoreCleaner.applyGeneratedLore(plugin, target, item);
         target.getInventory().setItemInMainHand(item);
+        target.updateInventory();
 
         // 获取附魔显示名称
         String enchantName = plugin.getLanguageManager().getEnchantName(

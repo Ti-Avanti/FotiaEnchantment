@@ -115,8 +115,8 @@ public class DisenchantStone {
             return Collections.emptyList();
         }
 
-        EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, equipment);
-
+        boolean changedEquipment = false;
+        boolean strippedLore = false;
         List<ItemStack> results = new ArrayList<>();
 
         for (String enchantId : toRemove) {
@@ -127,7 +127,12 @@ public class DisenchantStone {
 
             if (success) {
                 // 成功：从装备移除附魔
+                if (!strippedLore) {
+                    EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, equipment);
+                    strippedLore = true;
+                }
                 pdcManager.removeEnchantment(equipment, enchantId);
+                changedEquipment = true;
 
                 // 生成附魔书
                 int bookLevel = keepLevel ? level : 1;
@@ -147,12 +152,20 @@ public class DisenchantStone {
                 // 失败
                 if (destroyOnFail) {
                     // 附魔被销毁
+                    if (!strippedLore) {
+                        EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, equipment);
+                        strippedLore = true;
+                    }
                     pdcManager.removeEnchantment(equipment, enchantId);
+                    changedEquipment = true;
                     plugin.getMessageHelper().sendMessage(player, "disenchant-destroyed");
                 } else {
                     plugin.getMessageHelper().sendMessage(player, "disenchant-fail");
                 }
             }
+        }
+        if (changedEquipment) {
+            EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, equipment);
         }
 
         return results;
