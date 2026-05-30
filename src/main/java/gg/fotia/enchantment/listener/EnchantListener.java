@@ -83,6 +83,12 @@ public class EnchantListener implements Listener {
                 plugin.getConfigManager().getEnchantingTableMaxChance());
 
         int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
+        int existingCount = EnchantmentLimitPolicy.countEnchantments(item, pdc);
+        EnchantmentLimitPolicy.trimPendingEnchantmentsToLimit(
+                event.getEnchantsToAdd(),
+                existingCount,
+                max,
+                event.getEnchantmentHint());
         Set<String> selectedIds = selectedCustomIds(event.getEnchantsToAdd(), pdc.getEnchantments(item));
         int currentCount = EnchantmentLimitPolicy.countEnchantments(item, pdc, event.getEnchantsToAdd());
         if (!EnchantmentLimitPolicy.canAddNewEnchantment(currentCount, max)) {

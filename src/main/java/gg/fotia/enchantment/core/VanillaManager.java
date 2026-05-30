@@ -230,7 +230,7 @@ public class VanillaManager implements Listener {
         Map<Enchantment, Integer> toAdd = event.getEnchantsToAdd();
         ItemStack item = event.getItem();
 
-        syncWithPreparedOffer(event, toAdd, item);
+        Enchantment preferred = syncWithPreparedOffer(event, toAdd, item);
 
         Iterator<Map.Entry<Enchantment, Integer>> iterator = toAdd.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -257,6 +257,13 @@ public class VanillaManager implements Listener {
             if (entry.getValue() > maxLevel) {
                 entry.setValue(maxLevel);
             }
+        }
+
+        if (item != null && plugin.getConfigManager() != null && plugin.getEnchantmentManager() != null) {
+            int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
+            PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+            int existingCount = EnchantmentLimitPolicy.countEnchantments(item, pdc);
+            EnchantmentLimitPolicy.trimPendingEnchantmentsToLimit(toAdd, existingCount, max, preferred);
         }
     }
 
@@ -518,20 +525,20 @@ public class VanillaManager implements Listener {
     /**
      * 将实际写入结果和附魔台预览保持一致。
      */
-    private void syncWithPreparedOffer(EnchantItemEvent event,
-                                       Map<Enchantment, Integer> toAdd,
-                                       ItemStack item) {
+    private Enchantment syncWithPreparedOffer(EnchantItemEvent event,
+                                              Map<Enchantment, Integer> toAdd,
+                                              ItemStack item) {
         if (event == null || toAdd == null || item == null || item.getType() == Material.AIR) {
-            return;
+            return null;
         }
         PreparedOffer selected = selectedPreparedOffer(event, item);
         if (selected == null || selected.enchantment() == null) {
-            return;
+            return null;
         }
 
         Enchantment enchantment = selected.enchantment();
         if (isDisabled(enchantment) || !isApplicable(enchantment, item)) {
-            return;
+            return null;
         }
 
         if (isMinecraftEnchantment(enchantment)) {
@@ -541,6 +548,7 @@ public class VanillaManager implements Listener {
         int startLevel = Math.max(1, enchantment.getStartLevel());
         int level = Math.max(startLevel, Math.min(selected.level(), getMaxLevel(enchantment)));
         toAdd.put(enchantment, level);
+        return enchantment;
     }
 
     private PreparedOffer selectedPreparedOffer(EnchantItemEvent event, ItemStack item) {

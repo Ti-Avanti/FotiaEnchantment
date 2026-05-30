@@ -79,6 +79,10 @@ obtain:
 # EN: Extra custom enchantment rolls for the enchanting table
 # ============================================
 enchanting-table:
+  # 自定义附魔配置中的 obtain.enchanting-table-weight 可参考：
+  # 0 = 不进入附魔台，1-3 = 极低概率，4-8 = 较低概率，9-15 = 常见，16-25 = 高频，26+ = 很容易出现。
+  # EN: Suggested obtain.enchanting-table-weight scale for custom enchantments:
+  # 0 = disabled, 1-3 = very rare, 4-8 = rare, 9-15 = common, 16-25 = frequent, 26+ = very common.
   # 单次附魔最多额外尝试抽取多少个自定义附魔；附魔等级越高实际尝试次数越多
   # EN: Maximum extra custom enchantment roll attempts per enchant; higher enchant power increases actual attempts
   custom-rolls: 3

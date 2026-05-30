@@ -18,4 +18,22 @@ class EnchantmentDisplayPolicyTest {
     void leavesPlainItemsUntouched() {
         assertFalse(EnchantmentDisplayPolicy.shouldHideNativeEnchantments(false, false, false));
     }
+
+    @Test
+    void displaysEmptySlotLoreOnlyForEligibleNonStackableItems() {
+        assertTrue(EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(0, true, 1));
+        assertFalse(EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(0, true, 64));
+        assertFalse(EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(0, false, 1));
+    }
+
+    @Test
+    void keepsSlotLoreForItemsThatAlreadyHaveEnchantments() {
+        assertTrue(EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(1, false, 64));
+    }
+
+    @Test
+    void packetDecorationDoesNotInjectSlotOnlyLoreIntoMenuItems() {
+        assertFalse(EnchantmentDisplayPolicy.shouldDecoratePacketOnlyEnchantSlotLore(0));
+        assertTrue(EnchantmentDisplayPolicy.shouldDecoratePacketOnlyEnchantSlotLore(1));
+    }
 }

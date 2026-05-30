@@ -94,15 +94,24 @@ public final class EnchantmentLoreCleaner {
 
         List<Component> generatedLore = generatedLore(plugin, player, item, meta, false);
         if (generatedLore.isEmpty()) {
+            List<Component> strippedLore = stripLeadingSlotLoreCopies(
+                    meta.lore(),
+                    potentialSlotLore(plugin, player, item));
+            if (sameLore(meta.lore(), strippedLore)) {
+                return false;
+            }
+            meta.lore(strippedLore.isEmpty() ? null : strippedLore);
+            item.setItemMeta(meta);
+            return true;
+        }
+
+        List<Component> existingLore = stripLeadingSlotLoreCopies(meta.lore(), potentialSlotLore(plugin, player, item));
+        List<Component> mergedLore = mergeGeneratedLore(existingLore, generatedLore);
+        if (sameLore(meta.lore(), mergedLore)) {
             return false;
         }
 
-        List<Component> mergedLore = mergeGeneratedLore(meta.lore(), generatedLore);
-        if (mergedLore.equals(meta.lore())) {
-            return false;
-        }
-
-        meta.lore(mergedLore);
+        meta.lore(mergedLore.isEmpty() ? null : mergedLore);
         item.setItemMeta(meta);
         return true;
     }
@@ -160,9 +169,12 @@ public final class EnchantmentLoreCleaner {
                 || plugin.getEnchantmentManager() == null) {
             return List.of();
         }
-        if (usedSlots <= 0
-                && !EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
-                && plugin.getEnchantmentManager().getApplicable(item).isEmpty()) {
+        boolean eligibleForEmptySlots = EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
+                || !plugin.getEnchantmentManager().getApplicable(item).isEmpty();
+        if (!EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(
+                usedSlots,
+                eligibleForEmptySlots,
+                item.getMaxStackSize())) {
             return List.of();
         }
         int maxSlots = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
@@ -180,6 +192,60 @@ public final class EnchantmentLoreCleaner {
                 plugin.getConfigManager().getEnchantSlotDisplayMode(),
                 emptySlot,
                 summarySlot);
+    }
+
+    private static List<Component> potentialSlotLore(FotiaEnchantment plugin, Player player, ItemStack item) {
+        if (plugin.getConfigManager() == null || plugin.getLanguageManager() == null) {
+            return List.of();
+        }
+        int maxSlots = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
+        if (maxSlots < 0) {
+            return List.of();
+        }
+
+        String emptySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-empty");
+        if ("enchant-slot-empty".equals(emptySlot)) {
+            emptySlot = EnchantmentSlotLore.FALLBACK_EMPTY_SLOT;
+        }
+        String summarySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-summary");
+        if ("enchant-slot-summary".equals(summarySlot)) {
+            summarySlot = EnchantmentSlotLore.FALLBACK_SLOT_SUMMARY;
+        }
+
+        List<Component> candidates = new ArrayList<>();
+        candidates.add(deserialize(emptySlot));
+        candidates.add(deserialize(EnchantmentSlotLore.slotLines(
+                maxSlots,
+                0,
+                EnchantmentSlotLore.MODE_SUMMARY,
+                emptySlot,
+                summarySlot).getFirst()));
+        return candidates;
+    }
+
+    private static List<Component> stripLeadingSlotLoreCopies(List<Component> existingLore,
+                                                              List<Component> slotLoreCandidates) {
+        if (existingLore == null || existingLore.isEmpty()) {
+            return List.of();
+        }
+        if (slotLoreCandidates == null || slotLoreCandidates.isEmpty()) {
+            return new ArrayList<>(existingLore);
+        }
+
+        int cursor = 0;
+        while (cursor < existingLore.size() && slotLoreCandidates.contains(existingLore.get(cursor))) {
+            cursor++;
+        }
+        if (cursor > 0 && cursor < existingLore.size() && existingLore.get(cursor).equals(Component.empty())) {
+            cursor++;
+        }
+        return new ArrayList<>(existingLore.subList(cursor, existingLore.size()));
+    }
+
+    private static boolean sameLore(List<Component> first, List<Component> second) {
+        List<Component> normalizedFirst = first == null ? List.of() : first;
+        List<Component> normalizedSecond = second == null ? List.of() : second;
+        return normalizedFirst.equals(normalizedSecond);
     }
 
     private static Comparator<LoreEntry> loreEntryComparator(YamlConfiguration rarityConfig) {

@@ -20,6 +20,7 @@ import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
+import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import gg.fotia.enchantment.lore.item.EnchantmentGeneratedLoreStripper;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreFormatter;
@@ -253,8 +254,10 @@ public class PacketEventsHook {
                 generatedLore.add(deserializeLoreLine(EnchantmentLoreFormatter.descriptionLine(description)));
             }
         }
-        for (String slotLine : slotLines(player, item, entries.size())) {
-            generatedLore.add(deserializeLoreLine(slotLine));
+        if (EnchantmentDisplayPolicy.shouldDecoratePacketOnlyEnchantSlotLore(entries.size())) {
+            for (String slotLine : slotLines(player, item, entries.size())) {
+                generatedLore.add(deserializeLoreLine(slotLine));
+            }
         }
         if (generatedLore.isEmpty()) return null;
 
@@ -318,9 +321,12 @@ public class PacketEventsHook {
                 || plugin.getEnchantmentManager() == null) {
             return List.of();
         }
-        if (usedSlots <= 0
-                && !EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
-                && plugin.getEnchantmentManager().getApplicable(item).isEmpty()) {
+        boolean eligibleForEmptySlots = EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
+                || !plugin.getEnchantmentManager().getApplicable(item).isEmpty();
+        if (!EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(
+                usedSlots,
+                eligibleForEmptySlots,
+                item.getMaxStackSize())) {
             return List.of();
         }
         int maxSlots = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());

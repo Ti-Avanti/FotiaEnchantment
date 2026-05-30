@@ -7,7 +7,6 @@ import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -26,7 +25,6 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
@@ -80,7 +78,6 @@ public class EnchantmentDisplayListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryOpen(InventoryOpenEvent event) {
         if (event.getPlayer() instanceof Player player) {
-            normalizeView(player, validityRules());
             scheduleNormalize(player);
         }
     }
@@ -188,25 +185,10 @@ public class EnchantmentDisplayListener implements Listener {
             player.setItemOnCursor(cursor);
             changed = true;
         }
-        changed |= normalizeView(player, rules);
 
         if (changed) {
             player.updateInventory();
         }
-    }
-
-    private boolean normalizeView(Player player, EnchantmentItemSanitizer.ValidityRules rules) {
-        InventoryView view = player.getOpenInventory();
-        if (view == null) {
-            return false;
-        }
-
-        boolean changed = normalizeInventory(player, view.getTopInventory(), rules);
-        Inventory bottom = view.getBottomInventory();
-        if (!(bottom.getHolder() instanceof HumanEntity)) {
-            changed |= normalizeInventory(player, bottom, rules);
-        }
-        return changed;
     }
 
     private boolean normalizeInventory(Player player,
@@ -317,15 +299,6 @@ public class EnchantmentDisplayListener implements Listener {
         ItemStack cursor = player.getItemOnCursor();
         if (cursor != null) {
             items.add(cursor.clone());
-        }
-
-        InventoryView view = player.getOpenInventory();
-        if (view != null) {
-            addInventoryContents(items, view.getTopInventory());
-            Inventory bottom = view.getBottomInventory();
-            if (!(bottom.getHolder() instanceof HumanEntity)) {
-                addInventoryContents(items, bottom);
-            }
         }
         return items;
     }

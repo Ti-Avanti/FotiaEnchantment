@@ -3,6 +3,8 @@
 # EN: Rarity tier definitions (radiance theme)
 # weight: 附魔台出现权重（越高越容易出现）
 # EN: weight: enchanting table selection weight; higher values are more likely
+# 参考值：40 常见，25 较常见，15 中等，8 稀有，2 极稀有；0 或负数表示不参与对应随机池。
+# EN: Reference scale: 40 common, 25 uncommon, 15 medium, 8 rare, 2 very rare; zero or negative disables the pool entry.
 # color: 显示颜色（MiniMessage格式）
 # EN: color: display color in MiniMessage format
 # trade-price-multiplier: 村民交易价格倍率

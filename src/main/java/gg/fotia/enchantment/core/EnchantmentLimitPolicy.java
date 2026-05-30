@@ -11,8 +11,10 @@ import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public final class EnchantmentLimitPolicy {
@@ -79,6 +81,63 @@ public final class EnchantmentLimitPolicy {
 
     public static boolean isLimitExceeded(int count, int max) {
         return max >= 0 && count > max;
+    }
+
+    public static <K> int trimPendingEnchantmentsToLimit(Map<K, Integer> pendingAdds,
+                                                         int existingCount,
+                                                         int max) {
+        return trimPendingEnchantmentsToLimit(pendingAdds, existingCount, max, null);
+    }
+
+    public static <K> int trimPendingEnchantmentsToLimit(Map<K, Integer> pendingAdds,
+                                                         int existingCount,
+                                                         int max,
+                                                         K preferredKey) {
+        if (max < 0 || pendingAdds == null || pendingAdds.isEmpty()) {
+            return 0;
+        }
+
+        int allowed = max - Math.max(0, existingCount);
+        if (allowed <= 0) {
+            int removed = pendingAdds.size();
+            pendingAdds.clear();
+            return removed;
+        }
+
+        int positiveAdds = 0;
+        for (Integer level : pendingAdds.values()) {
+            if (level != null && level > 0) {
+                positiveAdds++;
+            }
+        }
+        if (positiveAdds <= allowed) {
+            return 0;
+        }
+
+        boolean keepPreferred = preferredKey != null
+                && pendingAdds.containsKey(preferredKey)
+                && pendingAdds.get(preferredKey) != null
+                && pendingAdds.get(preferredKey) > 0;
+        int kept = keepPreferred ? 1 : 0;
+        int removed = 0;
+        Iterator<Map.Entry<K, Integer>> iterator = pendingAdds.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<K, Integer> entry = iterator.next();
+            Integer level = entry.getValue();
+            if (level == null || level <= 0) {
+                continue;
+            }
+            if (keepPreferred && Objects.equals(entry.getKey(), preferredKey)) {
+                continue;
+            }
+            if (kept < allowed) {
+                kept++;
+                continue;
+            }
+            iterator.remove();
+            removed++;
+        }
+        return removed;
     }
 
     public static boolean hasKnownItemGroup(Material material) {
