@@ -110,6 +110,7 @@ public class EnchantmentDisplayListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEnchantItem(EnchantItemEvent event) {
         scheduleNormalize(event.getEnchanter());
+        scheduleNormalizeMechanicTopInventory(event.getEnchanter(), event.getView().getTopInventory());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -124,6 +125,24 @@ public class EnchantmentDisplayListener implements Listener {
 
     private void scheduleNormalize(Player player) {
         Bukkit.getScheduler().runTask(plugin, () -> normalizePlayer(player));
+    }
+
+    private void scheduleNormalizeMechanicTopInventory(Player player, Inventory inventory) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player == null
+                    || !player.isOnline()
+                    || inventory == null
+                    || !shouldNormalizeMechanicTopInventory(inventory.getType().name())) {
+                return;
+            }
+            if (normalizeInventory(player, inventory, validityRules())) {
+                player.updateInventory();
+            }
+        });
+    }
+
+    static boolean shouldNormalizeMechanicTopInventory(String inventoryTypeName) {
+        return "ENCHANTING".equals(inventoryTypeName);
     }
 
     private void normalizeOnlinePlayers() {
