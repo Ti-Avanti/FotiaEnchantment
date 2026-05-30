@@ -40,6 +40,14 @@ class VanillaManagerPreparedOfferSyncTest {
     }
 
     @Test
+    void spearTokenMatchesSpearMaterialsOnly() {
+        Material spear = Material.valueOf("NETHERITE_SPEAR");
+
+        assertTrue(VanillaManager.matchesApplicableItemToken(spear, "SPEAR"));
+        assertFalse(VanillaManager.matchesApplicableItemToken(spear, "SWORD"));
+    }
+
+    @Test
     void bowTokenDoesNotMatchCrossbowMaterial() {
         assertTrue(VanillaManager.matchesApplicableItemToken(Material.BOW, "BOW"));
         assertFalse(VanillaManager.matchesApplicableItemToken(Material.CROSSBOW, "BOW"));

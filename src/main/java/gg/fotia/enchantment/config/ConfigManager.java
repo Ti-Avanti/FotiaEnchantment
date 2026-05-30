@@ -61,6 +61,7 @@ public class ConfigManager {
         // 保存默认原版附魔覆盖配置
         saveDefaultResource("vanilla/sharpness.yml");
         saveDefaultResource("vanilla/mending.yml");
+        saveDefaultResource("vanilla/lunge.yml");
 
         // 保存默认自定义附魔配置
         saveDefaultEnchantments();
@@ -71,6 +72,7 @@ public class ConfigManager {
         groupsConfig = loadConfig("groups.yml", issues);
         loadGuiConfigs(issues);
         limitsConfig = loadConfig("limits.yml", issues);
+        refreshAndSaveLimitsConfig(limitsConfig);
         itemsConfig = loadConfig("items/custom-items.yml", issues);
         enchantmentBooksConfig = loadConfig("items/enchantment-books.yml", issues);
         configIssues = List.copyOf(issues);
@@ -88,6 +90,7 @@ public class ConfigManager {
         groupsConfig = loadConfig("groups.yml", issues);
         loadGuiConfigs(issues);
         limitsConfig = loadConfig("limits.yml", issues);
+        refreshAndSaveLimitsConfig(limitsConfig);
         itemsConfig = loadConfig("items/custom-items.yml", issues);
         enchantmentBooksConfig = loadConfig("items/enchantment-books.yml", issues);
         configIssues = List.copyOf(issues);
@@ -225,6 +228,28 @@ public class ConfigManager {
             loaded.put(id, loadConfig("gui/" + id + ".yml", issues));
         }
         guiConfigs = Map.copyOf(loaded);
+    }
+
+    private void refreshAndSaveLimitsConfig(YamlConfiguration config) {
+        if (!refreshLimitsConfig(config)) {
+            return;
+        }
+        try {
+            config.save(new File(plugin.getDataFolder(), "limits.yml"));
+        } catch (IOException ex) {
+            plugin.getLogger().warning("无法保存附魔数量限制迁移配置: limits.yml，" + ex.getMessage());
+        }
+    }
+
+    static boolean refreshLimitsConfig(YamlConfiguration config) {
+        if (config == null || !config.isConfigurationSection("item-groups")) {
+            return false;
+        }
+        if (config.contains("item-groups.spears", true)) {
+            return false;
+        }
+        config.set("item-groups.spears", config.getInt("item-groups.tridents", 6));
+        return true;
     }
 
     /**

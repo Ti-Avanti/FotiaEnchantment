@@ -36,6 +36,15 @@ class EnchantmentLimitPolicyTest {
     }
 
     @Test
+    void groupLimitAppliesToSpearsWhenMaterialHasNoOverride() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("default-max-enchantments", 8);
+        config.set("item-groups.spears", 4);
+
+        assertEquals(4, EnchantmentLimitPolicy.resolveLimit(config, Material.valueOf("NETHERITE_SPEAR"), 10));
+    }
+
+    @Test
     void materialLimitAcceptsCommonKeyFormats() {
         YamlConfiguration config = new YamlConfiguration();
         config.set("default-max-enchantments", 8);
@@ -69,6 +78,7 @@ class EnchantmentLimitPolicyTest {
     void knownItemGroupsCanDisplayEnchantSlotsBeforeAnyEnchantIsApplied() {
         assertTrue(EnchantmentLimitPolicy.hasKnownItemGroup(Material.DIAMOND_SWORD));
         assertTrue(EnchantmentLimitPolicy.hasKnownItemGroup(Material.BOW));
+        assertTrue(EnchantmentLimitPolicy.hasKnownItemGroup(Material.valueOf("NETHERITE_SPEAR")));
         assertFalse(EnchantmentLimitPolicy.hasKnownItemGroup(Material.DIRT));
     }
 

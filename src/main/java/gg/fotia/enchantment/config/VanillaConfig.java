@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.StringJoiner;
 
 /**
@@ -28,6 +29,7 @@ public class VanillaConfig {
     /** 附魔名(小写) → 覆盖配置 */
     private final Map<String, VanillaOverride> overrides = new HashMap<>();
     private static final Map<String, VanillaText> DEFAULT_TEXTS = createDefaultTexts();
+    private static final String GENERIC_VANILLA_DESCRIPTION = "原版附魔，具体效果遵循服务器当前 Minecraft 版本。";
 
     public VanillaConfig(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -109,13 +111,44 @@ public class VanillaConfig {
         override.setDisabled(config.getBoolean("disabled", false));
         override.setMaxLevel(config.getInt("max-level", -1));
         override.setConflicts(config.getStringList("conflicts"));
-        override.setApplicableItems(config.getStringList("applicable-items"));
+        List<String> configuredApplicableItems = config.getStringList("applicable-items");
+        List<String> migratedApplicableItems = migrateApplicableItems(enchantName, configuredApplicableItems);
+        override.setApplicableItems(migratedApplicableItems);
         override.setEnchantingTableWeight(config.getInt("enchanting-table-weight", -1));
-        override.setDisplayName(config.getString("display-name", defaultDisplayName(enchantName)));
+        String configuredDisplayName = config.getString("display-name", defaultDisplayName(enchantName));
+        String migratedDisplayName = migrateDisplayName(enchantName, configuredDisplayName);
+        override.setDisplayName(migratedDisplayName);
         List<String> description = config.getStringList("description");
-        override.setDescription(description.isEmpty() ? defaultDescription(enchantName) : description);
+        List<String> configuredDescription = description.isEmpty() ? defaultDescription(enchantName) : description;
+        List<String> migratedDescription = migrateDescription(enchantName, configuredDescription);
+        override.setDescription(migratedDescription);
+
+        boolean migrated = false;
+        if (!migratedApplicableItems.equals(configuredApplicableItems)) {
+            config.set("applicable-items", migratedApplicableItems);
+            migrated = true;
+        }
+        if (!Objects.equals(migratedDisplayName, configuredDisplayName)) {
+            config.set("display-name", migratedDisplayName);
+            migrated = true;
+        }
+        if (!migratedDescription.equals(configuredDescription)) {
+            config.set("description", migratedDescription);
+            migrated = true;
+        }
+        if (migrated) {
+            saveMigratedFile(file, config);
+        }
 
         overrides.put(enchantName, override);
+    }
+
+    private void saveMigratedFile(File file, YamlConfiguration config) {
+        try {
+            config.save(file);
+        } catch (IOException ex) {
+            plugin.getLogger().warning("无法保存原版附魔迁移配置: " + file.getPath() + "，" + ex.getMessage());
+        }
     }
 
     /**
@@ -143,6 +176,62 @@ public class VanillaConfig {
      */
     public void reload() {
         loadAll();
+    }
+
+    static List<String> migrateApplicableItems(String enchantName, List<String> applicableItems) {
+        if (applicableItems == null) {
+            return new ArrayList<>();
+        }
+        if (!"sharpness".equals(normalizeEnchantKey(enchantName))) {
+            return applicableItems;
+        }
+        if (applicableItems.stream().anyMatch(item -> "SPEAR".equals(normalizeToken(item)))) {
+            return applicableItems;
+        }
+        List<String> legacyDefault = List.of("SWORD", "AXE", "MACE");
+        List<String> current = applicableItems.stream()
+                .map(VanillaConfig::normalizeToken)
+                .toList();
+        if (!current.equals(legacyDefault)) {
+            return applicableItems;
+        }
+
+        List<String> migrated = new ArrayList<>(applicableItems);
+        migrated.add("SPEAR");
+        return migrated;
+    }
+
+    static String migrateDisplayName(String enchantName, String displayName) {
+        String key = normalizeEnchantKey(enchantName);
+        if (!"lunge".equals(key)) {
+            return displayName;
+        }
+        if (displayName == null || displayName.isBlank() || displayName.equals(humanizeVanillaKey(key))) {
+            return defaultDisplayName(key);
+        }
+        return displayName;
+    }
+
+    static List<String> migrateDescription(String enchantName, List<String> description) {
+        String key = normalizeEnchantKey(enchantName);
+        if (!"lunge".equals(key)) {
+            return description == null ? new ArrayList<>() : description;
+        }
+        if (description == null || description.isEmpty()) {
+            return defaultDescription(key);
+        }
+        if (description.size() == 1 && GENERIC_VANILLA_DESCRIPTION.equals(description.get(0))) {
+            return defaultDescription(key);
+        }
+        return description;
+    }
+
+    private static String normalizeEnchantKey(String enchantName) {
+        return enchantName == null ? "" : enchantName.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeToken(String token) {
+        return token == null ? "" : token.trim().toUpperCase(Locale.ROOT);
     }
 
     // ==================== 内部数据结构 ====================
@@ -282,7 +371,7 @@ public class VanillaConfig {
         if (text != null) {
             return text.description();
         }
-        return List.of("原版附魔，具体效果遵循服务器当前 Minecraft 版本。");
+        return List.of(GENERIC_VANILLA_DESCRIPTION);
     }
 
     private static String humanizeVanillaKey(String key) {
@@ -344,6 +433,7 @@ public class VanillaConfig {
         texts.put("density", text("致密", "提高重锤下落攻击造成的伤害。"));
         texts.put("breach", text("破甲", "重锤攻击会削弱目标护甲减伤。"));
         texts.put("wind_burst", text("风爆", "重锤下落攻击命中后将玩家向上弹起。"));
+        texts.put("lunge", text("突进", "提高持矛突进攻击造成的伤害。"));
         return Collections.unmodifiableMap(texts);
     }
 

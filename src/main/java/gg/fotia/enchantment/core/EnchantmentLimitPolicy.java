@@ -235,6 +235,7 @@ public final class EnchantmentLimitPolicy {
         if (name.endsWith("_LEGGINGS")) return "leggings";
         if (name.endsWith("_BOOTS")) return "boots";
         if (name.endsWith("_SWORD")) return "swords";
+        if (name.endsWith("_SPEAR")) return "spears";
         if (name.endsWith("_AXE")) return "axes";
         if (name.endsWith("_PICKAXE")) return "pickaxes";
         if (name.endsWith("_SHOVEL")) return "shovels";

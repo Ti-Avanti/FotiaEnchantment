@@ -141,6 +141,7 @@ public class VanillaManager implements Listener {
         return switch (token) {
             case "SWORD" -> itemName.endsWith("_SWORD");
             case "AXE" -> itemName.endsWith("_AXE");
+            case "SPEAR" -> itemName.endsWith("_SPEAR");
             case "PICKAXE" -> itemName.endsWith("_PICKAXE");
             case "SHOVEL" -> itemName.endsWith("_SHOVEL");
             case "HOE" -> itemName.endsWith("_HOE");

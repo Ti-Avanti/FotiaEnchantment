@@ -41,7 +41,7 @@ class EnchantmentResourceCatalogTest {
     private static final Set<String> RARITIES = Set.of("dustlight", "moonlit", "radiant", "aureate", "divine");
     private static final Set<String> GROUPS = Set.of("fire", "ice", "lightning", "defensive", "offensive", "utility", "movement", "mining");
     private static final Set<String> ITEM_ALIASES = Set.of(
-            "SWORD", "AXE", "PICKAXE", "SHOVEL", "HOE", "BOW", "CROSSBOW", "TRIDENT",
+            "SWORD", "SPEAR", "AXE", "PICKAXE", "SHOVEL", "HOE", "BOW", "CROSSBOW", "TRIDENT",
             "FISHING_ROD", "SHIELD", "ELYTRA", "HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS");
     private static final Set<String> TRIGGERS = Set.of(
             "ANVIL_USE", "ARMOR_ABSORB", "ARROW_BOUNCE", "ASSIST", "BELL_RING", "BITE",
@@ -99,6 +99,17 @@ class EnchantmentResourceCatalogTest {
             assertTrue(zh.containsKey(id), "Missing zh_cn enchantment language entry: " + id);
             assertTrue(en.containsKey(id), "Missing en_us enchantment language entry: " + id);
         }
+    }
+
+    @Test
+    void vanillaOverrideDefaultsCoverSpearAndLungeLocalization() throws IOException {
+        Map<String, Object> sharpness = yamlMap(RESOURCES.resolve("vanilla").resolve("sharpness.yml"));
+        Map<String, Object> lunge = yamlMap(RESOURCES.resolve("vanilla").resolve("lunge.yml"));
+
+        assertTrue(list(sharpness, "applicable-items").contains("SPEAR"),
+                "Sharpness override must allow spear items");
+        assertEquals("突进", string(lunge, "display-name"));
+        assertFalse(list(lunge, "description").isEmpty(), "Lunge must have a configured description");
     }
 
     @Test
