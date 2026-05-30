@@ -28,7 +28,12 @@ class EnchantmentDisplayPolicyTest {
 
     @Test
     void keepsSlotLoreForItemsThatAlreadyHaveEnchantments() {
-        assertTrue(EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(1, false, 64));
+        assertTrue(EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(1, true, 64));
+    }
+
+    @Test
+    void doesNotDisplaySlotLoreForIneligibleItemsEvenWhenUnsafeEnchanted() {
+        assertFalse(EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(1, false, 1));
     }
 
     @Test

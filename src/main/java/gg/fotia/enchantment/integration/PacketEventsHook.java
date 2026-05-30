@@ -243,7 +243,9 @@ public class PacketEventsHook {
         ItemMeta meta = copy.getItemMeta();
         if (meta == null) return null;
 
-        List<Component> existingLore = meta.lore();
+        List<Component> existingLore = EnchantmentLoreCleaner.stripPotentialSlotLoreCopies(
+                meta.lore(),
+                EnchantmentLoreCleaner.potentialSlotLore(plugin, player, item));
         List<Component> generatedLore = new ArrayList<>();
         YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
 

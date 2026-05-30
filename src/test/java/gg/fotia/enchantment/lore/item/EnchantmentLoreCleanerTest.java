@@ -98,4 +98,29 @@ class EnchantmentLoreCleanerTest {
                 EnchantmentLoreCleaner.mergeGeneratedLore(playerLore, generated)
         );
     }
+
+    @Test
+    void replacesStaleLeadingSlotLoreWhenEnchantmentsAreAdded() {
+        Component slot = Component.text("[可附魔槽位]");
+        List<Component> generated = List.of(
+                Component.text("Fire Protection IV"),
+                slot
+        );
+        List<Component> existing = List.of(slot, slot, slot);
+
+        assertEquals(generated, EnchantmentLoreCleaner.mergeGeneratedLore(existing, generated));
+    }
+
+    @Test
+    void removesStaleLeadingSlotLoreWhenNoSlotsRemain() {
+        Component slot = Component.text("[可附魔槽位]");
+        List<Component> generated = List.of(
+                Component.text("Fire Protection IV"),
+                Component.text("Projectile Protection III"),
+                Component.text("Mending I")
+        );
+        List<Component> existing = List.of(slot, slot, slot);
+
+        assertEquals(generated, EnchantmentLoreCleaner.mergeGeneratedLore(existing, generated));
+    }
 }

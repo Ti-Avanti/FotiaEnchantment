@@ -12,6 +12,7 @@ import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
@@ -30,6 +31,7 @@ import java.util.Map;
 public final class EnchantmentLoreCleaner {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
+    private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
 
     private EnchantmentLoreCleaner() {
     }
@@ -73,7 +75,8 @@ public final class EnchantmentLoreCleaner {
             return existingLore == null ? List.of() : new ArrayList<>(existingLore);
         }
 
-        List<Component> retainedLore = stripGeneratedLoreCopies(existingLore, generatedLore);
+        List<Component> retainedLore = stripLikelyLeadingSlotLoreCopies(
+                stripGeneratedLoreCopies(existingLore, generatedLore));
         List<Component> mergedLore = new ArrayList<>(generatedLore);
         if (!retainedLore.isEmpty()) {
             mergedLore.add(Component.empty());
@@ -94,7 +97,7 @@ public final class EnchantmentLoreCleaner {
 
         List<Component> generatedLore = generatedLore(plugin, player, item, meta, false);
         if (generatedLore.isEmpty()) {
-            List<Component> strippedLore = stripLeadingSlotLoreCopies(
+            List<Component> strippedLore = stripPotentialSlotLoreCopies(
                     meta.lore(),
                     potentialSlotLore(plugin, player, item));
             if (sameLore(meta.lore(), strippedLore)) {
@@ -105,7 +108,7 @@ public final class EnchantmentLoreCleaner {
             return true;
         }
 
-        List<Component> existingLore = stripLeadingSlotLoreCopies(meta.lore(), potentialSlotLore(plugin, player, item));
+        List<Component> existingLore = stripPotentialSlotLoreCopies(meta.lore(), potentialSlotLore(plugin, player, item));
         List<Component> mergedLore = mergeGeneratedLore(existingLore, generatedLore);
         if (sameLore(meta.lore(), mergedLore)) {
             return false;
@@ -194,7 +197,7 @@ public final class EnchantmentLoreCleaner {
                 summarySlot);
     }
 
-    private static List<Component> potentialSlotLore(FotiaEnchantment plugin, Player player, ItemStack item) {
+    public static List<Component> potentialSlotLore(FotiaEnchantment plugin, Player player, ItemStack item) {
         if (plugin.getConfigManager() == null || plugin.getLanguageManager() == null) {
             return List.of();
         }
@@ -214,17 +217,19 @@ public final class EnchantmentLoreCleaner {
 
         List<Component> candidates = new ArrayList<>();
         candidates.add(deserialize(emptySlot));
-        candidates.add(deserialize(EnchantmentSlotLore.slotLines(
-                maxSlots,
-                0,
-                EnchantmentSlotLore.MODE_SUMMARY,
-                emptySlot,
-                summarySlot).getFirst()));
+        for (int usedSlots = 0; usedSlots <= maxSlots; usedSlots++) {
+            candidates.add(deserialize(EnchantmentSlotLore.slotLines(
+                    maxSlots,
+                    usedSlots,
+                    EnchantmentSlotLore.MODE_SUMMARY,
+                    emptySlot,
+                    summarySlot).getFirst()));
+        }
         return candidates;
     }
 
-    private static List<Component> stripLeadingSlotLoreCopies(List<Component> existingLore,
-                                                              List<Component> slotLoreCandidates) {
+    public static List<Component> stripPotentialSlotLoreCopies(List<Component> existingLore,
+                                                               List<Component> slotLoreCandidates) {
         if (existingLore == null || existingLore.isEmpty()) {
             return List.of();
         }
@@ -240,6 +245,39 @@ public final class EnchantmentLoreCleaner {
             cursor++;
         }
         return new ArrayList<>(existingLore.subList(cursor, existingLore.size()));
+    }
+
+    private static List<Component> stripLikelyLeadingSlotLoreCopies(List<Component> existingLore) {
+        if (existingLore == null || existingLore.isEmpty()) {
+            return List.of();
+        }
+
+        int cursor = 0;
+        while (cursor < existingLore.size() && isLikelySlotLore(existingLore.get(cursor))) {
+            cursor++;
+        }
+        if (cursor > 0 && cursor < existingLore.size() && existingLore.get(cursor).equals(Component.empty())) {
+            cursor++;
+        }
+        return new ArrayList<>(existingLore.subList(cursor, existingLore.size()));
+    }
+
+    private static boolean isLikelySlotLore(Component component) {
+        String plain = component == null ? "" : PLAIN.serialize(component).trim();
+        if (plain.isEmpty()) {
+            return false;
+        }
+        String lower = plain.toLowerCase(Locale.ROOT);
+        boolean namesSlot = lower.contains("slot")
+                || plain.contains("槽位")
+                || plain.contains("슬롯")
+                || plain.contains("枠");
+        if (!namesSlot) {
+            return false;
+        }
+        boolean bracketed = plain.startsWith("[") && plain.endsWith("]");
+        boolean summary = plain.matches(".*\\d+\\s*/\\s*\\d+.*");
+        return bracketed || summary;
     }
 
     private static boolean sameLore(List<Component> first, List<Component> second) {

@@ -14,10 +14,13 @@ public final class EnchantmentDisplayPolicy {
     public static boolean shouldDisplayEnchantSlotLore(int usedSlots,
                                                        boolean eligibleForEmptySlots,
                                                        int maxStackSize) {
+        if (!eligibleForEmptySlots) {
+            return false;
+        }
         if (usedSlots > 0) {
             return true;
         }
-        return eligibleForEmptySlots && maxStackSize <= 1;
+        return maxStackSize <= 1;
     }
 
     public static boolean shouldDecoratePacketOnlyEnchantSlotLore(int usedSlots) {
