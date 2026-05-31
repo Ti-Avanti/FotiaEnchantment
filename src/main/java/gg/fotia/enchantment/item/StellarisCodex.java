@@ -244,7 +244,7 @@ public class StellarisCodex {
         ItemMeta meta = book.getItemMeta();
         if (meta != null) {
             meta.displayName(nameComp);
-            meta.setEnchantmentGlintOverride(true);
+            ItemUtils.applyGlint(meta, true);
             applyBookAppearance(meta, enchant.getRarity());
             book.setItemMeta(meta);
         }

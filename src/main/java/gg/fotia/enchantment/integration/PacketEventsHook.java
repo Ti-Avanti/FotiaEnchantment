@@ -13,6 +13,8 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSe
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.config.VanillaConfig.VanillaOverride;
+import gg.fotia.enchantment.compat.BukkitItemFlags;
+import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
@@ -36,7 +38,6 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -263,7 +264,7 @@ public class PacketEventsHook {
         }
         if (generatedLore.isEmpty()) return null;
 
-        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_STORED_ENCHANTS);
+        BukkitItemFlags.hideEnchantments(meta);
         meta.lore(EnchantmentLoreCleaner.mergeGeneratedLore(existingLore, generatedLore));
         copy.setItemMeta(meta);
         return copy;
@@ -349,8 +350,9 @@ public class PacketEventsHook {
     }
 
     private boolean isSyntheticGuiGlow(ItemMeta meta, Enchantment enchantment) {
+        Enchantment unbreaking = BukkitRegistryCompat.unbreakingEnchantment();
         return enchantment != null
-                && enchantment.equals(Enchantment.UNBREAKING)
+                && enchantment.equals(unbreaking)
                 && meta.getPersistentDataContainer().has(guiGlowKey, PersistentDataType.BYTE);
     }
 

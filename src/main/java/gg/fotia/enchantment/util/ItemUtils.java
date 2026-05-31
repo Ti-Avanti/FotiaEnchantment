@@ -1,8 +1,11 @@
 package gg.fotia.enchantment.util;
 
+import gg.fotia.enchantment.compat.BukkitItemFlags;
+import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -109,6 +112,31 @@ public class ItemUtils {
         }
     }
 
+    public static boolean setEnchantmentGlintOverride(ItemMeta meta, Boolean glint) {
+        if (meta == null) return false;
+        try {
+            meta.setEnchantmentGlintOverride(glint);
+            return true;
+        } catch (LinkageError | UnsupportedOperationException ignored) {
+            return false;
+        }
+    }
+
+    public static void applyGlint(ItemMeta meta, boolean enabled) {
+        if (meta == null || setEnchantmentGlintOverride(meta, enabled)) {
+            return;
+        }
+        if (!enabled) {
+            return;
+        }
+
+        Enchantment unbreaking = BukkitRegistryCompat.unbreakingEnchantment();
+        if (unbreaking != null) {
+            meta.addEnchant(unbreaking, 1, true);
+        }
+        BukkitItemFlags.hideEnchantments(meta);
+    }
+
     /**
      * 为物品添加附魔光效（不显示附魔文本）
      *
@@ -119,7 +147,7 @@ public class ItemUtils {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return;
 
-        meta.setEnchantmentGlintOverride(true);
+        applyGlint(meta, true);
         item.setItemMeta(meta);
     }
 

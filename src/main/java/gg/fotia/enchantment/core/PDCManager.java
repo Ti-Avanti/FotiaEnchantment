@@ -4,12 +4,12 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import gg.fotia.enchantment.compat.BukkitItemFlags;
+import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
@@ -336,7 +336,7 @@ public class PDCManager {
                 meta.hasEnchants(),
                 hasStoredEnchants,
                 hasLegacyCustomEnchants)) {
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_STORED_ENCHANTS);
+            BukkitItemFlags.hideEnchantments(meta);
         }
     }
 
@@ -354,7 +354,7 @@ public class PDCManager {
         if (enchantId == null || enchantId.isBlank()) {
             return null;
         }
-        return Registry.ENCHANTMENT.get(new NamespacedKey(
+        return BukkitRegistryCompat.enchantment(new NamespacedKey(
                 EnchantmentRegistry.getNamespace(),
                 normalizeId(enchantId)));
     }

@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.compat.BukkitItemFlags;
 import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
@@ -25,7 +26,6 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -268,12 +268,12 @@ public class EnchantmentDisplayListener implements Listener {
             return changed;
         }
 
-        if (!meta.hasItemFlag(ItemFlag.HIDE_ENCHANTS)) {
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        if (!BukkitItemFlags.hasHideEnchantments(meta)) {
+            BukkitItemFlags.hideEnchantments(meta);
             changed = true;
         }
-        if (!meta.hasItemFlag(ItemFlag.HIDE_STORED_ENCHANTS)) {
-            meta.addItemFlags(ItemFlag.HIDE_STORED_ENCHANTS);
+        if (!BukkitItemFlags.hasHideStoredEnchantments(meta)
+                && BukkitItemFlags.addHideStoredEnchantments(meta)) {
             changed = true;
         }
 

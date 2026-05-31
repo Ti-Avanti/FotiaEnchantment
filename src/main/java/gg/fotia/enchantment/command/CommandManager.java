@@ -2,8 +2,6 @@ package gg.fotia.enchantment.command;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.command.impl.*;
-import io.papermc.paper.command.brigadier.BasicCommand;
-import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -78,25 +76,10 @@ public class CommandManager implements CommandExecutor, TabCompleter {
 
     private void registerPaperCommand() {
         try {
-            plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
-                try {
-                    event.registrar().register(
-                            plugin.getPluginMeta(),
-                            "fe",
-                            "FotiaEnchantment command",
-                            List.of("fotia", "fotiaenchant"),
-                            createPaperCommandBridge());
-                } catch (RuntimeException | LinkageError ex) {
-                    fallbackToDynamicCommand(ex);
-                }
-            });
+            PaperCommandRegistrar.register(plugin, this, this::fallbackToDynamicCommand);
         } catch (RuntimeException | LinkageError ex) {
             fallbackToDynamicCommand(ex);
         }
-    }
-
-    private BasicCommand createPaperCommandBridge() {
-        return new FePaperCommand(this, new FeBukkitCommand(this));
     }
 
     private void fallbackToDynamicCommand(Throwable cause) {

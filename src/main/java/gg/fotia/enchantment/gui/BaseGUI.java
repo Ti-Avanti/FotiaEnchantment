@@ -10,12 +10,10 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -115,9 +113,7 @@ public abstract class BaseGUI {
     }
 
     protected void applyGlow(ItemMeta meta) {
-        meta.setEnchantmentGlintOverride(true);
-        meta.addEnchant(Enchantment.UNBREAKING, 1, true);
-        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        ItemUtils.applyGlint(meta, true);
         meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "gui_glow"), PersistentDataType.BYTE, (byte) 1);
     }
 

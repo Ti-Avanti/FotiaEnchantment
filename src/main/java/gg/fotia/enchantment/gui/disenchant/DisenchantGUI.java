@@ -8,6 +8,7 @@ import gg.fotia.enchantment.gui.BaseGUI;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
 import gg.fotia.enchantment.item.DisenchantStone;
+import gg.fotia.enchantment.util.ItemUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -225,7 +226,7 @@ public class DisenchantGUI extends BaseGUI {
 
             ItemMeta meta = book.getItemMeta();
             if (meta != null) {
-                meta.setEnchantmentGlintOverride(isSelected);
+                ItemUtils.applyGlint(meta, isSelected);
                 meta.getPersistentDataContainer().set(enchantTagKey, PersistentDataType.STRING, id);
                 book.setItemMeta(meta);
             }

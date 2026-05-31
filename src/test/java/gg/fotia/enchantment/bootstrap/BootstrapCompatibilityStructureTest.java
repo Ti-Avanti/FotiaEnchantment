@@ -26,9 +26,12 @@ class BootstrapCompatibilityStructureTest {
     void unifiedBootstrapperDoesNotDirectlyUseVersionSpecificRegistryEvent() throws IOException {
         String dispatcher = read("src/bootstrap/entrypoint/java/gg/fotia/enchantment/bootstrap/FotiaEnchantmentBootstrap.java");
 
-        assertTrue(dispatcher.contains("ServerBuildInfo.buildInfo()"));
+        assertTrue(dispatcher.contains("Bukkit.getMinecraftVersion()"));
+        assertTrue(dispatcher.contains("REGISTRY_BOOTSTRAP_MIN_VERSION"));
+        assertTrue(dispatcher.contains("return NO_REGISTRY_BOOTSTRAP"));
         assertTrue(dispatcher.contains("PaperV1_21_R1Bootstrap"));
         assertTrue(dispatcher.contains("PaperV1_21_R6Bootstrap"));
+        assertFalse(dispatcher.contains("ServerBuildInfo"));
         assertFalse(dispatcher.contains("RegistryEvents.ENCHANTMENT.compose()"));
         assertFalse(dispatcher.contains("RegistryEvents.ENCHANTMENT.freeze()"));
         assertFalse(dispatcher.contains("Class.forName"));

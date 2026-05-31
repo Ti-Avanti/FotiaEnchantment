@@ -1,9 +1,9 @@
 package gg.fotia.enchantment.pipeline.effect.impl;
 
+import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.pipeline.effect.Effect;
 import gg.fotia.enchantment.pipeline.effect.EffectContext;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -51,6 +51,6 @@ public class AddPotionSelfEffect implements Effect {
                 ? NamespacedKey.fromString(normalized)
                 : NamespacedKey.minecraft(normalized);
         if (key == null) return null;
-        return Registry.EFFECT.get(key);
+        return BukkitRegistryCompat.potionEffect(key);
     }
 }

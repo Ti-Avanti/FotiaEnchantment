@@ -2,7 +2,7 @@ name: FotiaEnchantment
 version: '${project.version}'
 main: gg.fotia.enchantment.FotiaEnchantment
 bootstrapper: gg.fotia.enchantment.bootstrap.FotiaEnchantmentBootstrap
-api-version: '1.21'
+api-version: '1.20'
 description: Config-driven enchantment effect engine
 authors:
   - Fotia

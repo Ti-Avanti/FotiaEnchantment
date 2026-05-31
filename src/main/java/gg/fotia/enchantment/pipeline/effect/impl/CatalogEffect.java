@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.effect.impl;
 
 import gg.fotia.enchantment.compat.BukkitAttributes;
+import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.pipeline.effect.Effect;
 import gg.fotia.enchantment.pipeline.effect.EffectContext;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -404,7 +405,7 @@ public class CatalogEffect implements Effect {
 
     private static void potion(LivingEntity entity, String potion, int duration, int amplifier) {
         NamespacedKey key = NamespacedKey.minecraft(potion.toLowerCase(Locale.ROOT));
-        PotionEffectType type = Registry.EFFECT.get(key);
+        PotionEffectType type = BukkitRegistryCompat.potionEffect(key);
         if (type != null) {
             entity.addPotionEffect(new PotionEffect(type, Math.max(1, duration), Math.max(0, amplifier), true, true, true));
         }

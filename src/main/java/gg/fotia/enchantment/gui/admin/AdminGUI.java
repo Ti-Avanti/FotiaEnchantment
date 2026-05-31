@@ -6,6 +6,7 @@ import gg.fotia.enchantment.gui.BaseGUI;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
 import gg.fotia.enchantment.gui.menu.MenuText;
+import gg.fotia.enchantment.util.ItemUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -113,7 +114,7 @@ public class AdminGUI extends BaseGUI {
         if (active) {
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
-                meta.setEnchantmentGlintOverride(true);
+                ItemUtils.applyGlint(meta, true);
                 item.setItemMeta(meta);
             }
         }
@@ -193,7 +194,7 @@ public class AdminGUI extends BaseGUI {
             ItemStack book = item(itemConfig, displayName, lore);
             ItemMeta meta = book.getItemMeta();
             if (meta != null) {
-                meta.setEnchantmentGlintOverride(data.isEnabled());
+                ItemUtils.applyGlint(meta, data.isEnabled());
                 meta.getPersistentDataContainer().set(
                         enchantTagKey, PersistentDataType.STRING, data.getId());
                 book.setItemMeta(meta);
