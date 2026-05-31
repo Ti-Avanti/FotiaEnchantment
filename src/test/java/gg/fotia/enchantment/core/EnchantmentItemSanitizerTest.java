@@ -37,6 +37,23 @@ class EnchantmentItemSanitizerTest {
         assertEquals(Map.of("valid", 9), result);
     }
 
+    @Test
+    void keepsEnabledEnchantmentsOnEnchantedBooksRegardlessOfTargetMaterial() {
+        EnchantmentData pickaxeOnly = enchantment("pickaxe_only", true, 1, Material.DIAMOND_PICKAXE);
+
+        EnchantmentItemSanitizer.ValidityRules rules = EnchantmentItemSanitizer.ValidityRules.from(
+                java.util.List.of(pickaxeOnly)
+        );
+
+        Map<String, Integer> result = EnchantmentItemSanitizer.validEnchantments(
+                Map.of("pickaxe_only", 1),
+                Material.ENCHANTED_BOOK,
+                rules
+        );
+
+        assertEquals(Map.of("pickaxe_only", 1), result);
+    }
+
     private static EnchantmentData enchantment(String id, boolean enabled, int maxLevel, Material material) {
         EnchantmentData data = new EnchantmentData();
         data.setId(id);

@@ -67,10 +67,27 @@ public final class EnchantmentDescriptionLines {
             if (!blockAppliesToLevel(block, level)) {
                 continue;
             }
+            collectEffectBlockPlaceholders(placeholders, placeholderIndexes, block);
             collectConditionPlaceholders(placeholders, placeholderIndexes, block, level);
             collectActionPlaceholders(placeholders, placeholderIndexes, block, level);
         }
         return placeholders;
+    }
+
+    private static void collectEffectBlockPlaceholders(
+            Map<String, String> placeholders,
+            Map<String, Integer> placeholderIndexes,
+            EnchantmentData.EffectBlock block
+    ) {
+        int cooldown = block.getCooldown();
+        if (cooldown <= 0) {
+            return;
+        }
+        String ticks = EnchantmentEffectDescriptionFormatter.number(cooldown);
+        String seconds = EnchantmentEffectDescriptionFormatter.number(cooldown / 20.0);
+        putNumberedPlaceholder(placeholders, placeholderIndexes, "cooldown", ticks);
+        putNumberedPlaceholder(placeholders, placeholderIndexes, "cooldown-ticks", ticks);
+        putNumberedPlaceholder(placeholders, placeholderIndexes, "cooldown-seconds", seconds);
     }
 
     private static void collectConditionPlaceholders(

@@ -95,6 +95,21 @@ class EnchantmentDescriptionLinesTest {
     }
 
     @Test
+    void configuredLanguageDescriptionRendersCooldownAndRangePlaceholders() {
+        EnchantmentData data = cooldownRangeEnchant();
+
+        List<String> lines = EnchantmentDescriptionLines.customDescriptionOrGenerated(
+                List.of("冷却 {cooldown} tick/{cooldown_seconds} 秒，范围 {range} 格"),
+                data,
+                2,
+                key -> key,
+                "missing"
+        );
+
+        assertEquals(List.of("冷却 80 tick/4 秒，范围 5 格"), lines);
+    }
+
+    @Test
     void generatedEffectTextIsFallbackWhenLanguageDescriptionMissing() {
         EnchantmentData data = damageEnchant();
 
@@ -199,6 +214,19 @@ class EnchantmentDescriptionLinesTest {
         ));
 
         block.setActions(List.of(heal, potion));
+        data.setEffects(List.of(block));
+        return data;
+    }
+
+    private static EnchantmentData cooldownRangeEnchant() {
+        EnchantmentData data = new EnchantmentData();
+        EnchantmentData.EffectBlock block = new EnchantmentData.EffectBlock();
+        block.setTrigger("MINE_BLOCK");
+        block.setCooldown(80);
+
+        EnchantmentData.ActionConfig action = new EnchantmentData.ActionConfig("BLOCK_EXPLOSION", null);
+        action.setExtraParams(Map.of("range", "{level} + 3"));
+        block.setActions(List.of(action));
         data.setEffects(List.of(block));
         return data;
     }

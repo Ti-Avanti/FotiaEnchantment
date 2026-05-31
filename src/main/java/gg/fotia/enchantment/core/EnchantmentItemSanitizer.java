@@ -118,6 +118,9 @@ public final class EnchantmentItemSanitizer {
         if (rule == null || !rule.enabled() || level <= 0 || rule.maxLevel() <= 0) {
             return false;
         }
+        if (material == Material.ENCHANTED_BOOK) {
+            return true;
+        }
         return rule.applicableItems().isEmpty() || rule.applicableItems().contains(material);
     }
 
