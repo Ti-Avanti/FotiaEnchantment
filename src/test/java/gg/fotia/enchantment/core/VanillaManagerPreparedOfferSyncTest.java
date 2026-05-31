@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -58,6 +59,23 @@ class VanillaManagerPreparedOfferSyncTest {
     void exactMaterialTokensStillMatch() {
         assertTrue(VanillaManager.matchesApplicableItemToken(Material.DIAMOND_PICKAXE, "DIAMOND_PICKAXE"));
         assertFalse(VanillaManager.matchesApplicableItemToken(Material.DIAMOND_AXE, "DIAMOND_PICKAXE"));
+    }
+
+    @Test
+    void anvilMergeAddsMissingIncomingLevel() {
+        assertEquals(5, VanillaManager.mergeAnvilLevel(0, 5, 10));
+    }
+
+    @Test
+    void anvilMergeUpgradesEqualLevelsAndCapsAtMax() {
+        assertEquals(4, VanillaManager.mergeAnvilLevel(3, 3, 10));
+        assertEquals(10, VanillaManager.mergeAnvilLevel(10, 10, 10));
+    }
+
+    @Test
+    void anvilMergeKeepsHigherDifferentLevel() {
+        assertEquals(5, VanillaManager.mergeAnvilLevel(3, 5, 10));
+        assertEquals(5, VanillaManager.mergeAnvilLevel(5, 3, 10));
     }
 
     @Test

@@ -316,6 +316,8 @@ public class VanillaManager implements Listener {
                 }
             }
         } else {
+            modified |= mergeAnvilInputVanillaEnchantments(event, result, meta);
+
             // 处理普通物品上的附魔
             Map<Enchantment, Integer> enchants = new HashMap<>(meta.getEnchants());
             for (Map.Entry<Enchantment, Integer> entry : enchants.entrySet()) {
@@ -360,6 +362,108 @@ public class VanillaManager implements Listener {
     }
 
     // ==================== 内部工具方法 ====================
+
+    private boolean mergeAnvilInputVanillaEnchantments(PrepareAnvilEvent event, ItemStack result, ItemMeta resultMeta) {
+        ItemStack first = event.getInventory().getItem(0);
+        ItemStack second = event.getInventory().getItem(1);
+        if (first == null || second == null || result.getType() != first.getType()) {
+            return false;
+        }
+
+        Map<Enchantment, Integer> incoming = incomingVanillaEnchants(first, second);
+        if (incoming.isEmpty()) {
+            return false;
+        }
+
+        boolean modified = false;
+        for (Map.Entry<Enchantment, Integer> entry : incoming.entrySet()) {
+            Enchantment enchant = entry.getKey();
+            int incomingLevel = entry.getValue() == null ? 0 : entry.getValue();
+            if (enchant == null
+                    || incomingLevel <= 0
+                    || !isMinecraftEnchantment(enchant)
+                    || isDisabled(enchant)
+                    || !isApplicable(enchant, result)) {
+                continue;
+            }
+            if (hasAnvilConflict(enchant, resultMeta.getEnchants())) {
+                continue;
+            }
+
+            int existingLevel = resultMeta.getEnchantLevel(enchant);
+            if (existingLevel <= 0 && !canAddAnvilResultEnchantment(result, resultMeta)) {
+                continue;
+            }
+
+            int mergedLevel = mergeAnvilLevel(existingLevel, incomingLevel, getMaxLevel(enchant));
+            if (mergedLevel > existingLevel) {
+                resultMeta.addEnchant(enchant, mergedLevel, true);
+                modified = true;
+            }
+        }
+        return modified;
+    }
+
+    private boolean hasAnvilConflict(Enchantment enchant, Map<Enchantment, Integer> existingEnchants) {
+        if (hasConflictWith(enchant, existingEnchants)) {
+            return true;
+        }
+
+        for (Enchantment other : existingEnchants.keySet()) {
+            if (other.equals(enchant)) {
+                continue;
+            }
+            if (enchant.conflictsWith(other) || other.conflictsWith(enchant)) {
+                return true;
+            }
+            String enchantKey = enchant.getKey().getKey().toLowerCase(Locale.ROOT);
+            if (getConflicts(other).contains(enchantKey)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Map<Enchantment, Integer> incomingVanillaEnchants(ItemStack first, ItemStack second) {
+        ItemMeta secondMeta = second.getItemMeta();
+        if (secondMeta == null) {
+            return Collections.emptyMap();
+        }
+        if (second.getType() == Material.ENCHANTED_BOOK && secondMeta instanceof EnchantmentStorageMeta storageMeta) {
+            return storageMeta.getStoredEnchants();
+        }
+        if (second.getType() == first.getType()) {
+            return secondMeta.getEnchants();
+        }
+        return Collections.emptyMap();
+    }
+
+    private boolean canAddAnvilResultEnchantment(ItemStack result, ItemMeta resultMeta) {
+        if (plugin.getConfigManager() == null || plugin.getEnchantmentManager() == null) {
+            return true;
+        }
+
+        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(result.getType());
+        if (max < 0) {
+            return true;
+        }
+
+        ItemStack probe = result.clone();
+        probe.setItemMeta(resultMeta);
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        return EnchantmentLimitPolicy.canAddNewEnchantment(EnchantmentLimitPolicy.countEnchantments(probe, pdc), max);
+    }
+
+    static int mergeAnvilLevel(int existingLevel, int incomingLevel, int maxLevel) {
+        int cap = Math.max(1, maxLevel);
+        if (existingLevel <= 0) {
+            return Math.min(incomingLevel, cap);
+        }
+        if (existingLevel == incomingLevel) {
+            return Math.min(existingLevel + 1, cap);
+        }
+        return Math.min(Math.max(existingLevel, incomingLevel), cap);
+    }
 
     /**
      * 根据 Enchantment 获取对应的覆盖配置
