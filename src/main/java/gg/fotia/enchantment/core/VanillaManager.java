@@ -1,8 +1,11 @@
 package gg.fotia.enchantment.core;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.compat.BukkitItemFlags;
 import gg.fotia.enchantment.config.VanillaConfig;
 import gg.fotia.enchantment.config.VanillaConfig.VanillaOverride;
+import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
+import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Material;
@@ -10,6 +13,8 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.enchantments.EnchantmentOffer;
+import org.bukkit.entity.HumanEntity;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
@@ -357,6 +362,9 @@ public class VanillaManager implements Listener {
 
         if (modified) {
             result.setItemMeta(meta);
+        }
+        modified |= applyAnvilResultDisplay(event, result);
+        if (modified) {
             event.setResult(result);
         }
     }
@@ -390,13 +398,14 @@ public class VanillaManager implements Listener {
                 continue;
             }
 
-            int existingLevel = resultMeta.getEnchantLevel(enchant);
-            if (existingLevel <= 0 && !canAddAnvilResultEnchantment(result, resultMeta)) {
+            int resultLevel = resultMeta.getEnchantLevel(enchant);
+            if (resultLevel <= 0 && !canAddAnvilResultEnchantment(result, resultMeta)) {
                 continue;
             }
 
-            int mergedLevel = mergeAnvilLevel(existingLevel, incomingLevel, getMaxLevel(enchant));
-            if (mergedLevel > existingLevel) {
+            int firstInputLevel = vanillaEnchantLevel(first, enchant);
+            int mergedLevel = mergeAnvilInputLevel(firstInputLevel, resultLevel, incomingLevel, getMaxLevel(enchant));
+            if (mergedLevel > resultLevel) {
                 resultMeta.addEnchant(enchant, mergedLevel, true);
                 modified = true;
             }
@@ -412,9 +421,6 @@ public class VanillaManager implements Listener {
         for (Enchantment other : existingEnchants.keySet()) {
             if (other.equals(enchant)) {
                 continue;
-            }
-            if (enchant.conflictsWith(other) || other.conflictsWith(enchant)) {
-                return true;
             }
             String enchantKey = enchant.getKey().getKey().toLowerCase(Locale.ROOT);
             if (getConflicts(other).contains(enchantKey)) {
@@ -436,6 +442,11 @@ public class VanillaManager implements Listener {
             return secondMeta.getEnchants();
         }
         return Collections.emptyMap();
+    }
+
+    private int vanillaEnchantLevel(ItemStack item, Enchantment enchant) {
+        ItemMeta meta = item.getItemMeta();
+        return meta == null ? 0 : meta.getEnchantLevel(enchant);
     }
 
     private boolean canAddAnvilResultEnchantment(ItemStack result, ItemMeta resultMeta) {
@@ -463,6 +474,50 @@ public class VanillaManager implements Listener {
             return Math.min(existingLevel + 1, cap);
         }
         return Math.min(Math.max(existingLevel, incomingLevel), cap);
+    }
+
+    static int mergeAnvilInputLevel(int firstInputLevel, int resultLevel, int incomingLevel, int maxLevel) {
+        int expectedLevel = mergeAnvilLevel(firstInputLevel, incomingLevel, maxLevel);
+        return Math.max(Math.max(0, resultLevel), expectedLevel);
+    }
+
+    private boolean applyAnvilResultDisplay(PrepareAnvilEvent event, ItemStack result) {
+        HumanEntity viewer = event.getView().getPlayer();
+        Player player = viewer instanceof Player p ? p : null;
+        boolean changed = EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, result);
+
+        ItemMeta meta = result.getItemMeta();
+        if (meta == null) {
+            return changed;
+        }
+
+        boolean hasStoredEnchants = meta instanceof EnchantmentStorageMeta storageMeta
+                && !storageMeta.getStoredEnchants().isEmpty();
+        PDCManager pdc = plugin.getEnchantmentManager() == null
+                ? null
+                : plugin.getEnchantmentManager().getPdcManager();
+        boolean hasCustomEnchants = pdc != null && !pdc.getLegacyEnchantments(result).isEmpty();
+        if (!EnchantmentDisplayPolicy.shouldHideNativeEnchantments(
+                meta.hasEnchants(),
+                hasStoredEnchants,
+                hasCustomEnchants)) {
+            return changed;
+        }
+
+        boolean flagsChanged = false;
+        if (!BukkitItemFlags.hasHideEnchantments(meta)) {
+            BukkitItemFlags.hideEnchantments(meta);
+            flagsChanged = true;
+        }
+        if (!BukkitItemFlags.hasHideStoredEnchantments(meta)
+                && BukkitItemFlags.addHideStoredEnchantments(meta)) {
+            flagsChanged = true;
+        }
+        if (flagsChanged) {
+            result.setItemMeta(meta);
+            changed = true;
+        }
+        return changed;
     }
 
     /**

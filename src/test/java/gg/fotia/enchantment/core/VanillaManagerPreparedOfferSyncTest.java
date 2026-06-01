@@ -79,6 +79,29 @@ class VanillaManagerPreparedOfferSyncTest {
     }
 
     @Test
+    void anvilMergeDoesNotUpgradeWhenResultAlreadyContainsIncomingEnchant() {
+        assertEquals(5, VanillaManager.mergeAnvilInputLevel(0, 5, 5, 10));
+    }
+
+    @Test
+    void anvilMergeUsesConfiguredConflictsInsteadOfNativeConflictMatrix() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertFalse(source.contains("conflictsWith("),
+                "Vanilla anvil merge must not reject configured-allowed combinations by Bukkit's native conflicts");
+    }
+
+    @Test
+    void anvilPrepareRefreshesGeneratedLoreForPreview() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("EnchantmentLoreCleaner.applyGeneratedLore"),
+                "Anvil preview results must refresh generated lore immediately");
+    }
+
+    @Test
     void enchantingTableWeightedPreviewRollIsStableForSameContext() {
         int first = VanillaManager.stableEnchantingPreviewRoll(
                 64,
