@@ -102,6 +102,17 @@ class VanillaManagerPreparedOfferSyncTest {
     }
 
     @Test
+    void grindstonePrepareRefreshesGeneratedLoreFromInputSource() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("PrepareGrindstoneEvent"),
+                "Grindstone preview results must be handled before players take the item");
+        assertTrue(source.contains("EnchantmentLoreCleaner.applyGeneratedLoreFromSource"),
+                "Grindstone results must strip generated lore copied from the input item");
+    }
+
+    @Test
     void enchantingTableWeightedPreviewRollIsStableForSameContext() {
         int first = VanillaManager.stableEnchantingPreviewRoll(
                 64,

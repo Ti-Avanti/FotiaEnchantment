@@ -75,8 +75,24 @@ public final class EnchantmentLoreCleaner {
             return existingLore == null ? List.of() : new ArrayList<>(existingLore);
         }
 
-        List<Component> retainedLore = stripLikelyLeadingSlotLoreCopies(
-                stripGeneratedLoreCopies(existingLore, generatedLore));
+        return mergeGeneratedLore(existingLore, generatedLore, List.of());
+    }
+
+    public static List<Component> mergeGeneratedLore(List<Component> existingLore,
+                                                     List<Component> generatedLore,
+                                                     List<Component> sourceGeneratedLore) {
+        List<Component> retainedLore = existingLore == null ? List.of() : new ArrayList<>(existingLore);
+        if (sourceGeneratedLore != null && !sourceGeneratedLore.isEmpty()) {
+            retainedLore = stripLikelyLeadingSlotLoreCopies(retainedLore);
+            retainedLore = stripGeneratedLoreCopies(retainedLore, sourceGeneratedLore);
+        }
+
+        if (generatedLore == null || generatedLore.isEmpty()) {
+            return stripLikelyLeadingSlotLoreCopies(retainedLore);
+        }
+
+        retainedLore = stripLikelyLeadingSlotLoreCopies(
+                stripGeneratedLoreCopies(retainedLore, generatedLore));
         List<Component> mergedLore = new ArrayList<>(generatedLore);
         if (!retainedLore.isEmpty()) {
             mergedLore.add(Component.empty());
@@ -111,6 +127,33 @@ public final class EnchantmentLoreCleaner {
         List<Component> existingLore = stripPotentialSlotLoreCopies(meta.lore(), potentialSlotLore(plugin, player, item));
         List<Component> mergedLore = mergeGeneratedLore(existingLore, generatedLore);
         if (sameLore(meta.lore(), mergedLore)) {
+            return false;
+        }
+
+        meta.lore(mergedLore.isEmpty() ? null : mergedLore);
+        item.setItemMeta(meta);
+        return true;
+    }
+
+    public static boolean applyGeneratedLoreFromSource(FotiaEnchantment plugin,
+                                                       Player player,
+                                                       ItemStack item,
+                                                       ItemStack source) {
+        if (plugin == null || item == null || item.getType().isAir()) {
+            return false;
+        }
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+
+        List<Component> originalLore = meta.lore();
+        List<Component> generatedLore = generatedLore(plugin, player, item, meta, false);
+        List<Component> sourceGeneratedLore = generatedLore(plugin, player, source, true);
+        List<Component> existingLore = stripPotentialSlotLoreCopies(originalLore, potentialSlotLore(plugin, player, item));
+        List<Component> mergedLore = mergeGeneratedLore(existingLore, generatedLore, sourceGeneratedLore);
+        if (sameLore(originalLore, mergedLore)) {
             return false;
         }
 
@@ -164,6 +207,21 @@ public final class EnchantmentLoreCleaner {
             generated.add(deserialize(slotLine));
         }
         return generated;
+    }
+
+    private static List<Component> generatedLore(FotiaEnchantment plugin,
+                                                 Player player,
+                                                 ItemStack item,
+                                                 boolean includeInvalidCustom) {
+        if (item == null || item.getType().isAir()) {
+            return List.of();
+        }
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return List.of();
+        }
+        return generatedLore(plugin, player, item, meta, includeInvalidCustom);
     }
 
     private static List<String> slotLines(FotiaEnchantment plugin, Player player, ItemStack item, int usedSlots) {

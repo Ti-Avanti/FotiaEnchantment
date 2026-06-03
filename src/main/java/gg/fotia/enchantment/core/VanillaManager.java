@@ -22,6 +22,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.enchantment.EnchantItemEvent;
 import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.inventory.PrepareGrindstoneEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -371,6 +372,33 @@ public class VanillaManager implements Listener {
 
     // ==================== 内部工具方法 ====================
 
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPrepareGrindstone(PrepareGrindstoneEvent event) {
+        ItemStack result = event.getResult();
+        if (result == null || result.getType() == Material.AIR) {
+            return;
+        }
+
+        ItemStack source = firstGrindstoneInput(event);
+        ItemStack displayResult = result.clone();
+        HumanEntity viewer = event.getView().getPlayer();
+        if (applyResultDisplay(viewer, displayResult, source)) {
+            event.setResult(displayResult);
+        }
+    }
+
+    private ItemStack firstGrindstoneInput(PrepareGrindstoneEvent event) {
+        ItemStack first = event.getInventory().getItem(0);
+        if (first != null && !first.getType().isAir()) {
+            return first;
+        }
+        ItemStack second = event.getInventory().getItem(1);
+        if (second != null && !second.getType().isAir()) {
+            return second;
+        }
+        return null;
+    }
+
     private boolean mergeAnvilInputVanillaEnchantments(PrepareAnvilEvent event, ItemStack result, ItemMeta resultMeta) {
         ItemStack first = event.getInventory().getItem(0);
         ItemStack second = event.getInventory().getItem(1);
@@ -483,8 +511,14 @@ public class VanillaManager implements Listener {
 
     private boolean applyAnvilResultDisplay(PrepareAnvilEvent event, ItemStack result) {
         HumanEntity viewer = event.getView().getPlayer();
+        return applyResultDisplay(viewer, result, null);
+    }
+
+    private boolean applyResultDisplay(HumanEntity viewer, ItemStack result, ItemStack source) {
         Player player = viewer instanceof Player p ? p : null;
-        boolean changed = EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, result);
+        boolean changed = source == null
+                ? EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, result)
+                : EnchantmentLoreCleaner.applyGeneratedLoreFromSource(plugin, player, result, source);
 
         ItemMeta meta = result.getItemMeta();
         if (meta == null) {

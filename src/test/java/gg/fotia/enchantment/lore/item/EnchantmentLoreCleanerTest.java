@@ -123,4 +123,37 @@ class EnchantmentLoreCleanerTest {
 
         assertEquals(generated, EnchantmentLoreCleaner.mergeGeneratedLore(existing, generated));
     }
+
+    @Test
+    void removesInputGeneratedLoreAndLeadingSlotsWhenGrindstoneResultHasNoEnchantments() {
+        Component slot = Component.text("[enchant slot]");
+        Component looting = Component.text("Looting I");
+        Component lootingDescription = Component.text("  Vanilla enchantment.");
+        Component mending = Component.text("Mending I");
+        Component mendingDescription = Component.text("  Vanilla enchantment.");
+        Component playerLore = Component.text("player lore");
+        List<Component> sourceGenerated = List.of(
+                looting,
+                lootingDescription,
+                mending,
+                mendingDescription,
+                slot
+        );
+        List<Component> existing = List.of(
+                slot,
+                slot,
+                looting,
+                lootingDescription,
+                mending,
+                mendingDescription,
+                slot,
+                Component.empty(),
+                playerLore
+        );
+
+        assertEquals(
+                List.of(playerLore),
+                EnchantmentLoreCleaner.mergeGeneratedLore(existing, List.of(), sourceGenerated)
+        );
+    }
 }
