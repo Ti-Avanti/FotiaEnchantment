@@ -39,8 +39,8 @@ public class GUIManager implements Listener {
      */
     public void open(BaseGUI gui) {
         if (gui == null) return;
-        openGUIs.put(gui.getPlayer().getUniqueId(), gui);
         gui.open();
+        openGUIs.put(gui.getPlayer().getUniqueId(), gui);
     }
 
     /**
@@ -105,8 +105,12 @@ public class GUIManager implements Listener {
     @EventHandler(priority = EventPriority.NORMAL)
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        BaseGUI gui = openGUIs.remove(player.getUniqueId());
+        BaseGUI gui = openGUIs.get(player.getUniqueId());
         if (gui == null) return;
+        if (!isTrackedInventoryClose(gui.getInventory(), event.getInventory())) {
+            return;
+        }
+        openGUIs.remove(player.getUniqueId());
         try {
             gui.handleClose(event);
         } catch (Throwable t) {
@@ -117,5 +121,9 @@ public class GUIManager implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         openGUIs.remove(event.getPlayer().getUniqueId());
+    }
+
+    static boolean isTrackedInventoryClose(Object trackedInventory, Object closedInventory) {
+        return trackedInventory != null && trackedInventory.equals(closedInventory);
     }
 }
