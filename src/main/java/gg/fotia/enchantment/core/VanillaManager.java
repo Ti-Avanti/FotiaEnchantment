@@ -364,6 +364,10 @@ public class VanillaManager implements Listener {
         if (modified) {
             result.setItemMeta(meta);
         }
+        if (isAnvilResultOverLimit(result)) {
+            event.setResult(null);
+            return;
+        }
         modified |= applyAnvilResultDisplay(event, result);
         if (modified) {
             event.setResult(result);
@@ -491,6 +495,22 @@ public class VanillaManager implements Listener {
         probe.setItemMeta(resultMeta);
         PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
         return EnchantmentLimitPolicy.canAddNewEnchantment(EnchantmentLimitPolicy.countEnchantments(probe, pdc), max);
+    }
+
+    private boolean isAnvilResultOverLimit(ItemStack result) {
+        if (result == null || result.getType() == Material.AIR
+                || plugin.getConfigManager() == null
+                || plugin.getEnchantmentManager() == null) {
+            return false;
+        }
+
+        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(result.getType());
+        if (max < 0) {
+            return false;
+        }
+
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        return EnchantmentLimitPolicy.isLimitExceeded(EnchantmentLimitPolicy.countEnchantments(result, pdc), max);
     }
 
     static int mergeAnvilLevel(int existingLevel, int incomingLevel, int maxLevel) {

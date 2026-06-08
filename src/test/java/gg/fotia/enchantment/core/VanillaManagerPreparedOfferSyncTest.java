@@ -102,6 +102,17 @@ class VanillaManagerPreparedOfferSyncTest {
     }
 
     @Test
+    void anvilPrepareBlocksResultsThatAlreadyExceedConfiguredEnchantLimit() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("isAnvilResultOverLimit"),
+                "Vanilla anvil results must be checked against configured enchantment count limits");
+        assertTrue(source.contains("event.setResult(null)"),
+                "Over-limit anvil results must be blocked instead of previewed or taken");
+    }
+
+    @Test
     void grindstonePrepareRefreshesGeneratedLoreFromInputSource() throws IOException {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
