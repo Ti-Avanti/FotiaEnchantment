@@ -57,7 +57,10 @@ public final class EnchantmentEffectDescriptionFormatter {
                 if (phrases.isEmpty()) {
                     continue;
                 }
-                summaries.add(new LevelSummary(level, chance(block, level), List.copyOf(phrases)));
+                LevelSummary summary = new LevelSummary(level, chance(block, level), List.copyOf(phrases));
+                if (!summaries.contains(summary)) {
+                    summaries.add(summary);
+                }
             }
         }
         return List.copyOf(summaries);

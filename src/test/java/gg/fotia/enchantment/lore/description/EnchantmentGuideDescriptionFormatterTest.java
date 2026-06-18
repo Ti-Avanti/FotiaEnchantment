@@ -176,4 +176,29 @@ class EnchantmentGuideDescriptionFormatterTest {
 
         assertEquals(List.of("1级：有 8% 概率恢复 10% 生命并获得力量 1 级，持续 1.5 秒。"), lines);
     }
+
+    @Test
+    void deduplicatesIdenticalEffectSummariesAcrossRepeatedBlocks() {
+        EnchantmentData data = new EnchantmentData();
+
+        data.setEffects(List.of(lightningBlock(), lightningBlock()));
+
+        List<EnchantmentEffectDescriptionFormatter.LevelSummary> summaries =
+                EnchantmentEffectDescriptionFormatter.buildSummaries(data, List.of(1, 2));
+
+        assertEquals(2, summaries.size());
+        assertEquals(1, summaries.get(0).level());
+        assertEquals("4", summaries.get(0).chance());
+        assertEquals("LIGHTNING", summaries.get(0).phrases().getFirst().key());
+        assertEquals(2, summaries.get(1).level());
+        assertEquals("8", summaries.get(1).chance());
+        assertEquals("LIGHTNING", summaries.get(1).phrases().getFirst().key());
+    }
+
+    private static EnchantmentData.EffectBlock lightningBlock() {
+        EnchantmentData.EffectBlock block = new EnchantmentData.EffectBlock();
+        block.setConditions(List.of(new EnchantmentData.ConditionConfig("chance", "{level} * 4")));
+        block.setActions(List.of(new EnchantmentData.ActionConfig("LIGHTNING", null)));
+        return block;
+    }
 }
