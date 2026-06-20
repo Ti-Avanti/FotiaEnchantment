@@ -2,6 +2,7 @@ package gg.fotia.enchantment.command.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.command.SubCommand;
+import gg.fotia.enchantment.core.EnchantmentConflictPolicy;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
@@ -96,7 +97,7 @@ public class EnchantCommand implements SubCommand {
         }
 
         // 检查冲突
-        if (pdcManager.hasConflict(item, data)) {
+        if (pdcManager.hasConflict(item, data, enchantmentManager::getEnchantment)) {
             // 找到具体冲突的附魔名称
             String conflictName = findConflictName(player, item, data);
             messageHelper.sendMessage(player, "enchant-conflict", Map.of("conflict_name", conflictName));
@@ -130,12 +131,16 @@ public class EnchantCommand implements SubCommand {
     private String findConflictName(Player player, ItemStack item, EnchantmentData data) {
         PDCManager pdcManager = plugin.getEnchantmentManager().getPdcManager();
         Map<String, Integer> existing = pdcManager.getEnchantments(item);
-        List<String> conflicts = data.getConflicts();
-        if (conflicts != null) {
-            for (String conflict : conflicts) {
-                if (existing.containsKey(conflict)) {
-                    return plugin.getLanguageManager().getEnchantName(player, conflict);
-                }
+        EnchantmentManager enchantmentManager = plugin.getEnchantmentManager();
+        for (String existingId : existing.keySet()) {
+            if (EnchantmentConflictPolicy.hasCustomConflict(
+                    data.getId(),
+                    data,
+                    java.util.Set.of(existingId),
+                    enchantmentManager::getEnchantment)) {
+                return plugin.getLanguageManager().getEnchantName(
+                        player,
+                        EnchantmentConflictPolicy.normalizeCustomId(existingId));
             }
         }
         return "unknown";

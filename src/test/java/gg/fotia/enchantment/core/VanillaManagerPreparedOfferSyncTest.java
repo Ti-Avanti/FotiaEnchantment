@@ -84,12 +84,14 @@ class VanillaManagerPreparedOfferSyncTest {
     }
 
     @Test
-    void anvilMergeUsesConfiguredConflictsInsteadOfNativeConflictMatrix() throws IOException {
+    void anvilMergeUsesNativeAndConfiguredConflictMatrix() throws IOException {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
 
-        assertFalse(source.contains("conflictsWith("),
-                "Vanilla anvil merge must not reject configured-allowed combinations by Bukkit's native conflicts");
+        assertTrue(source.contains("conflictsWith("),
+                "Vanilla anvil merge must reject Bukkit-native conflicts such as protection variants");
+        assertTrue(source.contains("referencesBukkit"),
+                "Vanilla anvil merge must still honor configured conflict overrides");
     }
 
     @Test

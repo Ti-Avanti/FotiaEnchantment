@@ -102,7 +102,7 @@ public final class EnchantmentItemSanitizer {
             if (!isValid(rule, material, level)) {
                 continue;
             }
-            result.merge(id, level, Math::max);
+            result.merge(id, Math.min(level, rule.maxLevel()), Math::max);
         }
         return result;
     }

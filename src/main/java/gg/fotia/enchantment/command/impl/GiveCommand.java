@@ -123,7 +123,7 @@ public class GiveCommand implements SubCommand {
         }
 
         // 检查冲突
-        if (pdcManager.hasConflict(item, data)) {
+        if (pdcManager.hasConflict(item, data, enchantmentManager::getEnchantment)) {
             if (sender instanceof Player player) {
                 messageHelper.sendMessage(player, "enchant-conflict", Map.of("conflict_name", enchantId));
             } else {

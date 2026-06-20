@@ -75,6 +75,13 @@ class EnchantmentLimitPolicyTest {
     }
 
     @Test
+    void overLimitAnvilResultIsAllowedOnlyWhenItDoesNotIncreaseTheIllegalCount() {
+        assertFalse(EnchantmentLimitPolicy.isLimitWorsened(9, 9, 1, 8));
+        assertFalse(EnchantmentLimitPolicy.isLimitWorsened(8, 9, 1, 8));
+        assertTrue(EnchantmentLimitPolicy.isLimitWorsened(10, 9, 1, 8));
+    }
+
+    @Test
     void knownItemGroupsCanDisplayEnchantSlotsBeforeAnyEnchantIsApplied() {
         assertTrue(EnchantmentLimitPolicy.hasKnownItemGroup(Material.DIAMOND_SWORD));
         assertTrue(EnchantmentLimitPolicy.hasKnownItemGroup(Material.BOW));

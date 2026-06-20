@@ -83,6 +83,17 @@ public final class EnchantmentLimitPolicy {
         return max >= 0 && count > max;
     }
 
+    public static boolean isLimitWorsened(int resultCount,
+                                          int firstInputCount,
+                                          int secondInputCount,
+                                          int max) {
+        if (!isLimitExceeded(resultCount, max)) {
+            return false;
+        }
+        int baseline = Math.max(Math.max(0, firstInputCount), Math.max(0, secondInputCount));
+        return resultCount > Math.max(max, baseline);
+    }
+
     public static <K> int trimPendingEnchantmentsToLimit(Map<K, Integer> pendingAdds,
                                                          int existingCount,
                                                          int max) {

@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.EnchantmentConflictPolicy;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
@@ -145,26 +146,18 @@ public class EnchantListener implements Listener {
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
         PDCManager pdc = enchantManager.getPdcManager();
 
-        if (second.getType() != Material.ENCHANTED_BOOK) {
+        AnvilBookMerge inputs = anvilBookMerge(first, second, event.getResult());
+        if (inputs == null) {
             return;
         }
-        Map<String, Integer> bookEnchants = pdc.getEnchantments(second);
+        Map<String, Integer> bookEnchants = pdc.getEnchantments(inputs.book());
         if (bookEnchants.isEmpty()) {
             return;
         }
 
-        ItemStack result = event.getResult();
-        if (result == null) {
-            result = first.clone();
-        } else {
-            result = result.clone();
-        }
+        ItemStack result = inputs.result();
 
         int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(result.getType());
-        if (EnchantmentLimitPolicy.isLimitExceeded(EnchantmentLimitPolicy.countEnchantments(result, pdc), max)) {
-            event.setResult(null);
-            return;
-        }
         ItemStack mergeTarget = result;
         Map<String, Integer> existing = pdc.getEnchantments(mergeTarget);
         AnvilCustomEnchantMerge.Result merge = AnvilCustomEnchantMerge.merge(
@@ -188,6 +181,30 @@ public class EnchantListener implements Listener {
             event.setResult(result);
             event.getView().setRepairCost(Math.max(1, event.getView().getRepairCost()));
         }
+    }
+
+    private AnvilBookMerge anvilBookMerge(ItemStack first, ItemStack second, ItemStack currentResult) {
+        if (first == null || second == null || first.getType().isAir() || second.getType().isAir()) {
+            return null;
+        }
+
+        ItemStack target;
+        ItemStack book;
+        if (second.getType() == Material.ENCHANTED_BOOK) {
+            target = first;
+            book = second;
+        } else if (first.getType() == Material.ENCHANTED_BOOK && second.getType() != Material.ENCHANTED_BOOK) {
+            target = second;
+            book = first;
+        } else {
+            return null;
+        }
+
+        ItemStack result = currentResult != null && !currentResult.getType().isAir()
+                && currentResult.getType() == target.getType()
+                ? currentResult.clone()
+                : target.clone();
+        return new AnvilBookMerge(target, book, result);
     }
 
     private boolean updateSingleBookDisplay(Player player,
@@ -247,10 +264,14 @@ public class EnchantListener implements Listener {
         if (selectedIds.contains(data.getId())) {
             return false;
         }
-        if (pdc.hasConflict(item, data)) {
+        if (pdc.hasConflict(item, data, enchantManager::getEnchantment)) {
             return false;
         }
-        return !conflictsWithSelected(data, selectedIds, enchantManager);
+        return !EnchantmentConflictPolicy.hasCustomConflict(
+                data.getId(),
+                data,
+                selectedIds,
+                enchantManager::getEnchantment);
     }
 
     private Set<String> selectedCustomIds(Map<Enchantment, Integer> toAdd,
@@ -268,21 +289,6 @@ public class EnchantListener implements Listener {
         return selected;
     }
 
-    private boolean conflictsWithSelected(EnchantmentData candidate,
-                                          Set<String> selectedIds,
-                                          EnchantmentManager enchantManager) {
-        for (String selectedId : selectedIds) {
-            if (candidate.getConflicts().contains(selectedId)) {
-                return true;
-            }
-            EnchantmentData selected = enchantManager.getEnchantment(selectedId);
-            if (selected != null && selected.getConflicts().contains(candidate.getId())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private Enchantment resolveTrueEnchantment(String enchantId) {
         if (enchantId == null || enchantId.isBlank()) {
             return null;
@@ -293,5 +299,8 @@ public class EnchantListener implements Listener {
     }
 
     private record PendingCustomEnchant(String id, int level) {
+    }
+
+    private record AnvilBookMerge(ItemStack target, ItemStack book, ItemStack result) {
     }
 }

@@ -1,9 +1,9 @@
 package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.EnchantmentConflictPolicy;
 
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -26,7 +26,7 @@ final class AnvilCustomEnchantMerge {
         }
 
         int currentCount = Math.max(merged.size(), currentEnchantCount);
-        int limit = Math.max(0, maxEnchantments);
+        boolean limited = maxEnchantments >= 0;
         boolean modified = false;
 
         for (Map.Entry<String, Integer> entry : incoming.entrySet()) {
@@ -43,7 +43,7 @@ final class AnvilCustomEnchantMerge {
             if (!targetIsEnchantedBook && applicable != null && !applicable.test(data)) {
                 continue;
             }
-            if (hasConflict(id, data, merged, dataResolver)) {
+            if (EnchantmentConflictPolicy.hasCustomConflict(id, data, merged, dataResolver)) {
                 continue;
             }
 
@@ -51,7 +51,7 @@ final class AnvilCustomEnchantMerge {
             int maxLevel = Math.max(1, data.getMaxLevel());
             int newLevel = mergedLevel(existingLevel, incomingLevel, maxLevel);
             if (existingLevel == 0) {
-                if (currentCount >= limit) {
+                if (limited && currentCount >= maxEnchantments) {
                     continue;
                 }
                 currentCount++;
@@ -75,25 +75,6 @@ final class AnvilCustomEnchantMerge {
         return Math.min(Math.max(existingLevel, incomingLevel), maxLevel);
     }
 
-    private static boolean hasConflict(String id,
-                                       EnchantmentData data,
-                                       Map<String, Integer> existing,
-                                       Function<String, EnchantmentData> dataResolver) {
-        for (String existingId : existing.keySet()) {
-            if (id.equals(existingId)) {
-                continue;
-            }
-            if (data.getConflicts().contains(existingId)) {
-                return true;
-            }
-            EnchantmentData existingData = dataResolver.apply(existingId);
-            if (existingData != null && existingData.getConflicts().contains(id)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static Map<String, Integer> normalizedCopy(Map<String, Integer> source) {
         Map<String, Integer> copy = new LinkedHashMap<>();
         if (source == null) {
@@ -110,7 +91,7 @@ final class AnvilCustomEnchantMerge {
     }
 
     private static String normalize(String id) {
-        return id == null ? "" : id.toLowerCase(Locale.ROOT);
+        return EnchantmentConflictPolicy.normalizeCustomId(id);
     }
 
     record Result(Map<String, Integer> enchantments, boolean modified) {

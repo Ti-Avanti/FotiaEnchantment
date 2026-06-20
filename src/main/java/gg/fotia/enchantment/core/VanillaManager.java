@@ -31,10 +31,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -267,10 +269,8 @@ public class VanillaManager implements Listener {
         }
 
         if (item != null && plugin.getConfigManager() != null && plugin.getEnchantmentManager() != null) {
-            int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
-            PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
-            int existingCount = EnchantmentLimitPolicy.countEnchantments(item, pdc);
-            EnchantmentLimitPolicy.trimPendingEnchantmentsToLimit(toAdd, existingCount, max, preferred);
+            removeConflictingEnchantingTableAdds(item, toAdd, preferred);
+            trimEnchantingTableAddsToLimit(item, toAdd, preferred);
         }
     }
 
@@ -283,8 +283,13 @@ public class VanillaManager implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPrepareAnvil(PrepareAnvilEvent event) {
         ItemStack result = event.getResult();
+        boolean fallbackResult = false;
         if (result == null || result.getType() == Material.AIR) {
-            return;
+            result = fallbackReversedAnvilResult(event);
+            fallbackResult = result != null && !result.getType().isAir();
+            if (result == null || result.getType() == Material.AIR) {
+                return;
+            }
         }
 
         ItemMeta meta = result.getItemMeta();
@@ -364,7 +369,10 @@ public class VanillaManager implements Listener {
         if (modified) {
             result.setItemMeta(meta);
         }
-        if (isAnvilResultOverLimit(result)) {
+        if (!modified && fallbackResult) {
+            return;
+        }
+        if (isAnvilResultOverLimit(event, result)) {
             event.setResult(null);
             return;
         }
@@ -403,14 +411,223 @@ public class VanillaManager implements Listener {
         return null;
     }
 
+    private ItemStack fallbackReversedAnvilResult(PrepareAnvilEvent event) {
+        ItemStack first = event.getInventory().getItem(0);
+        ItemStack second = event.getInventory().getItem(1);
+        if (first == null || second == null || second.getType().isAir()
+                || first.getType() != Material.ENCHANTED_BOOK
+                || second.getType() == Material.ENCHANTED_BOOK) {
+            return null;
+        }
+        return second.clone();
+    }
+
+    private void removeConflictingEnchantingTableAdds(ItemStack item,
+                                                      Map<Enchantment, Integer> toAdd,
+                                                      Enchantment preferred) {
+        if (item == null || toAdd == null || toAdd.isEmpty() || plugin.getEnchantmentManager() == null) {
+            return;
+        }
+
+        Map<Enchantment, Integer> keptNative = nativeEnchantments(item);
+        Set<String> keptCustomIds = customEnchantIds(item);
+        List<Map.Entry<Enchantment, Integer>> ordered = orderedPendingAdds(toAdd, preferred);
+        Set<Enchantment> allowed = new HashSet<>();
+
+        for (Map.Entry<Enchantment, Integer> entry : ordered) {
+            Enchantment candidate = entry.getKey();
+            Integer level = entry.getValue();
+            if (candidate == null || level == null || level <= 0) {
+                continue;
+            }
+            if (candidateConflictsWithKept(candidate, keptNative, keptCustomIds)) {
+                continue;
+            }
+
+            allowed.add(candidate);
+            keptNative.put(candidate, level);
+            String customId = customEnchantmentId(candidate);
+            if (customId != null) {
+                keptCustomIds.add(customId);
+            }
+        }
+
+        toAdd.keySet().removeIf(enchantment -> !allowed.contains(enchantment));
+    }
+
+    private void trimEnchantingTableAddsToLimit(ItemStack item,
+                                                Map<Enchantment, Integer> toAdd,
+                                                Enchantment preferred) {
+        if (item == null || toAdd == null || toAdd.isEmpty()
+                || plugin.getConfigManager() == null
+                || plugin.getEnchantmentManager() == null) {
+            return;
+        }
+
+        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
+        if (max < 0) {
+            return;
+        }
+
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        Set<String> keys = limitKeys(item, pdc);
+        int count = keys.size();
+        List<Map.Entry<Enchantment, Integer>> ordered = orderedPendingAdds(toAdd, preferred);
+        Set<Enchantment> allowed = new HashSet<>();
+
+        for (Map.Entry<Enchantment, Integer> entry : ordered) {
+            Enchantment enchantment = entry.getKey();
+            Integer level = entry.getValue();
+            if (enchantment == null || level == null || level <= 0) {
+                continue;
+            }
+            String key = limitKey(enchantment);
+            if (keys.contains(key)) {
+                allowed.add(enchantment);
+                continue;
+            }
+            if (count >= max) {
+                continue;
+            }
+            keys.add(key);
+            count++;
+            allowed.add(enchantment);
+        }
+
+        toAdd.keySet().removeIf(enchantment -> !allowed.contains(enchantment));
+    }
+
+    private List<Map.Entry<Enchantment, Integer>> orderedPendingAdds(Map<Enchantment, Integer> toAdd,
+                                                                     Enchantment preferred) {
+        List<Map.Entry<Enchantment, Integer>> ordered = new ArrayList<>(toAdd.entrySet());
+        if (preferred != null) {
+            ordered.sort((first, second) -> {
+                boolean firstPreferred = preferred.equals(first.getKey());
+                boolean secondPreferred = preferred.equals(second.getKey());
+                return Boolean.compare(secondPreferred, firstPreferred);
+            });
+        }
+        return ordered;
+    }
+
+    private boolean candidateConflictsWithKept(Enchantment candidate,
+                                               Map<Enchantment, Integer> keptNative,
+                                               Set<String> keptCustomIds) {
+        for (Enchantment existing : keptNative.keySet()) {
+            if (nativeEnchantmentConflict(candidate, existing)) {
+                return true;
+            }
+        }
+
+        EnchantmentManager manager = plugin.getEnchantmentManager();
+        String customId = customEnchantmentId(candidate);
+        if (customId != null) {
+            EnchantmentData data = manager.getEnchantment(customId);
+            if (data != null
+                    && EnchantmentConflictPolicy.hasCustomConflict(
+                    customId,
+                    data,
+                    keptCustomIds,
+                    manager::getEnchantment)) {
+                return true;
+            }
+            if (data != null && conflictsWithAnyNative(data, keptNative.keySet())) {
+                return true;
+            }
+        } else {
+            for (String existingCustomId : keptCustomIds) {
+                EnchantmentData existingData = manager.getEnchantment(existingCustomId);
+                if (existingData != null
+                        && EnchantmentConflictPolicy.referencesBukkit(existingData.getConflicts(), candidate)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean conflictsWithAnyNative(EnchantmentData data, Set<Enchantment> nativeEnchantments) {
+        for (Enchantment nativeEnchantment : nativeEnchantments) {
+            if (EnchantmentConflictPolicy.referencesBukkit(data.getConflicts(), nativeEnchantment)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Map<Enchantment, Integer> nativeEnchantments(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return new HashMap<>();
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return new HashMap<>();
+        }
+        Map<Enchantment, Integer> result = new HashMap<>(meta.getEnchants());
+        if (meta instanceof EnchantmentStorageMeta storageMeta) {
+            result.putAll(storageMeta.getStoredEnchants());
+        }
+        return result;
+    }
+
+    private Set<String> customEnchantIds(ItemStack item) {
+        if (plugin.getEnchantmentManager() == null) {
+            return new HashSet<>();
+        }
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        Set<String> result = new HashSet<>();
+        for (String id : pdc.getEnchantments(item).keySet()) {
+            result.add(EnchantmentConflictPolicy.normalizeCustomId(id));
+        }
+        return result;
+    }
+
+    private Set<String> limitKeys(ItemStack item, PDCManager pdc) {
+        Set<String> keys = new HashSet<>();
+        for (Enchantment enchantment : nativeEnchantments(item).keySet()) {
+            keys.add(limitKey(enchantment));
+        }
+        if (pdc != null) {
+            for (String id : pdc.getLegacyEnchantments(item).keySet()) {
+                keys.add(limitKey(id));
+            }
+        }
+        return keys;
+    }
+
+    private String limitKey(Enchantment enchantment) {
+        NamespacedKey key = enchantment.getKey();
+        return key == null ? enchantment.toString().toLowerCase(Locale.ROOT) : key.toString().toLowerCase(Locale.ROOT);
+    }
+
+    private String limitKey(String customId) {
+        String normalized = EnchantmentConflictPolicy.normalizeCustomId(customId);
+        return normalized.contains(":")
+                ? normalized
+                : EnchantmentRegistry.getNamespace() + ":" + normalized;
+    }
+
+    private String customEnchantmentId(Enchantment enchantment) {
+        if (enchantment == null || enchantment.getKey() == null) {
+            return null;
+        }
+        NamespacedKey key = enchantment.getKey();
+        if (!EnchantmentRegistry.getNamespace().equals(key.getNamespace())) {
+            return null;
+        }
+        return key.getKey().toLowerCase(Locale.ROOT);
+    }
+
     private boolean mergeAnvilInputVanillaEnchantments(PrepareAnvilEvent event, ItemStack result, ItemMeta resultMeta) {
         ItemStack first = event.getInventory().getItem(0);
         ItemStack second = event.getInventory().getItem(1);
-        if (first == null || second == null || result.getType() != first.getType()) {
+        ItemStack target = anvilMergeTarget(first, second);
+        ItemStack source = anvilMergeSource(first, second);
+        if (target == null || source == null || result.getType() != target.getType()) {
             return false;
         }
 
-        Map<Enchantment, Integer> incoming = incomingVanillaEnchants(first, second);
+        Map<Enchantment, Integer> incoming = incomingVanillaEnchants(target, source);
         if (incoming.isEmpty()) {
             return false;
         }
@@ -435,7 +652,7 @@ public class VanillaManager implements Listener {
                 continue;
             }
 
-            int firstInputLevel = vanillaEnchantLevel(first, enchant);
+            int firstInputLevel = vanillaEnchantLevel(target, enchant);
             int mergedLevel = mergeAnvilInputLevel(firstInputLevel, resultLevel, incomingLevel, getMaxLevel(enchant));
             if (mergedLevel > resultLevel) {
                 resultMeta.addEnchant(enchant, mergedLevel, true);
@@ -445,21 +662,28 @@ public class VanillaManager implements Listener {
         return modified;
     }
 
-    private boolean hasAnvilConflict(Enchantment enchant, Map<Enchantment, Integer> existingEnchants) {
-        if (hasConflictWith(enchant, existingEnchants)) {
-            return true;
+    private ItemStack anvilMergeTarget(ItemStack first, ItemStack second) {
+        if (first == null || second == null || first.getType().isAir() || second.getType().isAir()) {
+            return null;
         }
+        if (first.getType() == Material.ENCHANTED_BOOK && second.getType() != Material.ENCHANTED_BOOK) {
+            return second;
+        }
+        return first;
+    }
 
-        for (Enchantment other : existingEnchants.keySet()) {
-            if (other.equals(enchant)) {
-                continue;
-            }
-            String enchantKey = enchant.getKey().getKey().toLowerCase(Locale.ROOT);
-            if (getConflicts(other).contains(enchantKey)) {
-                return true;
-            }
+    private ItemStack anvilMergeSource(ItemStack first, ItemStack second) {
+        if (first == null || second == null || first.getType().isAir() || second.getType().isAir()) {
+            return null;
         }
-        return false;
+        if (first.getType() == Material.ENCHANTED_BOOK && second.getType() != Material.ENCHANTED_BOOK) {
+            return first;
+        }
+        return second;
+    }
+
+    private boolean hasAnvilConflict(Enchantment enchant, Map<Enchantment, Integer> existingEnchants) {
+        return hasConflictWith(enchant, existingEnchants);
     }
 
     private Map<Enchantment, Integer> incomingVanillaEnchants(ItemStack first, ItemStack second) {
@@ -497,7 +721,7 @@ public class VanillaManager implements Listener {
         return EnchantmentLimitPolicy.canAddNewEnchantment(EnchantmentLimitPolicy.countEnchantments(probe, pdc), max);
     }
 
-    private boolean isAnvilResultOverLimit(ItemStack result) {
+    private boolean isAnvilResultOverLimit(PrepareAnvilEvent event, ItemStack result) {
         if (result == null || result.getType() == Material.AIR
                 || plugin.getConfigManager() == null
                 || plugin.getEnchantmentManager() == null) {
@@ -510,7 +734,10 @@ public class VanillaManager implements Listener {
         }
 
         PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
-        return EnchantmentLimitPolicy.isLimitExceeded(EnchantmentLimitPolicy.countEnchantments(result, pdc), max);
+        int resultCount = EnchantmentLimitPolicy.countEnchantments(result, pdc);
+        int firstCount = EnchantmentLimitPolicy.countEnchantments(event.getInventory().getItem(0), pdc);
+        int secondCount = EnchantmentLimitPolicy.countEnchantments(event.getInventory().getItem(1), pdc);
+        return EnchantmentLimitPolicy.isLimitWorsened(resultCount, firstCount, secondCount, max);
     }
 
     static int mergeAnvilLevel(int existingLevel, int incomingLevel, int maxLevel) {
@@ -814,22 +1041,28 @@ public class VanillaManager implements Listener {
      * 检查附魔是否与已有附魔存在冲突
      */
     private boolean hasConflictWith(Enchantment enchant, Map<Enchantment, Integer> existingEnchants) {
-        List<String> conflicts = getConflicts(enchant);
-        if (conflicts.isEmpty()) {
+        if (enchant == null || existingEnchants == null || existingEnchants.isEmpty()) {
             return false;
         }
 
         for (Map.Entry<Enchantment, Integer> entry : existingEnchants.entrySet()) {
             Enchantment other = entry.getKey();
-            if (other.equals(enchant)) {
-                continue;
-            }
-            String otherKey = other.getKey().getKey().toLowerCase(Locale.ROOT);
-            if (conflicts.contains(otherKey)) {
+            if (nativeEnchantmentConflict(enchant, other)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean nativeEnchantmentConflict(Enchantment first, Enchantment second) {
+        if (first == null || second == null || first.equals(second)) {
+            return false;
+        }
+        if (first.conflictsWith(second) || second.conflictsWith(first)) {
+            return true;
+        }
+        return EnchantmentConflictPolicy.referencesBukkit(getConflicts(first), second)
+                || EnchantmentConflictPolicy.referencesBukkit(getConflicts(second), first);
     }
 
     private record WeightedEnchantment(Enchantment enchantment, int weight) {

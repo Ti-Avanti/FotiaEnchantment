@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class EnchantmentItemSanitizerTest {
 
     @Test
-    void keepsOnlyEnabledApplicableEnchantmentsAndPreservesConfiguredLevel() {
+    void keepsOnlyEnabledApplicableEnchantmentsAndCapsConfiguredLevel() {
         EnchantmentData valid = enchantment("valid", true, 3, Material.DIAMOND_SWORD);
         EnchantmentData disabled = enchantment("disabled", false, 3, Material.DIAMOND_SWORD);
         EnchantmentData wrongItem = enchantment("wrong_item", true, 3, Material.DIAMOND_PICKAXE);
@@ -34,7 +34,7 @@ class EnchantmentItemSanitizerTest {
                 rules
         );
 
-        assertEquals(Map.of("valid", 9), result);
+        assertEquals(Map.of("valid", 3), result);
     }
 
     @Test

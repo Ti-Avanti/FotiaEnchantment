@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * PDC管理器 - 通过 PersistentDataContainer 在物品上存储和读取自定义附魔数据。
@@ -241,23 +242,17 @@ public class PDCManager {
      * @return 是否存在冲突
      */
     public boolean hasConflict(ItemStack item, EnchantmentData data) {
+        return hasConflict(item, data, null);
+    }
+
+    public boolean hasConflict(ItemStack item,
+                               EnchantmentData data,
+                               Function<String, EnchantmentData> dataResolver) {
         if (item == null || data == null) {
             return false;
         }
-        List<String> conflicts = data.getConflicts();
-        if (conflicts == null || conflicts.isEmpty()) {
-            return false;
-        }
         Map<String, Integer> existing = getEnchantments(item);
-        if (existing.isEmpty()) {
-            return false;
-        }
-        for (String conflict : conflicts) {
-            if (existing.containsKey(conflict)) {
-                return true;
-            }
-        }
-        return false;
+        return EnchantmentConflictPolicy.hasCustomConflict(data.getId(), data, existing, dataResolver);
     }
 
     /**
