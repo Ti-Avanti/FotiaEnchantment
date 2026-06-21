@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -49,7 +50,7 @@ public class ProjectileHitEntityTrigger implements Trigger, Listener {
         }
 
         // 计算飞行距离
-        double flyDistance = projectile.getLocation().distance(player.getLocation());
+        double flyDistance = LocationDistance.safeDistance(projectile.getLocation(), player.getLocation());
 
         TriggerContext context = TriggerContext.builder()
                 .player(player)

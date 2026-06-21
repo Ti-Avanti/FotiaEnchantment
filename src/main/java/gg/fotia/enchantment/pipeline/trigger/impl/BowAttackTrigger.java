@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -53,7 +54,7 @@ public class BowAttackTrigger implements Trigger, Listener {
 
         double damage = event.getFinalDamage();
         // 使用箭的存活tick数估算飞行距离
-        double flyDistance = arrow.getLocation().distance(player.getLocation());
+        double flyDistance = LocationDistance.safeDistance(arrow.getLocation(), player.getLocation());
 
         ItemStack bowItem = mainHand.getType() == Material.BOW ? mainHand : offHand;
 

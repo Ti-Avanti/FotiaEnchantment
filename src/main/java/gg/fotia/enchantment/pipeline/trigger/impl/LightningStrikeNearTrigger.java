@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -53,7 +54,7 @@ public class LightningStrikeNearTrigger implements Trigger, Listener {
             if (player == null) {
                 continue;
             }
-            double distance = player.getLocation().distance(loc);
+            double distance = LocationDistance.safeDistanceOrInfinity(player.getLocation(), loc);
             if (distance > RADIUS) {
                 continue;
             }

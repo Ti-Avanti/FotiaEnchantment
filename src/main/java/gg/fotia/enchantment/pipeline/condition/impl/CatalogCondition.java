@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.condition.impl;
 
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.compat.BukkitAttributes;
 import gg.fotia.enchantment.integration.WorldGuardHook;
 import gg.fotia.enchantment.pipeline.condition.Condition;
@@ -133,9 +134,9 @@ public class CatalogCondition implements Condition {
             case "target_health_percent_above" -> target != null && healthPercent(target) > number(context, "value", 0);
             case "target_health_percent_below" -> target != null && healthPercent(target) < number(context, "value", 100);
             case "target_distance_above" -> target != null && player.getWorld().equals(target.getWorld())
-                    && player.getLocation().distance(target.getLocation()) > number(context, "value", 0);
+                    && LocationDistance.safeDistance(player.getLocation(), target.getLocation()) > number(context, "value", 0);
             case "target_distance_below" -> target != null && player.getWorld().equals(target.getWorld())
-                    && player.getLocation().distance(target.getLocation()) < number(context, "value", 0);
+                    && LocationDistance.safeDistance(player.getLocation(), target.getLocation()) < number(context, "value", 0);
             case "target_has_permission" -> target instanceof Player p && p.hasPermission(text(cfg, "permission", "value", ""));
             case "target_in_region" -> target != null && inRegion(context, target.getLocation(), false);
             case "target_is_same_world" -> target != null && player.getWorld().equals(target.getWorld());

@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -55,7 +56,7 @@ public class NoteBlockPlayTrigger implements Trigger, Listener {
         Player nearest = null;
         double nearestDist = Double.MAX_VALUE;
         for (Player player : blockLoc.getWorld().getPlayers()) {
-            double dist = player.getLocation().distance(blockLoc);
+            double dist = LocationDistance.safeDistanceOrInfinity(player.getLocation(), blockLoc);
             if (dist <= SEARCH_RADIUS && dist < nearestDist) {
                 nearestDist = dist;
                 nearest = player;

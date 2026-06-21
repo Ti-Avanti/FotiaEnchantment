@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.condition.impl;
 
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.condition.Condition;
 import gg.fotia.enchantment.pipeline.condition.ConditionContext;
 import org.bukkit.entity.LivingEntity;
@@ -32,7 +33,7 @@ public class DistanceToTargetCondition implements Condition {
         }
         double min = context.evaluateExpression(cfg.getString("min", "0"));
         double max = context.evaluateExpression(cfg.getString("max", String.valueOf(Integer.MAX_VALUE)));
-        double dist = player.getLocation().distance(target.getLocation());
+        double dist = LocationDistance.safeDistance(player.getLocation(), target.getLocation());
         return dist >= min && dist <= max;
     }
 }

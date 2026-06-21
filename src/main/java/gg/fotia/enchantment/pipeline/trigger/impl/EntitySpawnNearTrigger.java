@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -46,7 +47,7 @@ public class EntitySpawnNearTrigger implements Trigger, Listener {
             return;
         }
         for (Player player : loc.getWorld().getPlayers()) {
-            if (player.getLocation().distanceSquared(loc) > RADIUS * RADIUS) {
+            if (LocationDistance.safeDistanceSquared(player.getLocation(), loc) > RADIUS * RADIUS) {
                 continue;
             }
             TriggerContext.Builder builder = TriggerContext.builder()

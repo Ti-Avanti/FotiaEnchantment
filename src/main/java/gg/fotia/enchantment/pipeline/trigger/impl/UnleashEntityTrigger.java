@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -51,7 +52,7 @@ public class UnleashEntityTrigger implements Trigger, Listener {
             return;
         }
         for (Player player : living.getLocation().getWorld().getPlayers()) {
-            if (player.getLocation().distanceSquared(living.getLocation()) > 36) {
+            if (LocationDistance.safeDistanceSquared(player.getLocation(), living.getLocation()) > 36) {
                 continue;
             }
             TriggerContext ctx = TriggerContext.builder()

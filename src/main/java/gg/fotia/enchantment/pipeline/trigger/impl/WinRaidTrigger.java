@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -59,7 +60,7 @@ public class WinRaidTrigger implements Trigger, Listener {
             if (player == null) {
                 continue;
             }
-            if (player.getLocation().distance(loc) <= FALLBACK_RADIUS) {
+            if (LocationDistance.safeDistanceOrInfinity(player.getLocation(), loc) <= FALLBACK_RADIUS) {
                 fire(player, event);
             }
         }

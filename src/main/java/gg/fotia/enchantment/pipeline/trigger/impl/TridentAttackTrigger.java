@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -44,7 +45,7 @@ public class TridentAttackTrigger implements Trigger, Listener {
         if (!(event.getEntity() instanceof LivingEntity target)) return;
 
         double damage = event.getFinalDamage();
-        double flyDistance = trident.getLocation().distance(player.getLocation());
+        double flyDistance = LocationDistance.safeDistance(trident.getLocation(), player.getLocation());
 
         TriggerContext context = TriggerContext.builder()
                 .player(player)

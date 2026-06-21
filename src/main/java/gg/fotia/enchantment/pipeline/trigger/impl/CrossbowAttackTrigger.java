@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.pipeline.trigger.impl;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.LocationDistance;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
@@ -52,7 +53,7 @@ public class CrossbowAttackTrigger implements Trigger, Listener {
         if (!hasCrossbow) return;
 
         double damage = event.getFinalDamage();
-        double flyDistance = arrow.getLocation().distance(player.getLocation());
+        double flyDistance = LocationDistance.safeDistance(arrow.getLocation(), player.getLocation());
 
         ItemStack crossbowItem = mainHand.getType() == Material.CROSSBOW ? mainHand : offHand;
 
