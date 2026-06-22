@@ -238,7 +238,8 @@ public class PacketEventsHook {
         ItemMeta sourceMeta = item.getItemMeta();
         if (sourceMeta == null) return null;
 
-        List<LoreEntry> entries = collectLoreEntries(item, sourceMeta, enchantManager, pdc);
+        List<LoreEntry> entries = collectLoreEntries(item, sourceMeta, enchantManager, pdc, false);
+        List<LoreEntry> sourceEntries = collectLoreEntries(item, sourceMeta, enchantManager, pdc, true);
 
         ItemStack copy = item.clone();
         ItemMeta meta = copy.getItemMeta();
@@ -247,25 +248,14 @@ public class PacketEventsHook {
         List<Component> existingLore = EnchantmentLoreCleaner.stripPotentialSlotLoreCopies(
                 meta.lore(),
                 EnchantmentLoreCleaner.potentialSlotLore(plugin, player, item));
-        List<Component> generatedLore = new ArrayList<>();
-        YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
-
-        entries.sort(loreEntryComparator(rarityConfig));
-        for (LoreEntry entry : entries) {
-            generatedLore.add(deserializeLoreLine(displayNameLine(player, entry, rarityConfig)));
-            for (String description : descriptionLines(player, entry)) {
-                generatedLore.add(deserializeLoreLine(EnchantmentLoreFormatter.descriptionLine(description)));
-            }
-        }
-        if (EnchantmentDisplayPolicy.shouldDecoratePacketOnlyEnchantSlotLore(entries.size())) {
-            for (String slotLine : slotLines(player, item, entries.size())) {
-                generatedLore.add(deserializeLoreLine(slotLine));
-            }
-        }
-        if (generatedLore.isEmpty()) return null;
+        List<Component> generatedLore = generatedLore(player, item, entries);
+        List<Component> sourceGeneratedLore = generatedLore(player, item, sourceEntries);
+        if (generatedLore.isEmpty() && sourceGeneratedLore.isEmpty()) return null;
 
         BukkitItemFlags.hideEnchantments(meta);
-        meta.lore(EnchantmentLoreCleaner.mergeGeneratedLore(existingLore, generatedLore));
+        List<Component> mergedLore = EnchantmentLoreCleaner.mergeGeneratedLore(existingLore, generatedLore, sourceGeneratedLore);
+        if (generatedLore.isEmpty() && mergedLore.equals(existingLore)) return null;
+        meta.lore(mergedLore.isEmpty() ? null : mergedLore);
         copy.setItemMeta(meta);
         return copy;
     }
@@ -273,7 +263,8 @@ public class PacketEventsHook {
     private List<LoreEntry> collectLoreEntries(ItemStack item,
                                                ItemMeta meta,
                                                EnchantmentManager enchantManager,
-                                               PDCManager pdc) {
+                                               PDCManager pdc,
+                                               boolean includeDisabledVanilla) {
         Map<String, LoreEntry> entries = new LinkedHashMap<>();
 
         for (Map.Entry<String, Integer> entry : pdc.getEnchantments(item).entrySet()) {
@@ -293,18 +284,40 @@ public class PacketEventsHook {
             if (isSyntheticGuiGlow(meta, entry.getKey())) {
                 continue;
             }
-            addVanillaEntry(entries, entry.getKey(), entry.getValue());
+            addVanillaEntry(entries, entry.getKey(), entry.getValue(), includeDisabledVanilla);
         }
         if (meta instanceof EnchantmentStorageMeta storageMeta) {
             for (Map.Entry<Enchantment, Integer> entry : storageMeta.getStoredEnchants().entrySet()) {
                 if (isSyntheticGuiGlow(meta, entry.getKey())) {
                     continue;
                 }
-                addVanillaEntry(entries, entry.getKey(), entry.getValue());
+                addVanillaEntry(entries, entry.getKey(), entry.getValue(), includeDisabledVanilla);
             }
         }
 
         return new ArrayList<>(entries.values());
+    }
+
+    private List<Component> generatedLore(Player player, ItemStack item, List<LoreEntry> entries) {
+        List<Component> generatedLore = new ArrayList<>();
+        if (entries == null || entries.isEmpty()) {
+            return generatedLore;
+        }
+
+        YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
+        entries.sort(loreEntryComparator(rarityConfig));
+        for (LoreEntry entry : entries) {
+            generatedLore.add(deserializeLoreLine(displayNameLine(player, entry, rarityConfig)));
+            for (String description : descriptionLines(player, entry)) {
+                generatedLore.add(deserializeLoreLine(EnchantmentLoreFormatter.descriptionLine(description)));
+            }
+        }
+        if (EnchantmentDisplayPolicy.shouldDecoratePacketOnlyEnchantSlotLore(entries.size())) {
+            for (String slotLine : slotLines(player, item, entries.size())) {
+                generatedLore.add(deserializeLoreLine(slotLine));
+            }
+        }
+        return generatedLore;
     }
 
     private Comparator<LoreEntry> loreEntryComparator(YamlConfiguration rarityConfig) {
@@ -356,7 +369,10 @@ public class PacketEventsHook {
                 && meta.getPersistentDataContainer().has(guiGlowKey, PersistentDataType.BYTE);
     }
 
-    private void addVanillaEntry(Map<String, LoreEntry> entries, Enchantment enchantment, int level) {
+    private void addVanillaEntry(Map<String, LoreEntry> entries,
+                                 Enchantment enchantment,
+                                 int level,
+                                 boolean includeDisabledVanilla) {
         if (enchantment == null || level <= 0) {
             return;
         }
@@ -367,8 +383,22 @@ public class PacketEventsHook {
         if (!"minecraft".equals(key.getNamespace())) {
             return;
         }
+        if (!includeDisabledVanilla && isDisabledVanilla(enchantment)) {
+            return;
+        }
         String id = normalizeId(key.getKey());
         entries.putIfAbsent("vanilla:" + id, new LoreEntry(id, level, false, enchantment, null));
+    }
+
+    private boolean isDisabledVanilla(Enchantment enchantment) {
+        if (plugin.getVanillaManager() == null || enchantment == null || enchantment.getKey() == null) {
+            return false;
+        }
+        NamespacedKey key = enchantment.getKey();
+        if (!"minecraft".equals(key.getNamespace())) {
+            return false;
+        }
+        return plugin.getVanillaManager().isDisabled(enchantment);
     }
 
     private String displayNameLine(Player player, LoreEntry entry, YamlConfiguration rarityConfig) {

@@ -5,9 +5,13 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.GameMode;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PacketEventsHookLoreDeduplicationTest {
 
@@ -51,5 +55,25 @@ class PacketEventsHookLoreDeduplicationTest {
         );
 
         assertEquals(playerLore, PacketEventsHook.stripGeneratedLoreCopies(existing, generated));
+    }
+
+    @Test
+    void packetLoreDecorationSkipsDisabledVanillaEnchantments() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/integration/PacketEventsHook.java"));
+
+        assertTrue(source.contains("isDisabledVanilla(enchantment)"),
+                "Packet-only lore decoration must not show vanilla enchantments disabled by config");
+    }
+
+    @Test
+    void packetLoreDecorationStripsSourceGeneratedLore() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/integration/PacketEventsHook.java"));
+
+        assertTrue(source.contains("sourceGeneratedLore"),
+                "Packet-only lore decoration must build a source generated lore set for stale cleanup");
+        assertTrue(source.contains("mergeGeneratedLore(existingLore, generatedLore, sourceGeneratedLore)"),
+                "Packet-only lore decoration must remove stale generated lore before prepending current lore");
     }
 }

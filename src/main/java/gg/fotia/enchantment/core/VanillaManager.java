@@ -291,6 +291,7 @@ public class VanillaManager implements Listener {
                 return;
             }
         }
+        ItemStack displaySource = result.clone();
 
         ItemMeta meta = result.getItemMeta();
         if (meta == null) {
@@ -376,7 +377,7 @@ public class VanillaManager implements Listener {
             event.setResult(null);
             return;
         }
-        modified |= applyAnvilResultDisplay(event, result);
+        modified |= applyAnvilResultDisplay(event, result, displaySource);
         if (modified) {
             event.setResult(result);
         }
@@ -393,10 +394,85 @@ public class VanillaManager implements Listener {
 
         ItemStack source = firstGrindstoneInput(event);
         ItemStack displayResult = result.clone();
+        boolean changed = removeCustomEnchantments(displayResult);
         HumanEntity viewer = event.getView().getPlayer();
-        if (applyResultDisplay(viewer, displayResult, source)) {
+        changed |= applyResultDisplay(viewer, displayResult, source);
+        if (changed) {
             event.setResult(displayResult);
         }
+    }
+
+    public boolean hasDisabledEnchantments(ItemStack item) {
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        return meta != null && hasDisabledEnchantments(meta);
+    }
+
+    public boolean removeDisabledEnchantments(ItemStack item) {
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        boolean changed = removeDisabledEnchantments(meta);
+        if (changed) {
+            item.setItemMeta(meta);
+        }
+        return changed;
+    }
+
+    private boolean hasDisabledEnchantments(ItemMeta meta) {
+        for (Enchantment enchantment : meta.getEnchants().keySet()) {
+            if (isMinecraftEnchantment(enchantment) && isDisabled(enchantment)) {
+                return true;
+            }
+        }
+        if (meta instanceof EnchantmentStorageMeta storageMeta) {
+            for (Enchantment enchantment : storageMeta.getStoredEnchants().keySet()) {
+                if (isMinecraftEnchantment(enchantment) && isDisabled(enchantment)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean removeDisabledEnchantments(ItemMeta meta) {
+        boolean changed = false;
+        for (Enchantment enchantment : new ArrayList<>(meta.getEnchants().keySet())) {
+            if (isMinecraftEnchantment(enchantment) && isDisabled(enchantment)) {
+                meta.removeEnchant(enchantment);
+                changed = true;
+            }
+        }
+        if (meta instanceof EnchantmentStorageMeta storageMeta) {
+            for (Enchantment enchantment : new ArrayList<>(storageMeta.getStoredEnchants().keySet())) {
+                if (isMinecraftEnchantment(enchantment) && isDisabled(enchantment)) {
+                    storageMeta.removeStoredEnchant(enchantment);
+                    changed = true;
+                }
+            }
+        }
+        return changed;
+    }
+
+    private boolean removeCustomEnchantments(ItemStack item) {
+        if (item == null || item.getType().isAir() || plugin.getEnchantmentManager() == null) {
+            return false;
+        }
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        Map<String, Integer> customEnchantments = new HashMap<>(pdc.getEnchantments(item));
+        if (customEnchantments.isEmpty()) {
+            return false;
+        }
+        for (String enchantId : customEnchantments.keySet()) {
+            pdc.removeEnchantment(item, enchantId);
+        }
+        return true;
     }
 
     private ItemStack firstGrindstoneInput(PrepareGrindstoneEvent event) {
@@ -756,9 +832,9 @@ public class VanillaManager implements Listener {
         return Math.max(Math.max(0, resultLevel), expectedLevel);
     }
 
-    private boolean applyAnvilResultDisplay(PrepareAnvilEvent event, ItemStack result) {
+    private boolean applyAnvilResultDisplay(PrepareAnvilEvent event, ItemStack result, ItemStack source) {
         HumanEntity viewer = event.getView().getPlayer();
-        return applyResultDisplay(viewer, result, null);
+        return applyResultDisplay(viewer, result, source);
     }
 
     private boolean applyResultDisplay(HumanEntity viewer, ItemStack result, ItemStack source) {

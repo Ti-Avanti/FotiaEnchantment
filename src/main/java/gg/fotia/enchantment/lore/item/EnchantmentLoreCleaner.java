@@ -8,6 +8,7 @@ import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.PDCManager;
+import gg.fotia.enchantment.core.VanillaManager;
 import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
 import gg.fotia.enchantment.util.LegacyColorConverter;
 import net.kyori.adventure.text.Component;
@@ -51,7 +52,7 @@ public final class EnchantmentLoreCleaner {
             return false;
         }
 
-        List<Component> generatedLore = generatedLore(plugin, player, item, meta, true);
+        List<Component> generatedLore = generatedLore(plugin, player, item, meta, true, true);
         if (generatedLore.isEmpty()) {
             return false;
         }
@@ -150,7 +151,7 @@ public final class EnchantmentLoreCleaner {
 
         List<Component> originalLore = meta.lore();
         List<Component> generatedLore = generatedLore(plugin, player, item, meta, false);
-        List<Component> sourceGeneratedLore = generatedLore(plugin, player, source, true);
+        List<Component> sourceGeneratedLore = generatedLore(plugin, player, source, true, true);
         List<Component> existingLore = stripPotentialSlotLoreCopies(originalLore, potentialSlotLore(plugin, player, item));
         List<Component> mergedLore = mergeGeneratedLore(existingLore, generatedLore, sourceGeneratedLore);
         if (sameLore(originalLore, mergedLore)) {
@@ -167,6 +168,15 @@ public final class EnchantmentLoreCleaner {
                                                  ItemStack item,
                                                  ItemMeta meta,
                                                  boolean includeInvalidCustom) {
+        return generatedLore(plugin, player, item, meta, includeInvalidCustom, false);
+    }
+
+    private static List<Component> generatedLore(FotiaEnchantment plugin,
+                                                 Player player,
+                                                 ItemStack item,
+                                                 ItemMeta meta,
+                                                 boolean includeInvalidCustom,
+                                                 boolean includeDisabledVanilla) {
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
         if (enchantManager == null) {
             return List.of();
@@ -185,11 +195,11 @@ public final class EnchantmentLoreCleaner {
         }
 
         for (Map.Entry<Enchantment, Integer> entry : meta.getEnchants().entrySet()) {
-            addVanillaEntry(entries, entry.getKey(), entry.getValue());
+            addVanillaEntry(plugin, entries, entry.getKey(), entry.getValue(), includeDisabledVanilla);
         }
         if (meta instanceof EnchantmentStorageMeta storageMeta) {
             for (Map.Entry<Enchantment, Integer> entry : storageMeta.getStoredEnchants().entrySet()) {
-                addVanillaEntry(entries, entry.getKey(), entry.getValue());
+                addVanillaEntry(plugin, entries, entry.getKey(), entry.getValue(), includeDisabledVanilla);
             }
         }
 
@@ -213,6 +223,14 @@ public final class EnchantmentLoreCleaner {
                                                  Player player,
                                                  ItemStack item,
                                                  boolean includeInvalidCustom) {
+        return generatedLore(plugin, player, item, includeInvalidCustom, false);
+    }
+
+    private static List<Component> generatedLore(FotiaEnchantment plugin,
+                                                 Player player,
+                                                 ItemStack item,
+                                                 boolean includeInvalidCustom,
+                                                 boolean includeDisabledVanilla) {
         if (item == null || item.getType().isAir()) {
             return List.of();
         }
@@ -221,7 +239,7 @@ public final class EnchantmentLoreCleaner {
         if (meta == null) {
             return List.of();
         }
-        return generatedLore(plugin, player, item, meta, includeInvalidCustom);
+        return generatedLore(plugin, player, item, meta, includeInvalidCustom, includeDisabledVanilla);
     }
 
     private static List<String> slotLines(FotiaEnchantment plugin, Player player, ItemStack item, int usedSlots) {
@@ -355,7 +373,11 @@ public final class EnchantmentLoreCleaner {
                 .thenComparing(LoreEntry::id);
     }
 
-    private static void addVanillaEntry(Map<String, LoreEntry> entries, Enchantment enchantment, int level) {
+    private static void addVanillaEntry(FotiaEnchantment plugin,
+                                        Map<String, LoreEntry> entries,
+                                        Enchantment enchantment,
+                                        int level,
+                                        boolean includeDisabledVanilla) {
         if (enchantment == null || level <= 0) {
             return;
         }
@@ -366,8 +388,23 @@ public final class EnchantmentLoreCleaner {
         if (!"minecraft".equals(key.getNamespace())) {
             return;
         }
+        if (!includeDisabledVanilla && isDisabledVanilla(plugin, enchantment)) {
+            return;
+        }
         String id = normalizeId(key.getKey());
         entries.putIfAbsent("vanilla:" + id, new LoreEntry(id, level, false, enchantment, null));
+    }
+
+    private static boolean isDisabledVanilla(FotiaEnchantment plugin, Enchantment enchantment) {
+        if (plugin == null || plugin.getVanillaManager() == null || enchantment == null || enchantment.getKey() == null) {
+            return false;
+        }
+        NamespacedKey key = enchantment.getKey();
+        if (!"minecraft".equals(key.getNamespace())) {
+            return false;
+        }
+        VanillaManager vanillaManager = plugin.getVanillaManager();
+        return vanillaManager.isDisabled(enchantment);
     }
 
     private static String displayNameLine(FotiaEnchantment plugin,

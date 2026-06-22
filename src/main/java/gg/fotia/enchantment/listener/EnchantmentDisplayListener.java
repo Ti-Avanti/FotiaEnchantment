@@ -5,6 +5,7 @@ import gg.fotia.enchantment.compat.BukkitItemFlags;
 import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
+import gg.fotia.enchantment.core.VanillaManager;
 import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.Bukkit;
@@ -160,6 +161,7 @@ public class EnchantmentDisplayListener implements Listener {
 
         EnchantmentItemSanitizer.ValidityRules rules =
                 EnchantmentItemSanitizer.ValidityRules.from(manager.getAllEnchantments());
+        VanillaManager vanillaManager = plugin.getVanillaManager();
         List<PlayerItemSnapshot> snapshots = snapshotOnlinePlayers();
         if (snapshots.isEmpty()) {
             return;
@@ -168,7 +170,7 @@ public class EnchantmentDisplayListener implements Listener {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             List<UUID> playersToNormalize = new ArrayList<>();
             for (PlayerItemSnapshot snapshot : snapshots) {
-                if (snapshot.requiresNormalization(pdc, rules)) {
+                if (snapshot.requiresNormalization(pdc, rules, vanillaManager)) {
                     playersToNormalize.add(snapshot.playerId());
                 }
             }
@@ -243,16 +245,21 @@ public class EnchantmentDisplayListener implements Listener {
             return false;
         }
 
+        ItemStack source = item.clone();
         boolean needsSanitization = EnchantmentItemSanitizer.needsSanitization(item, pdc, rules);
         boolean changed = needsSanitization && EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, item);
         changed |= EnchantmentItemSanitizer.sanitize(plugin, item);
+        VanillaManager vanillaManager = plugin.getVanillaManager();
+        changed |= vanillaManager != null && vanillaManager.removeDisabledEnchantments(item);
 
         meta = item.getItemMeta();
         if (meta == null) {
             return changed;
         }
 
-        changed |= EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, item);
+        changed |= changed
+                ? EnchantmentLoreCleaner.applyGeneratedLoreFromSource(plugin, player, item, source)
+                : EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, item);
         meta = item.getItemMeta();
         if (meta == null) {
             return changed;
@@ -334,9 +341,14 @@ public class EnchantmentDisplayListener implements Listener {
     }
 
     private record PlayerItemSnapshot(UUID playerId, List<ItemStack> items) {
-        boolean requiresNormalization(PDCManager pdc, EnchantmentItemSanitizer.ValidityRules rules) {
+        boolean requiresNormalization(PDCManager pdc,
+                                      EnchantmentItemSanitizer.ValidityRules rules,
+                                      VanillaManager vanillaManager) {
             for (ItemStack item : items) {
                 if (EnchantmentItemSanitizer.requiresNormalization(item, pdc, rules)) {
+                    return true;
+                }
+                if (vanillaManager != null && vanillaManager.hasDisabledEnchantments(item)) {
                     return true;
                 }
             }

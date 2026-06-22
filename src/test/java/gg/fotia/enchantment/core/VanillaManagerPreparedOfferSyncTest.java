@@ -104,6 +104,17 @@ class VanillaManagerPreparedOfferSyncTest {
     }
 
     @Test
+    void anvilPrepareRefreshesGeneratedLoreFromPreSanitizedResultSource() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("ItemStack displaySource = result.clone()"),
+                "Anvil display cleanup must remember the result before disabled enchantments are removed");
+        assertTrue(source.contains("applyAnvilResultDisplay(event, result, displaySource)"),
+                "Anvil display cleanup must strip generated lore copied from the pre-sanitized result");
+    }
+
+    @Test
     void anvilPrepareBlocksResultsThatAlreadyExceedConfiguredEnchantLimit() throws IOException {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
@@ -123,6 +134,17 @@ class VanillaManagerPreparedOfferSyncTest {
                 "Grindstone preview results must be handled before players take the item");
         assertTrue(source.contains("EnchantmentLoreCleaner.applyGeneratedLoreFromSource"),
                 "Grindstone results must strip generated lore copied from the input item");
+    }
+
+    @Test
+    void grindstonePrepareRemovesCustomEnchantDataBeforeDisplay() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("removeCustomEnchantments(displayResult)"),
+                "Grindstone results must remove Fotia custom enchantment data, not only vanilla enchantments");
+        assertTrue(source.contains("pdc.removeEnchantment(item, enchantId)"),
+                "Custom enchantment cleanup must remove both legacy PDC and true Fotia enchantments");
     }
 
     @Test
