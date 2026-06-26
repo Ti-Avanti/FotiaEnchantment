@@ -57,6 +57,8 @@ disenchant-destroyed: "{prefix}<!i><dark_red>Disenchant failed! The enchantment 
 fragment-not-enough: "{prefix}<!i><red>Not enough Starweave Fragments, need <gold>{cost}</gold>"
 update-available: "{prefix}<!i><yellow>새 버전 <gold>{latest}</gold><gray> 사용 가능, 현재 버전 <white>{current}</white><gray>. 다운로드: <aqua>{url}</aqua>"
 
+grindstone-disabled: "{prefix}<!i><red>Grindstones are disabled"
+
 # Rarity names
 rarity-dustlight: "Dustlight"
 rarity-moonlit: "Moonlit"

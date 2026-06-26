@@ -72,6 +72,21 @@ class EnchantmentDescriptionLinesTest {
     }
 
     @Test
+    void configuredLanguageDescriptionRendersLifestealAmountAlias() {
+        EnchantmentData data = lifestealEnchant();
+
+        List<String> lines = EnchantmentDescriptionLines.customDescriptionOrGenerated(
+                List.of("drain {amount} health and {percent}% damage"),
+                data,
+                4,
+                key -> key,
+                "missing"
+        );
+
+        assertEquals(List.of("drain 8 health and 8% damage"), lines);
+    }
+
+    @Test
     void configuredLanguageDescriptionRendersNumberedRepeatedPlaceholders() {
         EnchantmentData data = repeatedPlaceholderEnchant();
 
@@ -214,6 +229,15 @@ class EnchantmentDescriptionLinesTest {
         ));
 
         block.setActions(List.of(heal, potion));
+        data.setEffects(List.of(block));
+        return data;
+    }
+
+    private static EnchantmentData lifestealEnchant() {
+        EnchantmentData data = new EnchantmentData();
+        EnchantmentData.EffectBlock block = new EnchantmentData.EffectBlock();
+        block.setTrigger("MELEE_ATTACK");
+        block.setActions(List.of(new EnchantmentData.ActionConfig("LIFESTEAL", "{level} * 2")));
         data.setEffects(List.of(block));
         return data;
     }

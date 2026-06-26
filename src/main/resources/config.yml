@@ -75,6 +75,15 @@ obtain:
   villager-trade: true
 
 # ============================================
+# 砂轮
+# EN: Grindstone behavior
+# ============================================
+grindstone:
+  # 是否禁用原版砂轮交互；启用后玩家无法打开或使用砂轮
+  # EN: Whether to disable vanilla grindstones; when true, players cannot open or use grindstones
+  disabled: false
+
+# ============================================
 # 附魔台自定义附魔补充抽取
 # EN: Extra custom enchantment rolls for the enchanting table
 # ============================================

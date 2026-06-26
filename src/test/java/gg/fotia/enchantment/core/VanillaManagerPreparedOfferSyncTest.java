@@ -208,4 +208,26 @@ class VanillaManagerPreparedOfferSyncTest {
 
         assertTrue(changed);
     }
+
+    @Test
+    void enchantingTablePrepareCancelsItemsWithFotiaEnchantments() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("hasExistingFotiaEnchantments(item)"),
+                "Enchanting table previews must treat Fotia-enchanted items as already enchanted");
+        assertTrue(source.contains("clearEnchantingOffers(event.getOffers())"),
+                "Existing Fotia enchantments must clear enchanting table offers before the player can select one");
+    }
+
+    @Test
+    void enchantingTableApplyCancelsItemsWithFotiaEnchantments() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("event.setCancelled(true)"),
+                "Enchanting table apply event must cancel if the item already has Fotia enchantments");
+        assertTrue(source.contains("toAdd.clear()"),
+                "Cancelled enchanting table apply event must not leave pending enchantments behind");
+    }
 }

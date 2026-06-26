@@ -189,7 +189,7 @@ public final class EnchantmentEffectDescriptionFormatter {
                 case "TRUE_DAMAGE" -> phrase("TRUE_DAMAGE", Map.of("amount", number(value(action, level))));
                 case "DAMAGE_REDUCE" -> phrase("DAMAGE_REDUCE", Map.of("percent", number(value(action, level))));
                 case "DAMAGE_MULTIPLY" -> phrase("DAMAGE_MULTIPLY", Map.of("multiplier", number(value(action, level))));
-                case "LIFESTEAL" -> phrase("LIFESTEAL", Map.of("percent", number(value(action, level))));
+                case "LIFESTEAL", "TARGET_LIFESTEAL" -> lifestealPhrase(action, level);
                 case "IGNITE_TARGET" -> phrase("IGNITE_TARGET", Map.of("seconds", ticks(action, level)));
                 case "THORNS" -> phrase("THORNS", Map.of("percent", number(value(action, level))));
                 case "BONUS_DROP" -> phrase("BONUS_DROP", Map.of(
@@ -229,6 +229,14 @@ public final class EnchantmentEffectDescriptionFormatter {
         placeholders.put("seconds", ticks(action, level));
         placeholders.put("amplifier", number(param(action, "amplifier", level) + 1));
         return phrase(key, placeholders);
+    }
+
+    private static Phrase lifestealPhrase(EnchantmentData.ActionConfig action, int level) {
+        String value = number(value(action, level));
+        return phrase("LIFESTEAL", Map.of(
+                "amount", value,
+                "percent", value
+        ));
     }
 
     private static Phrase phrase(String key, Map<String, String> placeholders) {

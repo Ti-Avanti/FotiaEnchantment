@@ -193,6 +193,11 @@ public class VanillaManager implements Listener {
         if (item == null || item.getType() == Material.AIR) {
             return;
         }
+        if (hasExistingFotiaEnchantments(item)) {
+            clearEnchantingOffers(event.getOffers());
+            event.setCancelled(true);
+            return;
+        }
 
         boolean useConfiguredWeights = hasConfiguredEnchantingWeights();
         EnchantmentOffer[] offers = event.getOffers();
@@ -238,6 +243,11 @@ public class VanillaManager implements Listener {
     public void onEnchantItem(EnchantItemEvent event) {
         Map<Enchantment, Integer> toAdd = event.getEnchantsToAdd();
         ItemStack item = event.getItem();
+        if (hasExistingFotiaEnchantments(item)) {
+            toAdd.clear();
+            event.setCancelled(true);
+            return;
+        }
 
         Enchantment preferred = syncWithPreparedOffer(event, toAdd, item);
 
@@ -895,6 +905,23 @@ public class VanillaManager implements Listener {
             }
         }
         return false;
+    }
+
+    private boolean hasExistingFotiaEnchantments(ItemStack item) {
+        if (item == null || item.getType().isAir() || plugin.getEnchantmentManager() == null) {
+            return false;
+        }
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        return pdc != null && !pdc.getEnchantments(item).isEmpty();
+    }
+
+    private void clearEnchantingOffers(EnchantmentOffer[] offers) {
+        if (offers == null) {
+            return;
+        }
+        for (int i = 0; i < offers.length; i++) {
+            offers[i] = null;
+        }
     }
 
     /**

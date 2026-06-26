@@ -122,6 +122,14 @@ public class ItemUtils {
         }
     }
 
+    public static void applyPersistentCustomEnchantGlint(ItemMeta meta, boolean enabled) {
+        if (enabled) {
+            setEnchantmentGlintOverride(meta, true);
+        } else {
+            setEnchantmentGlintOverride(meta, null);
+        }
+    }
+
     public static void applyGlint(ItemMeta meta, boolean enabled) {
         if (meta == null || setEnchantmentGlintOverride(meta, enabled)) {
             return;

@@ -13,8 +13,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,6 +26,18 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 public class ConfigManager {
+
+    private static final String GRINDSTONE_CONFIG_BLOCK = """
+
+            # ============================================
+            # 砂轮
+            # EN: Grindstone behavior
+            # ============================================
+            grindstone:
+              # 是否禁用原版砂轮交互；启用后玩家无法打开或使用砂轮
+              # EN: Whether to disable vanilla grindstones; when true, players cannot open or use grindstones
+              disabled: false
+            """;
 
     private final FotiaEnchantment plugin;
     private YamlConfiguration mainConfig;
@@ -68,6 +82,9 @@ public class ConfigManager {
 
         // 加载配置
         mainConfig = loadConfig("config.yml", issues);
+        if (appendMissingGrindstoneConfig(mainConfig)) {
+            mainConfig = loadConfig("config.yml", issues);
+        }
         rarityConfig = loadConfig("rarity.yml", issues);
         groupsConfig = loadConfig("groups.yml", issues);
         loadGuiConfigs(issues);
@@ -145,6 +162,22 @@ public class ConfigManager {
         } catch (IOException e) {
             plugin.getLogger().severe("无法保存默认配置文件: " + resourcePath);
             e.printStackTrace();
+        }
+    }
+
+    private boolean appendMissingGrindstoneConfig(YamlConfiguration config) {
+        if (config == null || config.contains("grindstone")) {
+            return false;
+        }
+
+        File file = new File(plugin.getDataFolder(), "config.yml");
+        try {
+            Files.writeString(file.toPath(), GRINDSTONE_CONFIG_BLOCK, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            return true;
+        } catch (IOException ex) {
+            plugin.getLogger().warning("无法向 config.yml 追加砂轮配置: " + ex.getMessage());
+            return false;
         }
     }
 
@@ -477,6 +510,13 @@ public class ConfigManager {
      */
     public boolean isVillagerTradeEnabled() {
         return mainConfig.getBoolean("obtain.villager-trade", true);
+    }
+
+    /**
+     * 砂轮是否被禁用。
+     */
+    public boolean isGrindstoneDisabled() {
+        return mainConfig.getBoolean("grindstone.disabled", false);
     }
 
     public int getEnchantingTableCustomRolls() {

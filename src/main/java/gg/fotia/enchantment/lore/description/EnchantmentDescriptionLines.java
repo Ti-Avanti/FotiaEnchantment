@@ -155,7 +155,11 @@ public final class EnchantmentDescriptionLines {
             }
             case "HELD_ITEM_REPAIR" ->
                     putNumberedPlaceholder(placeholders, placeholderIndexes, "amount", actionValue);
-            case "DAMAGE_REDUCE", "LIFESTEAL", "THORNS" ->
+            case "LIFESTEAL", "TARGET_LIFESTEAL" -> {
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "amount", actionValue);
+                    putNumberedPlaceholder(placeholders, placeholderIndexes, "percent", actionValue);
+            }
+            case "DAMAGE_REDUCE", "THORNS" ->
                     putNumberedPlaceholder(placeholders, placeholderIndexes, "percent", actionValue);
             case "DAMAGE_MULTIPLY", "BONUS_DROP" ->
                     putNumberedPlaceholder(placeholders, placeholderIndexes, "multiplier", actionValue);

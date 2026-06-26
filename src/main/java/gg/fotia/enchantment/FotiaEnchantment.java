@@ -13,6 +13,7 @@ import gg.fotia.enchantment.lang.LanguageManager;
 import gg.fotia.enchantment.lang.MessageHelper;
 import gg.fotia.enchantment.listener.EnchantListener;
 import gg.fotia.enchantment.listener.EnchantmentDisplayListener;
+import gg.fotia.enchantment.listener.GrindstoneDisableListener;
 import gg.fotia.enchantment.listener.ItemDropListener;
 import gg.fotia.enchantment.listener.ItemUseListener;
 import gg.fotia.enchantment.listener.TradeListener;
@@ -125,6 +126,7 @@ public class FotiaEnchantment extends JavaPlugin {
         pm.registerEvents(new ItemDropListener(this), this);
         pm.registerEvents(new EnchantListener(this), this);
         pm.registerEvents(new EnchantmentDisplayListener(this), this);
+        pm.registerEvents(new GrindstoneDisableListener(this), this);
         pm.registerEvents(new TradeListener(this), this);
     }
 

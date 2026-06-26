@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import gg.fotia.enchantment.compat.BukkitItemFlags;
 import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
+import gg.fotia.enchantment.util.ItemUtils;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
@@ -82,6 +83,7 @@ public class PDCManager {
         enchants.remove(EnchantmentRegistry.getNamespace() + ":" + normalized);
         enchants.put(normalized, level);
         writeEnchantments(meta, enchants);
+        setLegacyCustomGlint(meta, true);
         hideNativeEnchantDisplay(meta);
         item.setItemMeta(meta);
         return item;
@@ -117,8 +119,10 @@ public class PDCManager {
         if (enchants.remove(normalizeId(enchantId)) != null) {
             if (enchants.isEmpty()) {
                 meta.getPersistentDataContainer().remove(enchantmentsKey);
+                setLegacyCustomGlint(meta, false);
             } else {
                 writeEnchantments(meta, enchants);
+                setLegacyCustomGlint(meta, true);
             }
             modified = true;
         }
@@ -324,8 +328,7 @@ public class PDCManager {
     }
 
     private void hideNativeEnchantDisplay(ItemMeta meta) {
-        boolean hasStoredEnchants = meta instanceof EnchantmentStorageMeta storageMeta
-                && !storageMeta.getStoredEnchants().isEmpty();
+        boolean hasStoredEnchants = hasStoredEnchantments(meta);
         boolean hasLegacyCustomEnchants = !readEnchantments(meta).isEmpty();
         if (EnchantmentDisplayPolicy.shouldHideNativeEnchantments(
                 meta.hasEnchants(),
@@ -333,6 +336,21 @@ public class PDCManager {
                 hasLegacyCustomEnchants)) {
             BukkitItemFlags.hideEnchantments(meta);
         }
+    }
+
+    private void setLegacyCustomGlint(ItemMeta meta, boolean enabled) {
+        if (enabled) {
+            ItemUtils.applyPersistentCustomEnchantGlint(meta, true);
+            return;
+        }
+        if (!meta.hasEnchants() && !hasStoredEnchantments(meta)) {
+            ItemUtils.applyPersistentCustomEnchantGlint(meta, false);
+        }
+    }
+
+    private boolean hasStoredEnchantments(ItemMeta meta) {
+        return meta instanceof EnchantmentStorageMeta storageMeta
+                && !storageMeta.getStoredEnchants().isEmpty();
     }
 
     private void addCustomTrueEnchantment(Map<String, Integer> result, Enchantment enchantment, int level) {

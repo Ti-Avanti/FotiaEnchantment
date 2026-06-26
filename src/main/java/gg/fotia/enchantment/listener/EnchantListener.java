@@ -51,6 +51,9 @@ public class EnchantListener implements Listener {
 
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
         PDCManager pdc = enchantManager.getPdcManager();
+        if (!pdc.getEnchantments(item).isEmpty()) {
+            return;
+        }
 
         List<EnchantmentData> applicable = new ArrayList<>();
         for (EnchantmentData data : enchantManager.getEnabled()) {

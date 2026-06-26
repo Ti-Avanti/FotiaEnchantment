@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class EnchantmentGuideDescriptionFormatterTest {
 
@@ -193,6 +194,27 @@ class EnchantmentGuideDescriptionFormatterTest {
         assertEquals(2, summaries.get(1).level());
         assertEquals("8", summaries.get(1).chance());
         assertEquals("LIGHTNING", summaries.get(1).phrases().getFirst().key());
+    }
+
+    @Test
+    void targetLifestealRendersAmountPlaceholder() {
+        EnchantmentData data = new EnchantmentData();
+
+        EnchantmentData.EffectBlock block = new EnchantmentData.EffectBlock();
+        block.setConditions(List.of(new EnchantmentData.ConditionConfig("chance", "{level} * 6")));
+        block.setActions(List.of(new EnchantmentData.ActionConfig("TARGET_LIFESTEAL", "{level} * 2")));
+        data.setEffects(List.of(block));
+
+        List<String> lines = EnchantmentEffectDescriptionFormatter.renderLines(data, 4, key -> switch (key) {
+            case "guide-gui.detail-line" -> "{level}: {chance_phrase}{effects}";
+            case "guide-gui.detail-chance" -> "{chance}% ";
+            case "guide-gui.detail-joiner" -> ", ";
+            case "guide-gui.effect-phrase-LIFESTEAL" -> "drain {amount} health";
+            default -> key;
+        });
+
+        assertEquals(List.of("4: 24% drain 8 health"), lines);
+        assertFalse(lines.getFirst().contains("{amount}"));
     }
 
     private static EnchantmentData.EffectBlock lightningBlock() {
