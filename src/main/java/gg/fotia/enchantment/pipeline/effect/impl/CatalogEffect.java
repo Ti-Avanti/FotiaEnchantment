@@ -30,6 +30,7 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.block.BlockEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDropItemEvent;
@@ -46,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * 对标目录效果实现。
@@ -212,9 +214,17 @@ public class CatalogEffect implements Effect {
     }
 
     private static void itemOperation(Parts parts, EffectContext context) {
-        List<ItemStack> items = resolveItems(parts.target(), context);
         Player player = context.getTriggerContext().getPlayer();
-        if (items.isEmpty() || player == null) {
+        if (player == null) {
+            return;
+        }
+        if ("DROP".equals(parts.target()) && isDropPickupOperation(parts.operation())) {
+            handleDropPickup(context, player);
+            return;
+        }
+
+        List<ItemStack> items = resolveItems(parts.target(), context);
+        if (items.isEmpty()) {
             return;
         }
         for (ItemStack item : items) {
@@ -238,6 +248,105 @@ public class CatalogEffect implements Effect {
                 case "MULTIPLY_DROPS" -> item.setAmount(Math.min(item.getMaxStackSize(), item.getAmount() * Math.max(1, context.getIntParam("multiplier", (int) amount(context, 2)))));
                 case "FILTER_DROPS" -> filterItem(item, context);
                 default -> {
+                }
+            }
+        }
+    }
+
+    private static boolean isDropPickupOperation(String operation) {
+        return "AUTO_PICKUP".equals(operation) || "TELEKINESIS".equals(operation);
+    }
+
+    private static void handleDropPickup(EffectContext context, Player player) {
+        Event event = context.getTriggerContext().getEvent();
+        if (event instanceof BlockBreakEvent blockBreakEvent) {
+            handleBlockBreakDropPickup(context, player, blockBreakEvent);
+            return;
+        }
+        if (event instanceof BlockDropItemEvent blockDropEvent) {
+            handleBlockItemDropPickup(player, blockDropEvent);
+            return;
+        }
+        if (event instanceof EntityDropItemEvent dropEvent) {
+            handleEntityDropPickup(player, dropEvent);
+            return;
+        }
+
+        List<ItemStack> items = resolveItems("DROP", context);
+        dropInventoryOverflow(player, items, player.getLocation());
+    }
+
+    private static void handleBlockBreakDropPickup(EffectContext context, Player player, BlockBreakEvent blockBreakEvent) {
+        if (!blockBreakEvent.isDropItems()) {
+            return;
+        }
+
+        ItemStack tool = context.getTriggerContext().getItem();
+        Collection<ItemStack> drops = blockBreakEvent.getBlock().getDrops(tool, player);
+        if (drops.isEmpty()) {
+            return;
+        }
+
+        blockBreakEvent.setDropItems(false);
+        Location location = blockBreakEvent.getBlock().getLocation().add(0.5, 0.5, 0.5);
+        dropInventoryOverflow(player, drops, location);
+    }
+
+    private static void handleBlockItemDropPickup(Player player, BlockDropItemEvent blockDropEvent) {
+        List<ItemStack> drops = new ArrayList<>();
+        for (Item itemEntity : blockDropEvent.getItems()) {
+            if (itemEntity == null) {
+                continue;
+            }
+            ItemStack stack = itemEntity.getItemStack();
+            if (stack != null && !stack.getType().isAir() && stack.getAmount() > 0) {
+                drops.add(stack.clone());
+            }
+            itemEntity.remove();
+        }
+        if (drops.isEmpty()) {
+            return;
+        }
+
+        if (blockDropEvent instanceof Cancellable cancellable) {
+            cancellable.setCancelled(true);
+        }
+        Location location = blockDropEvent.getBlock().getLocation().add(0.5, 0.5, 0.5);
+        dropInventoryOverflow(player, drops, location);
+    }
+
+    private static void handleEntityDropPickup(Player player, EntityDropItemEvent dropEvent) {
+        Item itemEntity = dropEvent.getItemDrop();
+        if (itemEntity == null) {
+            return;
+        }
+        ItemStack stack = itemEntity.getItemStack();
+        if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0) {
+            return;
+        }
+
+        if (dropEvent instanceof Cancellable cancellable) {
+            cancellable.setCancelled(true);
+        }
+        Location location = itemEntity.getLocation();
+        dropEvent.getItemDrop().remove();
+        dropInventoryOverflow(player, List.of(stack.clone()), location);
+    }
+
+    private static void dropInventoryOverflow(Player player, Collection<ItemStack> items, Location location) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        Location dropLocation = location == null ? player.getLocation() : location;
+        World world = dropLocation.getWorld() == null ? player.getWorld() : dropLocation.getWorld();
+        for (ItemStack item : items) {
+            if (item == null || item.getType().isAir() || item.getAmount() <= 0) {
+                continue;
+            }
+            Map<Integer, ItemStack> overflow = player.getInventory().addItem(item.clone());
+            for (ItemStack remaining : overflow.values()) {
+                if (remaining != null && !remaining.getType().isAir() && remaining.getAmount() > 0) {
+                    world.dropItemNaturally(dropLocation, remaining);
                 }
             }
         }
