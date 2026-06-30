@@ -91,6 +91,7 @@ public class ConfigManager {
         limitsConfig = loadConfig("limits.yml", issues);
         refreshAndSaveLimitsConfig(limitsConfig);
         itemsConfig = loadConfig("items/custom-items.yml", issues);
+        refreshAndSaveCustomItemsConfig(itemsConfig);
         enchantmentBooksConfig = loadConfig("items/enchantment-books.yml", issues);
         configIssues = List.copyOf(issues);
     }
@@ -109,6 +110,7 @@ public class ConfigManager {
         limitsConfig = loadConfig("limits.yml", issues);
         refreshAndSaveLimitsConfig(limitsConfig);
         itemsConfig = loadConfig("items/custom-items.yml", issues);
+        refreshAndSaveCustomItemsConfig(itemsConfig);
         enchantmentBooksConfig = loadConfig("items/enchantment-books.yml", issues);
         configIssues = List.copyOf(issues);
     }
@@ -282,6 +284,31 @@ public class ConfigManager {
             return false;
         }
         config.set("item-groups.spears", config.getInt("item-groups.tridents", 6));
+        return true;
+    }
+
+    private void refreshAndSaveCustomItemsConfig(YamlConfiguration config) {
+        if (!refreshCustomItemsConfig(config)) {
+            return;
+        }
+        try {
+            config.save(new File(plugin.getDataFolder(), "items/custom-items.yml"));
+        } catch (IOException ex) {
+            plugin.getLogger().warning("无法保存自定义道具迁移配置: items/custom-items.yml，" + ex.getMessage());
+        }
+    }
+
+    static boolean refreshCustomItemsConfig(YamlConfiguration config) {
+        if (config == null || config.contains("anvil-breakthrough-stone", true)) {
+            return false;
+        }
+
+        config.set("anvil-breakthrough-stone.material", "ECHO_SHARD");
+        config.set("anvil-breakthrough-stone.custom-model-data", 10030);
+        config.set("anvil-breakthrough-stone.item-model", "");
+        config.set("anvil-breakthrough-stone.tooltip-style", "");
+        config.set("anvil-breakthrough-stone.craftengine-item", "");
+        config.set("anvil-breakthrough-stone.glow", true);
         return true;
     }
 

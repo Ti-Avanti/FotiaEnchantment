@@ -66,7 +66,7 @@ update-available: "{prefix}<!i><yellow>發現新版本 <gold>{latest}</gold><gra
 
 grindstone-disabled: "{prefix}<!i><red>砂輪已被停用"
 anvil-breakthrough-success: "{prefix}<!i><green>鐵砧突破成功"
-anvil-breakthrough-not-ready: "{prefix}<!i><red>請先放入目標物品、附魔書和鐵砧突破石"
+anvil-breakthrough-not-ready: "{prefix}<!i><red>請先放入目標物品、附魔書和星鑄稜晶"
 
 # 稀有度名称
 # EN: Rarity names

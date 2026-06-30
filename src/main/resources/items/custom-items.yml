@@ -109,8 +109,8 @@ disenchant-stone:
       allow-vanilla: true
       max-rarity: divine
 
-# 铁砧突破石 - 用于打开突破过于昂贵限制的专用 GUI
-# EN: Anvil Breakthrough Stone - opens the dedicated GUI for bypassing vanilla too-expensive anvil blocking
+# 星铸棱晶 - 用于打开突破过于昂贵限制的专用 GUI
+# EN: Starforged Prism - opens the dedicated GUI for bypassing vanilla too-expensive anvil blocking
 anvil-breakthrough-stone:
   material: ECHO_SHARD
   custom-model-data: 10030

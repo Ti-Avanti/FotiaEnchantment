@@ -74,4 +74,29 @@ class ConfigManagerGuiRefreshTest {
         assertFalse(ConfigManager.refreshLimitsConfig(config));
         assertEquals(4, config.getInt("item-groups.spears"));
     }
+
+    @Test
+    void oldCustomItemsConfigGainsAnvilBreakthroughStone() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("stellaris-codex.preview.material", "ENCHANTED_BOOK");
+
+        assertTrue(ConfigManager.refreshCustomItemsConfig(config));
+        assertEquals("ECHO_SHARD", config.getString("anvil-breakthrough-stone.material"));
+        assertEquals(10030, config.getInt("anvil-breakthrough-stone.custom-model-data"));
+        assertEquals("", config.getString("anvil-breakthrough-stone.item-model"));
+        assertEquals("", config.getString("anvil-breakthrough-stone.tooltip-style"));
+        assertEquals("", config.getString("anvil-breakthrough-stone.craftengine-item"));
+        assertTrue(config.getBoolean("anvil-breakthrough-stone.glow"));
+    }
+
+    @Test
+    void customAnvilBreakthroughStoneConfigIsPreserved() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("anvil-breakthrough-stone.material", "AMETHYST_SHARD");
+        config.set("anvil-breakthrough-stone.custom-model-data", 7);
+
+        assertFalse(ConfigManager.refreshCustomItemsConfig(config));
+        assertEquals("AMETHYST_SHARD", config.getString("anvil-breakthrough-stone.material"));
+        assertEquals(7, config.getInt("anvil-breakthrough-stone.custom-model-data"));
+    }
 }

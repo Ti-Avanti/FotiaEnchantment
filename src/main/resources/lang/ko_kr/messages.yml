@@ -59,7 +59,7 @@ update-available: "{prefix}<!i><yellow>새 버전 <gold>{latest}</gold><gray> �
 
 grindstone-disabled: "{prefix}<!i><red>Grindstones are disabled"
 anvil-breakthrough-success: "{prefix}<!i><green>Anvil breakthrough successful"
-anvil-breakthrough-not-ready: "{prefix}<!i><red>Place a target item, enchanted book, and breakthrough stone first"
+anvil-breakthrough-not-ready: "{prefix}<!i><red>Place a target item, enchanted book, and Starforged Prism first"
 
 # Rarity names
 rarity-dustlight: "Dustlight"

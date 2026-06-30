@@ -52,8 +52,9 @@ disenchant-gem:
     - "<!i><dark_gray>右键使用"
 
 anvil-breakthrough-stone:
-  name: "<!i><gold>铁砧突破石"
+  name: "<!i><gradient:#ffd166:#f77f00>星铸棱晶</gradient>"
   lore:
+    - "<!i><gray>承载星辉锻铭之力"
     - "<!i><gray>用于突破原版铁砧过于昂贵限制"
     - "<!i><gray>不会突破冲突、等级和槽位限制"
     - ""
