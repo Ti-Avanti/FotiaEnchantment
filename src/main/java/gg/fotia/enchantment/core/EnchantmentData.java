@@ -212,6 +212,8 @@ public class EnchantmentData {
         private List<ConditionConfig> conditions = new ArrayList<>();
         private List<ActionConfig> actions = new ArrayList<>();
         private int cooldown;
+        private Map<Integer, Integer> cooldownLevels = new HashMap<>();
+        private String cooldownFormula;
 
         public String getTrigger() {
             return trigger;
@@ -243,6 +245,22 @@ public class EnchantmentData {
 
         public void setCooldown(int cooldown) {
             this.cooldown = cooldown;
+        }
+
+        public Map<Integer, Integer> getCooldownLevels() {
+            return cooldownLevels;
+        }
+
+        public void setCooldownLevels(Map<Integer, Integer> cooldownLevels) {
+            this.cooldownLevels = cooldownLevels == null ? new HashMap<>() : new HashMap<>(cooldownLevels);
+        }
+
+        public String getCooldownFormula() {
+            return cooldownFormula;
+        }
+
+        public void setCooldownFormula(String cooldownFormula) {
+            this.cooldownFormula = cooldownFormula;
         }
     }
 

@@ -8,18 +8,18 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-final class AnvilCustomEnchantMerge {
+public final class AnvilCustomEnchantMerge {
 
     private AnvilCustomEnchantMerge() {
     }
 
-    static Result merge(Map<String, Integer> existing,
-                        Map<String, Integer> incoming,
-                        Function<String, EnchantmentData> dataResolver,
-                        Predicate<EnchantmentData> applicable,
-                        boolean targetIsEnchantedBook,
-                        int currentEnchantCount,
-                        int maxEnchantments) {
+    public static Result merge(Map<String, Integer> existing,
+                               Map<String, Integer> incoming,
+                               Function<String, EnchantmentData> dataResolver,
+                               Predicate<EnchantmentData> applicable,
+                               boolean targetIsEnchantedBook,
+                               int currentEnchantCount,
+                               int maxEnchantments) {
         Map<String, Integer> merged = normalizedCopy(existing);
         if (incoming == null || incoming.isEmpty() || dataResolver == null) {
             return new Result(Map.copyOf(merged), false);
@@ -94,6 +94,6 @@ final class AnvilCustomEnchantMerge {
         return EnchantmentConflictPolicy.normalizeCustomId(id);
     }
 
-    record Result(Map<String, Integer> enchantments, boolean modified) {
+    public record Result(Map<String, Integer> enchantments, boolean modified) {
     }
 }

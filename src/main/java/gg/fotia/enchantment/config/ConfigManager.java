@@ -51,7 +51,7 @@ public class ConfigManager {
     private boolean bundledDefaultEnchantmentsInstalled;
 
     private static final List<String> GUI_CONFIG_IDS = List.of(
-            "admin", "fragment-craft", "codex", "enchantment-guide", "disenchant");
+            "admin", "fragment-craft", "codex", "enchantment-guide", "disenchant", "anvil-breakthrough");
 
     public ConfigManager(FotiaEnchantment plugin) {
         this.plugin = plugin;

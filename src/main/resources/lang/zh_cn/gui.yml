@@ -275,6 +275,25 @@ disenchant-gui:
   place-item: "<!i><gray>请放入装备"
   place-stone: "<!i><gray>请放入祛魔石"
 
+anvil-breakthrough-gui:
+  title: "<!i><gold>铁砧突破"
+  place-target: "<!i><gray>放入要附魔的物品"
+  place-book: "<!i><gray>放入自定义附魔书"
+  place-catalyst: "<!i><gray>放入铁砧突破石"
+  preview: "<!i><yellow>结果预览"
+  confirm: "<!i><green>确认突破"
+  confirm-hint: "<!i><gray>消耗 1 本附魔书和 1 个突破石"
+  cancel: "<!i><red>取消"
+  cancel-hint: "<!i><gray>关闭并返还物品"
+  info-title: "<!i><gold>突破信息"
+  status-missing-target: "<!i><red>缺少目标物品"
+  status-target-stack: "<!i><red>目标物品数量必须为 1"
+  status-missing-book: "<!i><red>缺少附魔书"
+  status-invalid-book: "<!i><red>附魔书没有可合并的自定义附魔"
+  status-missing-catalyst: "<!i><red>缺少铁砧突破石"
+  status-no-result: "<!i><red>没有可合并的附魔，或被冲突/上限/适用限制阻止"
+  status-ready: "<!i><green>可突破，点击确认"
+
 craft-gui:
   title: "<!i><yellow>合成星芒魔典"
   arrow: "<!i><yellow>合成"

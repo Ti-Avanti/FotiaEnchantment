@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.gui.breakthrough.AnvilBreakthroughGUI;
 import gg.fotia.enchantment.gui.codex.CodexGUI;
 import gg.fotia.enchantment.gui.disenchant.DisenchantGUI;
 import gg.fotia.enchantment.gui.fragment.FragmentCraftGUI;
@@ -70,6 +71,10 @@ public class ItemUseListener implements Listener {
                 event.setCancelled(true);
                 handleDisenchantStoneUse(player, item, itemType);
             }
+            case "anvil-breakthrough-stone" -> {
+                event.setCancelled(true);
+                handleAnvilBreakthroughUse(player, item);
+            }
             default -> {
                 // 其他自定义道具不做处理
             }
@@ -108,5 +113,17 @@ public class ItemUseListener implements Listener {
             player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
         }
         plugin.getGuiManager().open(new DisenchantGUI(plugin, player, equipment, guiStone));
+    }
+
+    private void handleAnvilBreakthroughUse(Player player, ItemStack stone) {
+        ItemStack guiStone = stone.clone();
+        guiStone.setAmount(1);
+        int remaining = stone.getAmount() - 1;
+        if (remaining <= 0) {
+            player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
+        } else {
+            stone.setAmount(remaining);
+        }
+        plugin.getGuiManager().open(new AnvilBreakthroughGUI(plugin, player, guiStone));
     }
 }

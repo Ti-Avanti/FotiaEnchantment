@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.lore.description;
 
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.pipeline.LevelCooldownPolicy;
 import gg.fotia.enchantment.util.ExpressionParser;
 import gg.fotia.enchantment.util.ExpressionPredicate;
 
@@ -67,7 +68,7 @@ public final class EnchantmentDescriptionLines {
             if (!blockAppliesToLevel(block, level)) {
                 continue;
             }
-            collectEffectBlockPlaceholders(placeholders, placeholderIndexes, block);
+            collectEffectBlockPlaceholders(placeholders, placeholderIndexes, block, level);
             collectConditionPlaceholders(placeholders, placeholderIndexes, block, level);
             collectActionPlaceholders(placeholders, placeholderIndexes, block, level);
         }
@@ -77,9 +78,10 @@ public final class EnchantmentDescriptionLines {
     private static void collectEffectBlockPlaceholders(
             Map<String, String> placeholders,
             Map<String, Integer> placeholderIndexes,
-            EnchantmentData.EffectBlock block
+            EnchantmentData.EffectBlock block,
+            int level
     ) {
-        int cooldown = block.getCooldown();
+        long cooldown = LevelCooldownPolicy.resolveCooldownTicks(block, level, Map.of("level", (double) level));
         if (cooldown <= 0) {
             return;
         }

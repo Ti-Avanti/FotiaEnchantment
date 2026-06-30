@@ -50,3 +50,11 @@ disenchant-gem:
     - "<!i><gray>成功率: <white>100%"
     - ""
     - "<!i><dark_gray>右键使用"
+
+anvil-breakthrough-stone:
+  name: "<!i><gold>铁砧突破石"
+  lore:
+    - "<!i><gray>用于突破原版铁砧过于昂贵限制"
+    - "<!i><gray>不会突破冲突、等级和槽位限制"
+    - ""
+    - "<!i><dark_gray>右键使用"

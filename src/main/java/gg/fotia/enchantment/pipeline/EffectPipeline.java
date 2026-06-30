@@ -194,7 +194,8 @@ public class EffectPipeline {
 
                 // 检查冷却
                 String cooldownKey = active.getData().getId() + ":" + active.getEffectIndex();
-                if (effectBlock.getCooldown() > 0
+                long cooldownTicks = LevelCooldownPolicy.resolveCooldownTicks(effectBlock, level, variables);
+                if (cooldownTicks > 0
                         && cooldownManager.isOnCooldown(player.getUniqueId(), cooldownKey)) {
                     continue;
                 }
@@ -226,9 +227,9 @@ public class EffectPipeline {
                 }
 
                 // 设置冷却
-                if (effectBlock.getCooldown() > 0) {
+                if (cooldownTicks > 0) {
                     cooldownManager.setCooldown(
-                            player.getUniqueId(), cooldownKey, effectBlock.getCooldown());
+                            player.getUniqueId(), cooldownKey, cooldownTicks);
                 }
             }
         } finally {

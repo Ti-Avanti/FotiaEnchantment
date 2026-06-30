@@ -22,7 +22,8 @@ import java.util.Map;
 public class GiveItemCommand implements SubCommand {
 
     private static final List<String> ITEM_TYPES = Arrays.asList(
-            "fragment", "codex", "disenchant-shard", "disenchant-crystal", "disenchant-gem"
+            "fragment", "codex", "disenchant-shard", "disenchant-crystal", "disenchant-gem",
+            "anvil-breakthrough-stone"
     );
 
     private static final List<String> RARITIES = Arrays.asList(
@@ -138,6 +139,7 @@ public class GiveItemCommand implements SubCommand {
             case "disenchant-shard" -> itemManager.createDisenchantStone(player, "tier-1");
             case "disenchant-crystal" -> itemManager.createDisenchantStone(player, "tier-2");
             case "disenchant-gem" -> itemManager.createDisenchantStone(player, "tier-3");
+            case "anvil-breakthrough-stone" -> itemManager.createAnvilBreakthroughStone(player, amount);
             default -> null;
         };
         if (item != null) {
@@ -176,6 +178,7 @@ public class GiveItemCommand implements SubCommand {
             case "disenchant-shard" -> plugin.getLanguageManager().getItemName(player, "disenchant-shard");
             case "disenchant-crystal" -> plugin.getLanguageManager().getItemName(player, "disenchant-crystal");
             case "disenchant-gem" -> plugin.getLanguageManager().getItemName(player, "disenchant-gem");
+            case "anvil-breakthrough-stone" -> plugin.getLanguageManager().getItemName(player, "anvil-breakthrough-stone");
             default -> itemType;
         };
     }

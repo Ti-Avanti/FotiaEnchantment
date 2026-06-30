@@ -125,6 +125,29 @@ class EnchantmentDescriptionLinesTest {
     }
 
     @Test
+    void configuredLanguageDescriptionUsesLevelCooldownPlaceholders() {
+        EnchantmentData data = levelCooldownEnchant();
+
+        List<String> levelThree = EnchantmentDescriptionLines.customDescriptionOrGenerated(
+                List.of("cooldown {cooldown} ticks/{cooldown_seconds}s"),
+                data,
+                3,
+                key -> key,
+                "missing"
+        );
+        List<String> levelFour = EnchantmentDescriptionLines.customDescriptionOrGenerated(
+                List.of("cooldown {cooldown} ticks/{cooldown_seconds}s"),
+                data,
+                4,
+                key -> key,
+                "missing"
+        );
+
+        assertEquals(List.of("cooldown 40 ticks/2s"), levelThree);
+        assertEquals(List.of("cooldown 60 ticks/3s"), levelFour);
+    }
+
+    @Test
     void generatedEffectTextIsFallbackWhenLanguageDescriptionMissing() {
         EnchantmentData data = damageEnchant();
 
@@ -250,6 +273,21 @@ class EnchantmentDescriptionLinesTest {
 
         EnchantmentData.ActionConfig action = new EnchantmentData.ActionConfig("BLOCK_EXPLOSION", null);
         action.setExtraParams(Map.of("range", "{level} + 3"));
+        block.setActions(List.of(action));
+        data.setEffects(List.of(block));
+        return data;
+    }
+
+    private static EnchantmentData levelCooldownEnchant() {
+        EnchantmentData data = new EnchantmentData();
+        EnchantmentData.EffectBlock block = new EnchantmentData.EffectBlock();
+        block.setTrigger("MINE_BLOCK");
+        block.setCooldown(100);
+        block.setCooldownLevels(Map.of(3, 40));
+        block.setCooldownFormula("{level} * 15");
+
+        EnchantmentData.ActionConfig action = new EnchantmentData.ActionConfig("HEAL", "1");
+        action.setExtraParams(Map.of());
         block.setActions(List.of(action));
         data.setEffects(List.of(block));
         return data;

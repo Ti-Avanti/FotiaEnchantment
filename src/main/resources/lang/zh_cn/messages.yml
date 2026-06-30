@@ -65,6 +65,8 @@ fragment-not-enough: "{prefix}<!i><red>星辉残页不足，需要 <gold>{cost}<
 update-available: "{prefix}<!i><yellow>发现新版本 <gold>{latest}</gold><gray>，当前版本 <white>{current}</white><gray>。下载: <aqua>{url}</aqua>"
 
 grindstone-disabled: "{prefix}<!i><red>砂轮已被禁用"
+anvil-breakthrough-success: "{prefix}<!i><green>铁砧突破成功"
+anvil-breakthrough-not-ready: "{prefix}<!i><red>请先放入目标物品、附魔书和铁砧突破石"
 
 # 稀有度名称
 # EN: Rarity names

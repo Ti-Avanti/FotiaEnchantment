@@ -1,0 +1,74 @@
+# ============================================
+# 铁砧突破 GUI
+# EN: Anvil breakthrough GUI
+# ============================================
+# layout 每行必须为 9 个字符，字符通过 roles 绑定到功能槽位。
+# EN: Each layout row must contain 9 characters; roles bind characters to functional slots.
+# 文本支持 MiniMessage、旧颜色码 &/§、&#RRGGBB 和 lang:语言键。
+# EN: Text supports MiniMessage, legacy &/§ color codes, &#RRGGBB, and lang: language keys.
+
+rows: 4
+title: "lang:anvil-breakthrough-gui.title"
+fill-empty: true
+
+layout:
+  - "#########"
+  - "##T#C#B##"
+  - "####P####"
+  - "##X#I#O##"
+
+roles:
+  background: "#"
+  target: "T"
+  catalyst: "C"
+  book: "B"
+  preview: "P"
+  cancel: "X"
+  info: "I"
+  confirm: "O"
+
+items:
+  background:
+    material: BLACK_STAINED_GLASS_PANE
+    name: "<!i><dark_gray> "
+    lore: []
+
+  target:
+    material: DIAMOND_SWORD
+    name: "lang:anvil-breakthrough-gui.place-target"
+    lore: []
+
+  catalyst:
+    material: ECHO_SHARD
+    name: "lang:anvil-breakthrough-gui.place-catalyst"
+    lore: []
+
+  book:
+    material: ENCHANTED_BOOK
+    name: "lang:anvil-breakthrough-gui.place-book"
+    lore: []
+
+  preview:
+    material: BARRIER
+    name: "lang:anvil-breakthrough-gui.preview"
+    lore:
+      - "{status_lines}"
+
+  cancel:
+    material: RED_STAINED_GLASS_PANE
+    name: "lang:anvil-breakthrough-gui.cancel"
+    lore:
+      - "lang:anvil-breakthrough-gui.cancel-hint"
+
+  info:
+    material: PAPER
+    name: "lang:anvil-breakthrough-gui.info-title"
+    lore:
+      - "{status_lines}"
+
+  confirm:
+    material: LIME_STAINED_GLASS_PANE
+    name: "lang:anvil-breakthrough-gui.confirm"
+    lore:
+      - "lang:anvil-breakthrough-gui.confirm-hint"
+      - "{status_lines}"

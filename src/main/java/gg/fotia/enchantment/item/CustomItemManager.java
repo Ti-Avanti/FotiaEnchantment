@@ -233,6 +233,41 @@ public class CustomItemManager {
         return item;
     }
 
+    public ItemStack createAnvilBreakthroughStone(Player player, int amount) {
+        YamlConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
+        ConfigurationSection section = itemsConfig.getConfigurationSection("anvil-breakthrough-stone");
+        if (section == null) {
+            return new ItemStack(Material.ECHO_SHARD, amount);
+        }
+
+        String craftEngineItem = section.getString("craftengine-item", "");
+        if (!craftEngineItem.isEmpty()) {
+            ItemStack ceItem = createFromCraftEngine(craftEngineItem, amount, player);
+            if (ceItem != null) {
+                setItemType(ceItem, "anvil-breakthrough-stone");
+                return ceItem;
+            }
+        }
+
+        Material material = Material.matchMaterial(section.getString("material", "ECHO_SHARD"));
+        if (material == null) material = Material.ECHO_SHARD;
+        CustomItemAppearance appearance = CustomItemAppearance.from(section);
+        int customModelData = appearance.customModelData() != null ? appearance.customModelData() : 0;
+        boolean glow = section.getBoolean("glow", true);
+
+        String nameStr = plugin.getLanguageManager().getItemName(player, "anvil-breakthrough-stone");
+        List<String> loreStrList = plugin.getLanguageManager().getItemLore(player, "anvil-breakthrough-stone");
+
+        Component name = parseWithPlaceholders(nameStr, new HashMap<>());
+        List<Component> lore = parseLoreWithPlaceholders(loreStrList, new HashMap<>());
+
+        ItemStack item = ItemUtils.buildItem(material, name, lore, customModelData, glow);
+        item.setAmount(amount);
+        applyAppearance(item, appearance);
+        setItemType(item, "anvil-breakthrough-stone");
+        return item;
+    }
+
     // ==================== 识别方法 ====================
 
     /**
@@ -252,6 +287,10 @@ public class CustomItemManager {
         }
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         return pdc.get(itemTypeKey, PersistentDataType.STRING);
+    }
+
+    public boolean isAnvilBreakthroughStone(ItemStack item) {
+        return "anvil-breakthrough-stone".equals(identifyItem(item));
     }
 
     /**

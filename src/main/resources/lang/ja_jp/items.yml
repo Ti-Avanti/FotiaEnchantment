@@ -49,3 +49,11 @@ disenchant-gem:
     - "<!i><gray>Success rate: <white>100%"
     - ""
     - "<!i><dark_gray>Right-click to use"
+
+anvil-breakthrough-stone:
+  name: "<!i><gold>Anvil Breakthrough Stone"
+  lore:
+    - "<!i><gray>Bypasses vanilla too-expensive anvil blocking"
+    - "<!i><gray>Does not bypass conflicts, levels, or slot limits"
+    - ""
+    - "<!i><dark_gray>Right-click to use"

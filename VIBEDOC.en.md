@@ -77,6 +77,10 @@ codex-pools:
 effects:
   - trigger: MELEE_ATTACK
     cooldown: 60
+    cooldown-levels:
+      1: 100
+      3: 60
+      5: 40
     conditions:
       - type: chance
         value: "{level} * 8"
@@ -151,7 +155,26 @@ effects:
         value: "{level} * 2"
 ```
 
-`cooldown` uses ticks. `20` ticks = `1` second. Use cooldowns for frequent triggers, area damage, explosions, repeated potion effects, and repeated particle/sound effects.
+`cooldown`, `cooldown-levels`, `cooldown-formula`, and `duration` use ticks. `20` ticks = `1` second. Use cooldowns for frequent triggers, area damage, explosions, repeated potion effects, and repeated particle/sound effects.
+
+Use `cooldown-levels` when exact levels need different cooldowns:
+
+```yaml
+cooldown: 100
+cooldown-levels:
+  1: 100
+  3: 60
+  5: 40
+```
+
+Use `cooldown-formula` for formula-based scaling:
+
+```yaml
+cooldown: 100
+cooldown-formula: "{level} * 20"
+```
+
+Runtime priority is exact current level in `cooldown-levels`, then `cooldown-formula`, then fixed `cooldown`.
 
 Action params must be siblings of `type` and `value`, such as `potion`, `duration`, or `multiplier`. Do not wrap them under `extra-params`; the loader does not expand that field.
 
@@ -295,13 +318,15 @@ sacred_blessing:
 
 If one effect has no `duration`, it does not consume a `{secondsN}` slot. Numbering only counts values that actually exist and can be calculated. Keep description numbering aligned with the order of the real `effects` entries.
 
-Root-level effect-block `cooldown` can also be used in descriptions: `{cooldown}` renders ticks and `{cooldown_seconds}` renders seconds. Extra action or condition params can also be referenced by the same key. For example, `range: "{level} + 3"` can be displayed with `{range}`. Hyphen and underscore forms are both accepted for the same key, for example `{max-blocks}` / `{max_blocks}` and `{cooldown-seconds}` / `{cooldown_seconds}`. Unknown placeholders stay visible, so do not invent placeholders that are not listed here and not present in the effect params.
+Effect cooldown can also be used in descriptions: `{cooldown}` renders the current level's resolved ticks and `{cooldown_seconds}` renders the resolved seconds. If `cooldown-levels` or `cooldown-formula` is configured, placeholders use the current level's resolved cooldown. Extra action or condition params can also be referenced by the same key. For example, `range: "{level} + 3"` can be displayed with `{range}`. Hyphen and underscore forms are both accepted for the same key, for example `{max-blocks}` / `{max_blocks}` and `{cooldown-seconds}` / `{cooldown_seconds}`. Unknown placeholders stay visible, so do not invent placeholders that are not listed here and not present in the effect params.
 
 Formulas support `{level}`, numbers, spaces, parentheses, and `+ - * /` only. Do not use functions such as `floor()`, `ceil()`, `min()`, or `max()`.
 
 ## Scope Boundary
 
 This guide is only for generating enchantment YAML and language entries. Do not output Java source changes, engineering workflow steps, operations scripts, or unrelated project procedures unless the user explicitly asks for a task outside enchantment config writing.
+
+The anvil breakthrough stone and the "too expensive" bypass GUI are system custom-item / GUI configs, not enchantment YAML fields. They are controlled by `items/custom-items.yml` entry `anvil-breakthrough-stone` and `gui/anvil-breakthrough.yml`. Unless the user explicitly asks to change system items or GUI layout, do not invent enchantment fields such as `breakthrough`, `too-expensive`, or `anvil-gui`.
 
 ## AI Self-Check
 

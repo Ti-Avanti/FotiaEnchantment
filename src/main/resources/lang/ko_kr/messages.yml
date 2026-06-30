@@ -58,6 +58,8 @@ fragment-not-enough: "{prefix}<!i><red>Not enough Starweave Fragments, need <gol
 update-available: "{prefix}<!i><yellow>새 버전 <gold>{latest}</gold><gray> 사용 가능, 현재 버전 <white>{current}</white><gray>. 다운로드: <aqua>{url}</aqua>"
 
 grindstone-disabled: "{prefix}<!i><red>Grindstones are disabled"
+anvil-breakthrough-success: "{prefix}<!i><green>Anvil breakthrough successful"
+anvil-breakthrough-not-ready: "{prefix}<!i><red>Place a target item, enchanted book, and breakthrough stone first"
 
 # Rarity names
 rarity-dustlight: "Dustlight"

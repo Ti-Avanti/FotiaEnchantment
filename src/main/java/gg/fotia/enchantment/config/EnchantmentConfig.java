@@ -370,6 +370,8 @@ public class EnchantmentConfig {
             }
             block.setTrigger(String.valueOf(trigger));
             block.setCooldown(toInt(map.get("cooldown"), 0));
+            block.setCooldownLevels(parseCooldownLevels(map.get("cooldown-levels")));
+            block.setCooldownFormula(toStringOrNull(map.get("cooldown-formula")));
 
             block.setConditions(parseConditions(map.get("conditions")));
             block.setActions(parseActions(map.get("actions")));
@@ -447,6 +449,29 @@ public class EnchantmentConfig {
             result.add(cfg);
         }
         return result;
+    }
+
+    private static Map<Integer, Integer> parseCooldownLevels(Object rawLevels) {
+        if (!(rawLevels instanceof Map<?, ?> rawMap)) {
+            return Collections.emptyMap();
+        }
+        Map<Integer, Integer> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            int level = toInt(entry.getKey(), -1);
+            int ticks = toInt(entry.getValue(), -1);
+            if (level > 0 && ticks >= 0) {
+                result.put(level, ticks);
+            }
+        }
+        return result;
+    }
+
+    private static String toStringOrNull(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = String.valueOf(raw).trim();
+        return value.isEmpty() ? null : value;
     }
 
     private static void validateString(ConfigurationSection section, File file, String enchantmentId,
