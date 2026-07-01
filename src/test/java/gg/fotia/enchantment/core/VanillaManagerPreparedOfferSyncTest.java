@@ -26,6 +26,14 @@ class VanillaManagerPreparedOfferSyncTest {
     }
 
     @Test
+    void enchantingTablePreviewCandidatesIncludeFotiaNamespace() {
+        assertTrue(VanillaManager.isEnchantingTablePreviewCandidateNamespace("minecraft"));
+        assertTrue(VanillaManager.isEnchantingTablePreviewCandidateNamespace(EnchantmentRegistry.getNamespace()));
+        assertFalse(VanillaManager.isEnchantingTablePreviewCandidateNamespace("other_plugin"));
+        assertFalse(VanillaManager.isEnchantingTablePreviewCandidateNamespace(null));
+    }
+
+    @Test
     void vanillaApplicableItemsDoNotUseSubstringMatching() throws IOException {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
@@ -225,9 +233,15 @@ class VanillaManagerPreparedOfferSyncTest {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
 
+        assertTrue(source.contains("PreparedOffer selected = consumePreparedOffer(event, item)"),
+                "Enchanting table apply must consume the prepared offer before checking existing Fotia data");
+        assertTrue(source.contains("hasExistingFotiaEnchantments(item) && selected == null"),
+                "Same-click PDC-only custom rolls must not be mistaken for pre-existing Fotia enchantments");
         assertTrue(source.contains("event.setCancelled(true)"),
                 "Enchanting table apply event must cancel if the item already has Fotia enchantments");
         assertTrue(source.contains("toAdd.clear()"),
                 "Cancelled enchanting table apply event must not leave pending enchantments behind");
+        assertTrue(source.contains("enchanting-table-already-fotia"),
+                "Cancelled enchanting table apply event must tell the player why the click did nothing");
     }
 }

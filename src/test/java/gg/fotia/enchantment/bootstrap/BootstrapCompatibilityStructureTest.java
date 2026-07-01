@@ -74,6 +74,14 @@ class BootstrapCompatibilityStructureTest {
                 "src/bootstrap/paper/v1_21_R6/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R6/PaperV1_21_R6Bootstrap.java");
     }
 
+    @Test
+    void versionedBootstrapsEnumerateAllBundledDefaultEnchantments() throws IOException {
+        assertBootstrapEnumeratesBundledDefaults(
+                "src/bootstrap/paper/v1_21_R1/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R1/PaperV1_21_R1Bootstrap.java");
+        assertBootstrapEnumeratesBundledDefaults(
+                "src/bootstrap/paper/v1_21_R6/java/gg/fotia/enchantment/bootstrap/paper/v1_21_R6/PaperV1_21_R6Bootstrap.java");
+    }
+
     private static String read(String path) throws IOException {
         return Files.readString(ROOT.resolve(path));
     }
@@ -93,5 +101,18 @@ class BootstrapCompatibilityStructureTest {
         assertTrue(elseBranch > externalLoad, path + " must keep bundled defaults in the missing-directory branch");
         assertTrue(bundledLoad > elseBranch, path + " must load bundled defaults only when the directory is missing");
         assertTrue(bootstrapDataReturn > bundledLoad, path + " must finish bootstrap data after choosing one source");
+    }
+
+    private static void assertBootstrapEnumeratesBundledDefaults(String path) throws IOException {
+        String source = read(path);
+
+        assertFalse(source.contains("DEFAULT_ENCHANTMENT_RESOURCES"),
+                path + " must not use a stale handwritten default enchantment list");
+        assertTrue(source.contains("listBundledEnchantmentResources()"),
+                path + " must enumerate bundled enchantments from the jar or development output directory");
+        assertTrue(source.contains("Files.walk(enchantmentDir)"),
+                path + " must enumerate default enchantments from exploded development resources");
+        assertTrue(source.contains("new JarFile(location.toFile())"),
+                path + " must enumerate default enchantments from packaged jars");
     }
 }

@@ -15,6 +15,8 @@ max-enchants-reached: "{prefix}<!i><red>This item has reached the maximum number
 group-limit-reached: "{prefix}<!i><red>This item has reached the limit for <gold>{group}</gold> group enchantments"
 enchant-slot-empty: "<!i><dark_gray>[エンチャント枠]"
 enchant-slot-summary: "<!i><dark_gray>エンチャント枠: {used}/{max}"
+enchanting-table-already-fotia: "{prefix}<!i><red>このアイテムにはすでに Fotia エンチャントがあるため、エンチャント台では追加できません"
+enchanting-table-no-result: "{prefix}<!i><red>適用できるエンチャント結果がありません。別の選択肢にするか、制限を確認してください"
 
 # Permission and error messages
 no-permission: "{prefix}<!i><red>You do not have permission to do this"

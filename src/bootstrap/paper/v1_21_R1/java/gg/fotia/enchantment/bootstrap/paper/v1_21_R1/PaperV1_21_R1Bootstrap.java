@@ -40,26 +40,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
 @SuppressWarnings("UnstableApiUsage")
 public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementation {
-
-    private static final String[] DEFAULT_ENCHANTMENT_RESOURCES = {
-            "enchantments/melee/blazing_blade.yml",
-            "enchantments/melee/thunder_smash.yml",
-            "enchantments/melee/vampiric_strike.yml",
-            "enchantments/ranged/explosive_arrow.yml",
-            "enchantments/ranged/homing_arrow.yml",
-            "enchantments/armor/frost_shield.yml",
-            "enchantments/armor/thorn_nova.yml",
-            "enchantments/armor/vitality_spring.yml",
-            "enchantments/tools/auto_smelt.yml",
-            "enchantments/tools/bountiful.yml",
-            "enchantments/tools/vein_miner.yml",
-            "enchantments/universal/windwalker.yml",
-            "enchantments/universal/xp_boost.yml"
-    };
 
     private static final Map<String, List<Material>> CATEGORY_MATERIALS = buildCategoryMaterials();
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
@@ -171,7 +157,7 @@ public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementatio
     private static void loadBundledDefaultEnchantments(ClassLoader classLoader,
                                                        Map<String, String> names,
                                                        Map<String, BootstrapEnchantment> enchantments) {
-        for (String resource : DEFAULT_ENCHANTMENT_RESOURCES) {
+        for (String resource : listBundledEnchantmentResources()) {
             try (InputStream input = classLoader.getResourceAsStream(resource)) {
                 if (input == null) {
                     continue;
@@ -186,6 +172,53 @@ public final class PaperV1_21_R1Bootstrap implements FotiaBootstrapImplementatio
                 // Invalid default resources are ignored here; the normal plugin loader will log detailed errors.
             }
         }
+    }
+
+    private static List<String> listBundledEnchantmentResources() {
+        try {
+            Path location = Path.of(PaperV1_21_R1Bootstrap.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toURI());
+            if (Files.isDirectory(location)) {
+                Path enchantmentDir = location.resolve("enchantments");
+                if (!Files.isDirectory(enchantmentDir)) {
+                    return Collections.emptyList();
+                }
+                try (Stream<Path> stream = Files.walk(enchantmentDir)) {
+                    return stream
+                            .filter(Files::isRegularFile)
+                            .map(location::relativize)
+                            .map(path -> path.toString().replace(File.separatorChar, '/'))
+                            .filter(PaperV1_21_R1Bootstrap::isBundledEnchantmentResource)
+                            .sorted()
+                            .toList();
+                }
+            }
+
+            List<String> resources = new ArrayList<>();
+            try (JarFile jar = new JarFile(location.toFile())) {
+                var entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    String name = entry.getName();
+                    if (!entry.isDirectory() && isBundledEnchantmentResource(name)) {
+                        resources.add(name);
+                    }
+                }
+            }
+            Collections.sort(resources);
+            return resources;
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
+    }
+
+    private static boolean isBundledEnchantmentResource(String resource) {
+        return resource != null
+                && resource.startsWith("enchantments/")
+                && resource.toLowerCase(Locale.ROOT).endsWith(".yml");
     }
 
     private static void loadExternalEnchantments(Path externalEnchantments,

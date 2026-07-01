@@ -243,13 +243,15 @@ public class VanillaManager implements Listener {
     public void onEnchantItem(EnchantItemEvent event) {
         Map<Enchantment, Integer> toAdd = event.getEnchantsToAdd();
         ItemStack item = event.getItem();
-        if (hasExistingFotiaEnchantments(item)) {
+        PreparedOffer selected = consumePreparedOffer(event, item);
+        if (hasExistingFotiaEnchantments(item) && selected == null) {
             toAdd.clear();
             event.setCancelled(true);
+            notifyEnchantingTableFailure(event.getEnchanter(), "enchanting-table-already-fotia");
             return;
         }
 
-        Enchantment preferred = syncWithPreparedOffer(event, toAdd, item);
+        Enchantment preferred = syncWithPreparedOffer(event, toAdd, item, selected);
 
         Iterator<Map.Entry<Enchantment, Integer>> iterator = toAdd.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -281,6 +283,10 @@ public class VanillaManager implements Listener {
         if (item != null && plugin.getConfigManager() != null && plugin.getEnchantmentManager() != null) {
             removeConflictingEnchantingTableAdds(item, toAdd, preferred);
             trimEnchantingTableAddsToLimit(item, toAdd, preferred);
+        }
+        if (toAdd.isEmpty()) {
+            event.setCancelled(true);
+            notifyEnchantingTableFailure(event.getEnchanter(), "enchanting-table-no-result");
         }
     }
 
@@ -891,6 +897,9 @@ public class VanillaManager implements Listener {
      * 根据 Enchantment 获取对应的覆盖配置
      */
     private VanillaOverride getOverrideFor(Enchantment enchant) {
+        if (!isMinecraftEnchantment(enchant)) {
+            return null;
+        }
         String key = enchant.getKey().getKey().toLowerCase(Locale.ROOT);
         return vanillaConfig.getOverride(key);
     }
@@ -939,14 +948,25 @@ public class VanillaManager implements Listener {
         int totalWeight = 0;
 
         for (Enchantment enchantment : Registry.ENCHANTMENT) {
-            if (!"minecraft".equals(enchantment.getKey().getNamespace())) {
-                continue;
-            }
-            if (isDisabled(enchantment) || !isApplicable(enchantment, item)) {
+            if (enchantment == null || enchantment.getKey() == null
+                    || !isEnchantingTablePreviewCandidateNamespace(enchantment.getKey().getNamespace())) {
                 continue;
             }
 
-            int weight = useConfiguredWeights ? configuredWeightOrDefault(enchantment) : 10;
+            int weight;
+            if (isMinecraftEnchantment(enchantment)) {
+                if (isDisabled(enchantment) || !isApplicable(enchantment, item)) {
+                    continue;
+                }
+                weight = useConfiguredWeights ? configuredWeightOrDefault(enchantment) : 10;
+            } else {
+                EnchantmentData data = customEnchantingTableCandidateData(enchantment, item);
+                if (data == null) {
+                    continue;
+                }
+                weight = data.getObtain().getEnchantingTableWeight();
+            }
+
             if (weight <= 0) {
                 continue;
             }
@@ -1037,6 +1057,34 @@ public class VanillaManager implements Listener {
         return configured >= 0 ? configured : 10;
     }
 
+    private EnchantmentData customEnchantingTableCandidateData(Enchantment enchantment, ItemStack item) {
+        if (!isFotiaEnchantment(enchantment)
+                || plugin.getConfigManager() == null
+                || plugin.getEnchantmentManager() == null
+                || !plugin.getConfigManager().isEnchantingTableEnabled()) {
+            return null;
+        }
+
+        String id = customEnchantmentId(enchantment);
+        EnchantmentManager manager = plugin.getEnchantmentManager();
+        EnchantmentData data = manager.getEnchantment(id);
+        if (data == null
+                || !data.isEnabled()
+                || !data.getObtain().isEnchantingTable()
+                || data.getObtain().getEnchantingTableWeight() <= 0) {
+            return null;
+        }
+
+        PDCManager pdc = manager.getPdcManager();
+        if (pdc == null || !pdc.isApplicable(item, data)) {
+            return null;
+        }
+        if (pdc.hasConflict(item, data, manager::getEnchantment)) {
+            return null;
+        }
+        return conflictsWithAnyNative(data, nativeEnchantments(item).keySet()) ? null : data;
+    }
+
     /**
      * 把附魔台预览项替换为指定附魔并修正等级。
      */
@@ -1071,11 +1119,14 @@ public class VanillaManager implements Listener {
      */
     private Enchantment syncWithPreparedOffer(EnchantItemEvent event,
                                               Map<Enchantment, Integer> toAdd,
-                                              ItemStack item) {
+                                              ItemStack item,
+                                              PreparedOffer selected) {
         if (event == null || toAdd == null || item == null || item.getType() == Material.AIR) {
             return null;
         }
-        PreparedOffer selected = selectedPreparedOffer(event, item);
+        if (selected == null) {
+            selected = fallbackPreparedOffer(event, item);
+        }
         if (selected == null || selected.enchantment() == null) {
             return null;
         }
@@ -1087,6 +1138,9 @@ public class VanillaManager implements Listener {
 
         if (isMinecraftEnchantment(enchantment)) {
             toAdd.entrySet().removeIf(entry -> !shouldKeepDuringPreparedOfferSync(entry.getKey()));
+        } else if (isFotiaEnchantment(enchantment)) {
+            toAdd.entrySet().removeIf(entry -> isFotiaEnchantment(entry.getKey())
+                    && !enchantment.equals(entry.getKey()));
         }
 
         int startLevel = Math.max(1, enchantment.getStartLevel());
@@ -1095,7 +1149,7 @@ public class VanillaManager implements Listener {
         return enchantment;
     }
 
-    private PreparedOffer selectedPreparedOffer(EnchantItemEvent event, ItemStack item) {
+    private PreparedOffer consumePreparedOffer(EnchantItemEvent event, ItemStack item) {
         PreparedOffer[] offers = preparedOffers.remove(event.getEnchanter().getUniqueId());
         int button = event.whichButton();
         if (offers != null && button >= 0 && button < offers.length) {
@@ -1104,7 +1158,10 @@ public class VanillaManager implements Listener {
                 return offer;
             }
         }
+        return null;
+    }
 
+    private PreparedOffer fallbackPreparedOffer(EnchantItemEvent event, ItemStack item) {
         Enchantment hint = event.getEnchantmentHint();
         if (hint == null) {
             return null;
@@ -1126,6 +1183,22 @@ public class VanillaManager implements Listener {
 
     static boolean shouldKeepNamespaceDuringPreparedOfferSync(String namespace) {
         return "minecraft".equals(namespace) || EnchantmentRegistry.getNamespace().equals(namespace);
+    }
+
+    static boolean isEnchantingTablePreviewCandidateNamespace(String namespace) {
+        return "minecraft".equals(namespace) || EnchantmentRegistry.getNamespace().equals(namespace);
+    }
+
+    private boolean isFotiaEnchantment(Enchantment enchantment) {
+        return enchantment != null
+                && enchantment.getKey() != null
+                && EnchantmentRegistry.getNamespace().equals(enchantment.getKey().getNamespace());
+    }
+
+    private void notifyEnchantingTableFailure(Player player, String messageKey) {
+        if (player != null && plugin.getMessageHelper() != null) {
+            plugin.getMessageHelper().sendMessage(player, messageKey);
+        }
     }
 
     /**

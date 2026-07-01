@@ -19,6 +19,8 @@ max-enchants-reached: "{prefix}<!i><red>此物品已达到附魔数量上限 (<g
 group-limit-reached: "{prefix}<!i><red>此物品已达到 <gold>{group}</gold> 组附魔上限"
 enchant-slot-empty: "<!i><dark_gray>[可附魔槽位]"
 enchant-slot-summary: "<!i><dark_gray>可附魔槽位: {used}/{max}"
+enchanting-table-already-fotia: "{prefix}<!i><red>此物品已有 Fotia 附魔，無法繼續使用附魔台"
+enchanting-table-no-result: "{prefix}<!i><red>本次附魔沒有可套用的結果，請更換選項或檢查附魔限制"
 
 # 权限和错误消息
 # EN: Permission and error messages
