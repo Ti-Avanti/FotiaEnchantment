@@ -211,7 +211,7 @@ public class VanillaManager implements Listener {
             Enchantment current = offer.getEnchantment();
             boolean invalidOffer = isDisabled(current) || !isApplicable(current, item);
             if (invalidOffer || useConfiguredWeights) {
-                Enchantment replacement = pickEnchantingTableCandidate(
+                CandidateOffer replacement = pickEnchantingTableCandidate(
                         item,
                         useConfiguredWeights,
                         enchantingSeed,
@@ -936,14 +936,14 @@ public class VanillaManager implements Listener {
     /**
      * 按配置挑选一个可用于附魔台的原版候选。
      */
-    private Enchantment pickEnchantingTableCandidate(ItemStack item,
-                                                     boolean useConfiguredWeights,
-                                                     int enchantingSeed,
-                                                     int offerSlot,
-                                                     int offerCost,
-                                                     int enchantmentBonus,
-                                                     Enchantment currentOffer,
-                                                     int currentOfferLevel) {
+    private CandidateOffer pickEnchantingTableCandidate(ItemStack item,
+                                                        boolean useConfiguredWeights,
+                                                        int enchantingSeed,
+                                                        int offerSlot,
+                                                        int offerCost,
+                                                        int enchantmentBonus,
+                                                        Enchantment currentOffer,
+                                                        int currentOfferLevel) {
         List<WeightedEnchantment> candidates = new ArrayList<>();
         int totalWeight = 0;
 
@@ -992,10 +992,25 @@ public class VanillaManager implements Listener {
         for (WeightedEnchantment candidate : candidates) {
             cursor += candidate.weight();
             if (roll < cursor) {
-                return candidate.enchantment();
+                return createCandidateOffer(candidate.enchantment(), enchantingSeed, offerSlot, offerCost, currentOfferLevel);
             }
         }
-        return candidates.get(candidates.size() - 1).enchantment();
+        return createCandidateOffer(candidates.get(candidates.size() - 1).enchantment(),
+                enchantingSeed,
+                offerSlot,
+                offerCost,
+                currentOfferLevel);
+    }
+
+    private CandidateOffer createCandidateOffer(Enchantment enchantment,
+                                                int enchantingSeed,
+                                                int offerSlot,
+                                                int offerCost,
+                                                int currentOfferLevel) {
+        int level = isFotiaEnchantment(enchantment)
+                ? rollFotiaEnchantingTableLevel(enchantment, offerCost, enchantingSeed, offerSlot)
+                : clampLevel(currentOfferLevel, enchantment);
+        return new CandidateOffer(enchantment, level);
     }
 
     static int stableEnchantingPreviewRoll(int totalWeight,
@@ -1088,9 +1103,10 @@ public class VanillaManager implements Listener {
     /**
      * 把附魔台预览项替换为指定附魔并修正等级。
      */
-    private void applyOfferEnchantment(EnchantmentOffer offer, Enchantment enchantment) {
-        offer.setEnchantment(enchantment);
-        clampOfferLevel(offer, enchantment);
+    private void applyOfferEnchantment(EnchantmentOffer offer, CandidateOffer candidate) {
+        offer.setEnchantment(candidate.enchantment());
+        offer.setEnchantmentLevel(candidate.level());
+        clampOfferLevel(offer, candidate.enchantment());
     }
 
     /**
@@ -1166,7 +1182,10 @@ public class VanillaManager implements Listener {
         if (hint == null) {
             return null;
         }
-        return new PreparedOffer(hint, event.getLevelHint(), item.getType());
+        int level = isFotiaEnchantment(hint)
+                ? rollFotiaEnchantingTableLevel(hint, event.getExpLevelCost(), event.getEnchanter().getEnchantmentSeed(), event.whichButton())
+                : event.getLevelHint();
+        return new PreparedOffer(hint, level, item.getType());
     }
 
     private boolean isMinecraftEnchantment(Enchantment enchantment) {
@@ -1205,12 +1224,36 @@ public class VanillaManager implements Listener {
      * 限制附魔台预览等级在配置最大等级和原版起始等级之间。
      */
     private void clampOfferLevel(EnchantmentOffer offer, Enchantment enchantment) {
-        int startLevel = Math.max(1, enchantment.getStartLevel());
-        int maxLevel = Math.max(startLevel, getMaxLevel(enchantment));
-        int level = Math.max(startLevel, Math.min(offer.getEnchantmentLevel(), maxLevel));
+        int level = clampLevel(offer.getEnchantmentLevel(), enchantment);
         if (offer.getEnchantmentLevel() != level) {
             offer.setEnchantmentLevel(level);
         }
+    }
+
+    private int rollFotiaEnchantingTableLevel(Enchantment enchantment,
+                                              int offerCost,
+                                              int enchantingSeed,
+                                              int offerSlot) {
+        int maxLevel = Math.max(1, getMaxLevel(enchantment));
+        int level;
+        if (plugin.getConfigManager() == null || !plugin.getConfigManager().isEnchantingTableLevelRollEnabled()) {
+            level = EnchantingTableLevelPolicy.legacyScaledLevel(maxLevel, offerCost);
+        } else {
+            level = EnchantingTableLevelPolicy.rollLevel(
+                    maxLevel,
+                    offerCost,
+                    enchantingSeed,
+                    keyString(enchantment),
+                    offerSlot,
+                    plugin.getConfigManager().getEnchantingTableLevelTiers());
+        }
+        return clampLevel(level, enchantment);
+    }
+
+    private int clampLevel(int level, Enchantment enchantment) {
+        int startLevel = Math.max(1, enchantment.getStartLevel());
+        int maxLevel = Math.max(startLevel, getMaxLevel(enchantment));
+        return Math.max(startLevel, Math.min(level, maxLevel));
     }
 
     /**
@@ -1242,6 +1285,9 @@ public class VanillaManager implements Listener {
     }
 
     private record WeightedEnchantment(Enchantment enchantment, int weight) {
+    }
+
+    private record CandidateOffer(Enchantment enchantment, int level) {
     }
 
     private record PreparedOffer(Enchantment enchantment, int level, Material itemType) {

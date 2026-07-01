@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.EnchantingTableLevelPolicy;
 import gg.fotia.enchantment.core.EnchantmentConflictPolicy;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
@@ -110,8 +111,7 @@ public class EnchantListener implements Listener {
                 break;
             }
 
-            int level = Math.max(1, Math.min(picked.getMaxLevel(),
-                    (int) Math.ceil(cost * picked.getMaxLevel() / 30.0)));
+            int level = customEnchantingTableLevel(picked, cost, i);
             selectedIds.add(picked.getId());
             currentCount++;
 
@@ -131,6 +131,20 @@ public class EnchantListener implements Listener {
             EnchantmentLoreCleaner.stripGeneratedLore(plugin, event.getEnchanter(), modified);
             event.setItem(modified);
         }
+    }
+
+    private int customEnchantingTableLevel(EnchantmentData data, int cost, int rollIndex) {
+        int maxLevel = Math.max(1, data.getMaxLevel());
+        if (plugin.getConfigManager() == null || !plugin.getConfigManager().isEnchantingTableLevelRollEnabled()) {
+            return EnchantingTableLevelPolicy.legacyScaledLevel(maxLevel, cost);
+        }
+        return EnchantingTableLevelPolicy.rollLevel(
+                maxLevel,
+                cost,
+                ThreadLocalRandom.current().nextInt(),
+                data.getId(),
+                rollIndex,
+                plugin.getConfigManager().getEnchantingTableLevelTiers());
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

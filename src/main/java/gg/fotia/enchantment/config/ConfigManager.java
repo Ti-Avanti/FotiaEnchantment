@@ -1,11 +1,13 @@
 package gg.fotia.enchantment.config;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.EnchantingTableLevelPolicy;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.item.CodexCraftRarity;
 import gg.fotia.enchantment.item.CodexRarityWeights;
 import gg.fotia.enchantment.lore.item.EnchantmentSlotLore;
 import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -85,6 +87,9 @@ public class ConfigManager {
         if (appendMissingGrindstoneConfig(mainConfig)) {
             mainConfig = loadConfig("config.yml", issues);
         }
+        if (ensureEnchantingTableLevelRollConfig(mainConfig)) {
+            mainConfig = loadConfig("config.yml", issues);
+        }
         rarityConfig = loadConfig("rarity.yml", issues);
         groupsConfig = loadConfig("groups.yml", issues);
         loadGuiConfigs(issues);
@@ -104,6 +109,12 @@ public class ConfigManager {
         bundledDefaultEnchantmentsInstalled = false;
         saveDefaultGuiConfigs();
         mainConfig = loadConfig("config.yml", issues);
+        if (appendMissingGrindstoneConfig(mainConfig)) {
+            mainConfig = loadConfig("config.yml", issues);
+        }
+        if (ensureEnchantingTableLevelRollConfig(mainConfig)) {
+            mainConfig = loadConfig("config.yml", issues);
+        }
         rarityConfig = loadConfig("rarity.yml", issues);
         groupsConfig = loadConfig("groups.yml", issues);
         loadGuiConfigs(issues);
@@ -180,6 +191,36 @@ public class ConfigManager {
         } catch (IOException ex) {
             plugin.getLogger().warning("无法向 config.yml 追加砂轮配置: " + ex.getMessage());
             return false;
+        }
+    }
+
+    private boolean ensureEnchantingTableLevelRollConfig(YamlConfiguration config) {
+        if (config == null || config.contains("enchanting-table.level-roll", true)) {
+            return false;
+        }
+
+        config.set("enchanting-table.level-roll.enabled", true);
+        writeDefaultLevelTier(config, "low", 10, Map.of(1, 100, 2, 10));
+        writeDefaultLevelTier(config, "medium", 20, Map.of(1, 70, 2, 45, 3, 15, 4, 3));
+        writeDefaultLevelTier(config, "high", 30, Map.of(1, 35, 2, 45, 3, 30, 4, 14, 5, 5));
+
+        try {
+            config.save(new File(plugin.getDataFolder(), "config.yml"));
+            return true;
+        } catch (IOException ex) {
+            plugin.getLogger().warning("无法向 config.yml 写入附魔台等级权重配置: " + ex.getMessage());
+            return false;
+        }
+    }
+
+    private static void writeDefaultLevelTier(YamlConfiguration config,
+                                              String key,
+                                              int maxCost,
+                                              Map<Integer, Integer> weights) {
+        String path = "enchanting-table.level-roll.tiers." + key;
+        config.set(path + ".max-cost", maxCost);
+        for (Map.Entry<Integer, Integer> entry : weights.entrySet()) {
+            config.set(path + ".weights." + entry.getKey(), entry.getValue());
         }
     }
 
@@ -602,6 +643,45 @@ public class ConfigManager {
 
     public double getEnchantingTableMaxChance() {
         return mainConfig.getDouble("enchanting-table.max-custom-chance", 0.95);
+    }
+
+    public boolean isEnchantingTableLevelRollEnabled() {
+        return mainConfig.getBoolean("enchanting-table.level-roll.enabled", true);
+    }
+
+    public List<EnchantingTableLevelPolicy.LevelTier> getEnchantingTableLevelTiers() {
+        ConfigurationSection tiersSection = mainConfig.getConfigurationSection("enchanting-table.level-roll.tiers");
+        if (tiersSection == null) {
+            return EnchantingTableLevelPolicy.defaultTiers();
+        }
+
+        List<EnchantingTableLevelPolicy.LevelTier> tiers = new ArrayList<>();
+        for (String key : tiersSection.getKeys(false)) {
+            ConfigurationSection tierSection = tiersSection.getConfigurationSection(key);
+            if (tierSection == null) {
+                continue;
+            }
+            int maxCost = tierSection.getInt("max-cost", -1);
+            ConfigurationSection weightsSection = tierSection.getConfigurationSection("weights");
+            Map<Integer, Integer> weights = new HashMap<>();
+            if (weightsSection != null) {
+                for (String weightKey : weightsSection.getKeys(false)) {
+                    try {
+                        int level = Integer.parseInt(weightKey);
+                        int weight = weightsSection.getInt(weightKey, 0);
+                        if (level > 0 && weight > 0) {
+                            weights.put(level, weight);
+                        }
+                    } catch (NumberFormatException ignored) {
+                        // Ignore invalid custom keys so one typo cannot break the whole table.
+                    }
+                }
+            }
+            if (maxCost > 0 && !weights.isEmpty()) {
+                tiers.add(new EnchantingTableLevelPolicy.LevelTier(maxCost, weights));
+            }
+        }
+        return tiers.isEmpty() ? EnchantingTableLevelPolicy.defaultTiers() : tiers;
     }
 
     /**

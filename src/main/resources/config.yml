@@ -104,6 +104,33 @@ enchanting-table:
   # 每次额外抽取的最高概率
   # EN: Maximum chance for each extra custom roll
   max-custom-chance: 0.95
+  # 附魔台 Fotia 附魔等级抽取；关闭后会恢复旧版按消耗等级线性放大的等级
+  # EN: Fotia enchantment level rolls from the enchanting table; disable to use the old cost-scaled level
+  level-roll:
+    enabled: true
+    # 按附魔消耗等级选择档位。权重越大，该等级越容易出现；高于附魔 max-level 的权重会被自动忽略
+    # EN: Tiers are selected by enchantment cost. Higher weights make that level more likely; levels above max-level are ignored
+    tiers:
+      low:
+        max-cost: 10
+        weights:
+          1: 100
+          2: 10
+      medium:
+        max-cost: 20
+        weights:
+          1: 70
+          2: 45
+          3: 15
+          4: 3
+      high:
+        max-cost: 30
+        weights:
+          1: 35
+          2: 45
+          3: 30
+          4: 14
+          5: 5
 
 # ============================================
 # 性能设置
