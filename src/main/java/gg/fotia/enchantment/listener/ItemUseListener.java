@@ -16,13 +16,6 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
-/**
- * 道具使用监听器
- * 监听 PlayerInteractEvent（右键）:
- * - 右键星辉残页 → 打开合成 GUI
- * - 右键星芒魔典 → 打开揭示 GUI
- * - 右键祛魔之石 → 打开祛魔 GUI
- */
 public class ItemUseListener implements Listener {
 
     private final FotiaEnchantment plugin;
@@ -35,19 +28,15 @@ public class ItemUseListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        // 只处理右键
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
-
-        // 避免副手重复触发
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
         }
 
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
-
         if (item.isEmpty()) {
             return;
         }
@@ -57,7 +46,12 @@ public class ItemUseListener implements Listener {
             return;
         }
 
-        // 根据物品类型路由事件
+        if (customItemManager.isDisenchantItemType(itemType)) {
+            event.setCancelled(true);
+            handleDisenchantStoneUse(player, item);
+            return;
+        }
+
         switch (itemType) {
             case "starweave-fragment" -> {
                 event.setCancelled(true);
@@ -67,23 +61,15 @@ public class ItemUseListener implements Listener {
                 event.setCancelled(true);
                 handleCodexUse(player, item);
             }
-            case "disenchant-shard", "disenchant-crystal", "disenchant-gem" -> {
-                event.setCancelled(true);
-                handleDisenchantStoneUse(player, item, itemType);
-            }
             case "anvil-breakthrough-stone" -> {
                 event.setCancelled(true);
                 handleAnvilBreakthroughUse(player, item);
             }
             default -> {
-                // 其他自定义道具不做处理
             }
         }
     }
 
-    /**
-     * 处理星芒魔典使用。
-     */
     private void handleCodexUse(Player player, ItemStack codex) {
         ItemStack singleCodex = codex.clone();
         singleCodex.setAmount(1);
@@ -91,10 +77,7 @@ public class ItemUseListener implements Listener {
         plugin.getGuiManager().open(new CodexGUI(plugin, player, singleCodex));
     }
 
-    /**
-     * 处理祛魔之石使用。
-     */
-    private void handleDisenchantStoneUse(Player player, ItemStack stone, String itemType) {
+    private void handleDisenchantStoneUse(Player player, ItemStack stone) {
         ItemStack equipment = player.getInventory().getItemInOffHand();
         if (equipment != null && equipment.getType().isAir()) {
             equipment = null;

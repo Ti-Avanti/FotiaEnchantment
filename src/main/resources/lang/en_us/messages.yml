@@ -54,6 +54,7 @@ codex-craft-success: "{prefix}<!i><green>Crafting successful! Obtained {rarity_c
 disenchant-success: "{prefix}<!i><green>Disenchant successful! Obtained book: <gold>{enchant_name} {level}</gold>"
 disenchant-fail: "{prefix}<!i><red>Disenchant failed..."
 disenchant-destroyed: "{prefix}<!i><dark_red>Disenchant failed! The enchantment was destroyed"
+disenchant-no-valid-target: "{prefix}<!i><red>No removable enchantment selected. Choose an enchantment this stone can remove"
 fragment-not-enough: "{prefix}<!i><red>Not enough Starweave Fragments, need <gold>{cost}</gold>"
 update-available: "{prefix}<!i><yellow>New version available: <gold>{latest}</gold><gray>, current <white>{current}</white><gray>. Download: <aqua>{url}</aqua>"
 

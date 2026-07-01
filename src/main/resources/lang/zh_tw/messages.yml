@@ -61,6 +61,7 @@ codex-craft-success: "{prefix}<!i><green>合成成功！获得 {rarity_color}{ra
 disenchant-success: "{prefix}<!i><green>拆卸成功！获得附魔书: <gold>{enchant_name} {level}</gold>"
 disenchant-fail: "{prefix}<!i><red>拆卸失败..."
 disenchant-destroyed: "{prefix}<!i><dark_red>拆卸失败！附魔已被销毁"
+disenchant-no-valid-target: "{prefix}<!i><red>沒有可拆卸的附魔，請選擇可被此祛魔石拆卸的附魔"
 fragment-not-enough: "{prefix}<!i><red>星辉残页不足，需要 <gold>{cost}</gold> 个"
 update-available: "{prefix}<!i><yellow>發現新版本 <gold>{latest}</gold><gray>，目前版本 <white>{current}</white><gray>。下載: <aqua>{url}</aqua>"
 

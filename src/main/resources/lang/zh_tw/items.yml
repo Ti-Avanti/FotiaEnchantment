@@ -51,6 +51,33 @@ disenchant-gem:
     - ""
     - "<!i><dark_gray>右键使用"
 
+pure-law-glass:
+  name: "<!i><gradient:#b8f7ff:#ffffff>淨律琉璃</gradient>"
+  lore:
+    - "<!i><gray>拆除來源: <white>{source}"
+    - "<!i><gray>成功率: <white>{success_chance}%"
+    - "<!i><gray>最多拆除: <white>{max_remove}"
+    - ""
+    - "<!i><dark_gray>右鍵使用"
+
+star-scar-prism:
+  name: "<!i><gradient:#7dd3fc:#c084fc>星痕稜晶</gradient>"
+  lore:
+    - "<!i><gray>拆除來源: <white>{source}"
+    - "<!i><gray>成功率: <white>{success_chance}%"
+    - "<!i><gray>最多拆除: <white>{max_remove}"
+    - ""
+    - "<!i><dark_gray>右鍵使用"
+
+origin-sanctum-core:
+  name: "<!i><gradient:#fcd34d:#fb7185>歸源聖核</gradient>"
+  lore:
+    - "<!i><gray>拆除來源: <white>{source}"
+    - "<!i><gray>成功率: <white>{success_chance}%"
+    - "<!i><gray>最多拆除: <white>{max_remove}"
+    - ""
+    - "<!i><dark_gray>右鍵使用"
+
 anvil-breakthrough-stone:
   name: "<!i><gradient:#ffd166:#f77f00>星鑄稜晶</gradient>"
   lore:

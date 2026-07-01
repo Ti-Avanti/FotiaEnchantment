@@ -50,6 +50,33 @@ disenchant-gem:
     - ""
     - "<!i><dark_gray>Right-click to use"
 
+pure-law-glass:
+  name: "<!i><gradient:#b8f7ff:#ffffff>Pure Lawglass</gradient>"
+  lore:
+    - "<!i><gray>Source: <white>{source}"
+    - "<!i><gray>Success: <white>{success_chance}%"
+    - "<!i><gray>Max removals: <white>{max_remove}"
+    - ""
+    - "<!i><dark_gray>Right-click to use"
+
+star-scar-prism:
+  name: "<!i><gradient:#7dd3fc:#c084fc>Star-Scar Prism</gradient>"
+  lore:
+    - "<!i><gray>Source: <white>{source}"
+    - "<!i><gray>Success: <white>{success_chance}%"
+    - "<!i><gray>Max removals: <white>{max_remove}"
+    - ""
+    - "<!i><dark_gray>Right-click to use"
+
+origin-sanctum-core:
+  name: "<!i><gradient:#fcd34d:#fb7185>Origin Sanctum Core</gradient>"
+  lore:
+    - "<!i><gray>Source: <white>{source}"
+    - "<!i><gray>Success: <white>{success_chance}%"
+    - "<!i><gray>Max removals: <white>{max_remove}"
+    - ""
+    - "<!i><dark_gray>Right-click to use"
+
 anvil-breakthrough-stone:
   name: "<!i><gradient:#ffd166:#f77f00>Starforged Prism</gradient>"
   lore:

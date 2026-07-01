@@ -90,13 +90,28 @@ class ConfigManagerGuiRefreshTest {
     }
 
     @Test
-    void customAnvilBreakthroughStoneConfigIsPreserved() {
+    void customAnvilBreakthroughStoneConfigIsPreservedWhileNewDisenchantItemsAreAdded() {
         YamlConfiguration config = new YamlConfiguration();
         config.set("anvil-breakthrough-stone.material", "AMETHYST_SHARD");
         config.set("anvil-breakthrough-stone.custom-model-data", 7);
 
-        assertFalse(ConfigManager.refreshCustomItemsConfig(config));
+        assertTrue(ConfigManager.refreshCustomItemsConfig(config));
         assertEquals("AMETHYST_SHARD", config.getString("anvil-breakthrough-stone.material"));
         assertEquals(7, config.getInt("anvil-breakthrough-stone.custom-model-data"));
+        assertEquals("VANILLA", config.getString("disenchant-stone.items.pure-law-glass.source"));
+    }
+
+    @Test
+    void oldCustomItemsConfigGainsSourceSpecificDisenchantItems() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("disenchant-stone.tiers.tier-1.material", "PRISMARINE_SHARD");
+
+        assertTrue(ConfigManager.refreshCustomItemsConfig(config));
+        assertEquals("VANILLA", config.getString("disenchant-stone.items.pure-law-glass.source"));
+        assertEquals("FOTIA", config.getString("disenchant-stone.items.star-scar-prism.source"));
+        assertEquals("ANY", config.getString("disenchant-stone.items.origin-sanctum-core.source"));
+        assertEquals(80, config.getInt("disenchant-stone.items.pure-law-glass.success-chance"));
+        assertEquals(90, config.getInt("disenchant-stone.items.star-scar-prism.success-chance"));
+        assertEquals(100, config.getInt("disenchant-stone.items.origin-sanctum-core.success-chance"));
     }
 }

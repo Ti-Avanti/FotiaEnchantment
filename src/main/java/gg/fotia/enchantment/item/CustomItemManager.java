@@ -21,10 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 自定义道具管理器
- * 管理所有自定义道具的创建和识别
- */
 public class CustomItemManager {
 
     private final FotiaEnchantment plugin;
@@ -43,25 +39,13 @@ public class CustomItemManager {
         this.miniMessage = MiniMessage.miniMessage();
     }
 
-    /**
-     * 初始化道具管理器
-     */
     public void init() {
         starweaveFragment = new StarweaveFragment(plugin, this);
         stellarisCodex = new StellarisCodex(plugin, this);
         disenchantStone = new DisenchantStone(plugin, this);
-        plugin.getLogger().info("自定义道具管理器已初始化");
+        plugin.getLogger().info("Custom item manager initialized.");
     }
 
-    // ==================== 创建方法 ====================
-
-    /**
-     * 创建星辉残页物品
-     *
-     * @param player 玩家（用于多语言）
-     * @param amount 数量
-     * @return 创建的物品
-     */
     public ItemStack createStarweaveFragment(Player player, int amount) {
         YamlConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
         ConfigurationSection section = itemsConfig.getConfigurationSection("starweave-fragment");
@@ -69,7 +53,6 @@ public class CustomItemManager {
             return new ItemStack(Material.AMETHYST_SHARD, amount);
         }
 
-        // 检查CraftEngine
         String craftEngineItem = section.getString("craftengine-item", "");
         if (!craftEngineItem.isEmpty()) {
             ItemStack ceItem = createFromCraftEngine(craftEngineItem, amount, player);
@@ -80,12 +63,13 @@ public class CustomItemManager {
         }
 
         Material material = Material.matchMaterial(section.getString("material", "AMETHYST_SHARD"));
-        if (material == null) material = Material.AMETHYST_SHARD;
+        if (material == null) {
+            material = Material.AMETHYST_SHARD;
+        }
         CustomItemAppearance appearance = CustomItemAppearance.from(section);
         int customModelData = appearance.customModelData() != null ? appearance.customModelData() : 0;
         boolean glow = section.getBoolean("glow", true);
 
-        // 获取名称和lore
         int fragmentCost = plugin.getConfigManager().getStellarisCodexFragmentCost();
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("cost", String.valueOf(fragmentCost));
@@ -98,22 +82,11 @@ public class CustomItemManager {
 
         ItemStack item = ItemUtils.buildItem(material, name, lore, customModelData, glow);
         item.setAmount(amount);
-
         applyAppearance(item, appearance);
-
-        // 设置PDC标记
         setItemType(item, "starweave-fragment");
-
         return item;
     }
 
-    /**
-     * 创建指定稀有度的星芒魔典
-     *
-     * @param player 玩家（用于多语言）
-     * @param rarity 稀有度
-     * @return 创建的物品
-     */
     public ItemStack createStellarisCodex(Player player, String rarity) {
         YamlConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
         ConfigurationSection section = itemsConfig.getConfigurationSection("stellaris-codex." + rarity);
@@ -121,7 +94,6 @@ public class CustomItemManager {
             return new ItemStack(Material.ENCHANTED_BOOK);
         }
 
-        // 检查CraftEngine
         String craftEngineItem = section.getString("craftengine-item", "");
         if (!craftEngineItem.isEmpty()) {
             ItemStack ceItem = createFromCraftEngine(craftEngineItem, 1, player);
@@ -133,12 +105,13 @@ public class CustomItemManager {
         }
 
         Material material = Material.matchMaterial(section.getString("material", "ENCHANTED_BOOK"));
-        if (material == null) material = Material.ENCHANTED_BOOK;
+        if (material == null) {
+            material = Material.ENCHANTED_BOOK;
+        }
         CustomItemAppearance appearance = CustomItemAppearance.from(section);
         int customModelData = appearance.customModelData() != null ? appearance.customModelData() : 0;
         boolean glow = section.getBoolean("glow", true);
 
-        // 获取稀有度相关信息
         YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
         String rarityColor = rarityConfig.getString(rarity + ".color", "<white>");
         String rarityName = getRarityDisplayName(player, rarity);
@@ -154,19 +127,12 @@ public class CustomItemManager {
         List<Component> lore = parseLoreWithPlaceholders(loreStrList, placeholders);
 
         ItemStack item = ItemUtils.buildItem(material, name, lore, customModelData, glow);
-
         applyAppearance(item, appearance);
-
-        // 设置PDC标记
         setItemType(item, "stellaris-codex");
         setItemRarity(item, rarity);
-
         return item;
     }
 
-    /**
-     * 创建碎片合成 GUI 中使用的随机品质预览物品，不写入品质标记。
-     */
     public ItemStack createStellarisCodexPreview(Player player) {
         YamlConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
         ConfigurationSection section = itemsConfig.getConfigurationSection("stellaris-codex.preview");
@@ -181,7 +147,9 @@ public class CustomItemManager {
 
         String materialName = section != null ? section.getString("material", "ENCHANTED_BOOK") : "ENCHANTED_BOOK";
         Material material = Material.matchMaterial(materialName);
-        if (material == null) material = Material.ENCHANTED_BOOK;
+        if (material == null) {
+            material = Material.ENCHANTED_BOOK;
+        }
 
         CustomItemAppearance appearance = CustomItemAppearance.from(section);
         int customModelData = appearance.customModelData() != null ? appearance.customModelData() : 0;
@@ -198,38 +166,46 @@ public class CustomItemManager {
         return item;
     }
 
-    /**
-     * 创建祛魔之石
-     *
-     * @param player 玩家（用于多语言）
-     * @param tier   等级（tier-1/tier-2/tier-3）
-     * @return 创建的物品
-     */
-    public ItemStack createDisenchantStone(Player player, String tier) {
+    public ItemStack createDisenchantStone(Player player, String key) {
         YamlConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
-        ConfigurationSection section = itemsConfig.getConfigurationSection("disenchant-stone.tiers." + tier);
+        String configKey = key;
+        ConfigurationSection section = DisenchantItemRegistry.sectionForConfigKey(itemsConfig, configKey);
+        if (section == null) {
+            configKey = DisenchantItemRegistry.configKey(itemsConfig, key);
+            section = DisenchantItemRegistry.sectionForConfigKey(itemsConfig, configKey);
+        }
         if (section == null) {
             return new ItemStack(Material.PRISMARINE_SHARD);
         }
 
+        String itemId = tierToItemId(configKey);
+        String craftEngineItem = section.getString("craftengine-item", "");
+        if (!craftEngineItem.isEmpty()) {
+            ItemStack ceItem = createFromCraftEngine(craftEngineItem, 1, player);
+            if (ceItem != null) {
+                setItemType(ceItem, itemId);
+                return ceItem;
+            }
+        }
+
         Material material = Material.matchMaterial(section.getString("material", "PRISMARINE_SHARD"));
-        if (material == null) material = Material.PRISMARINE_SHARD;
-        int customModelData = section.getInt("custom-model-data", 0);
+        if (material == null) {
+            material = Material.PRISMARINE_SHARD;
+        }
+        CustomItemAppearance appearance = CustomItemAppearance.from(section);
+        int customModelData = appearance.customModelData() != null ? appearance.customModelData() : 0;
         boolean glow = section.getBoolean("glow", false);
 
-        // 获取对应语言键
-        String itemId = tierToItemId(tier);
-        String nameStr = plugin.getLanguageManager().getItemName(player, itemId);
-        List<String> loreStrList = plugin.getLanguageManager().getItemLore(player, itemId);
+        Map<String, String> placeholders = disenchantItemPlaceholders(player, section);
+        String nameStr = configuredItemName(player, itemId, section);
+        List<String> loreStrList = configuredItemLore(player, itemId, section);
 
-        Component name = parseWithPlaceholders(nameStr, new HashMap<>());
-        List<Component> lore = parseLoreWithPlaceholders(loreStrList, new HashMap<>());
+        Component name = parseWithPlaceholders(nameStr, placeholders);
+        List<Component> lore = parseLoreWithPlaceholders(loreStrList, placeholders);
 
         ItemStack item = ItemUtils.buildItem(material, name, lore, customModelData, glow);
-
-        // 设置PDC标记
+        applyAppearance(item, appearance);
         setItemType(item, itemId);
-
         return item;
     }
 
@@ -250,7 +226,9 @@ public class CustomItemManager {
         }
 
         Material material = Material.matchMaterial(section.getString("material", "ECHO_SHARD"));
-        if (material == null) material = Material.ECHO_SHARD;
+        if (material == null) {
+            material = Material.ECHO_SHARD;
+        }
         CustomItemAppearance appearance = CustomItemAppearance.from(section);
         int customModelData = appearance.customModelData() != null ? appearance.customModelData() : 0;
         boolean glow = section.getBoolean("glow", true);
@@ -268,15 +246,6 @@ public class CustomItemManager {
         return item;
     }
 
-    // ==================== 识别方法 ====================
-
-    /**
-     * 识别物品类型
-     *
-     * @param item 物品
-     * @return 物品类型ID，如 "starweave-fragment"、"stellaris-codex"、
-     *         "disenchant-shard"、"disenchant-crystal"、"disenchant-gem"，无法识别返回 null
-     */
     public String identifyItem(ItemStack item) {
         if (item == null || !item.hasItemMeta()) {
             return null;
@@ -293,12 +262,6 @@ public class CustomItemManager {
         return "anvil-breakthrough-stone".equals(identifyItem(item));
     }
 
-    /**
-     * 获取魔典的稀有度
-     *
-     * @param item 物品
-     * @return 稀有度名称，非魔典返回 null
-     */
     public String getCodexRarity(ItemStack item) {
         if (item == null || !item.hasItemMeta()) {
             return null;
@@ -311,51 +274,41 @@ public class CustomItemManager {
         return pdc.get(itemRarityKey, PersistentDataType.STRING);
     }
 
-    // ==================== PDC 操作 ====================
-
-    /**
-     * 设置物品类型标记
-     */
     public void setItemType(ItemStack item, String type) {
-        if (item == null || type == null) return;
+        if (item == null || type == null) {
+            return;
+        }
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) return;
+        if (meta == null) {
+            return;
+        }
         meta.getPersistentDataContainer().set(itemTypeKey, PersistentDataType.STRING, type);
         item.setItemMeta(meta);
     }
 
-    /**
-     * 设置物品稀有度标记
-     */
     public void setItemRarity(ItemStack item, String rarity) {
-        if (item == null || rarity == null) return;
+        if (item == null || rarity == null) {
+            return;
+        }
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) return;
+        if (meta == null) {
+            return;
+        }
         meta.getPersistentDataContainer().set(itemRarityKey, PersistentDataType.STRING, rarity);
         item.setItemMeta(meta);
     }
 
-    // ==================== 工具方法 ====================
-
-    /**
-     * 解析带占位符的文本为 Component
-     */
     public Component parseWithPlaceholders(String text, Map<String, String> placeholders) {
         if (text == null || text.isEmpty()) {
             return Component.empty();
         }
-        // 替换占位符
         for (Map.Entry<String, String> entry : placeholders.entrySet()) {
             text = text.replace("{" + entry.getKey() + "}", entry.getValue() != null ? entry.getValue() : "");
         }
-        // 转换旧颜色码
         text = LegacyColorConverter.convert(text);
         return miniMessage.deserialize(text);
     }
 
-    /**
-     * 解析带占位符的lore列表
-     */
     public List<Component> parseLoreWithPlaceholders(List<String> loreList, Map<String, String> placeholders) {
         List<Component> components = new ArrayList<>();
         if (loreList == null || loreList.isEmpty()) {
@@ -383,46 +336,69 @@ public class CustomItemManager {
         }
     }
 
-    /**
-     * 获取稀有度显示名称（多语言）
-     */
     public String getRarityDisplayName(Player player, String rarity) {
         String key = "rarity-" + rarity;
         return plugin.getLanguageManager().getMessage(player, key);
     }
 
-    /**
-     * tier名称转换为语言键对应的item id
-     */
     public String tierToItemId(String tier) {
-        return switch (tier) {
-            case "tier-1" -> "disenchant-shard";
-            case "tier-2" -> "disenchant-crystal";
-            case "tier-3" -> "disenchant-gem";
-            default -> "disenchant-shard";
-        };
+        String itemId = DisenchantItemRegistry.itemIdForConfigKey(plugin.getConfigManager().getItemsConfig(), tier);
+        return itemId != null ? itemId : "disenchant-shard";
     }
 
-    /**
-     * item id 转换为 tier 名称
-     */
     public String itemIdToTier(String itemId) {
-        return switch (itemId) {
-            case "disenchant-shard" -> "tier-1";
-            case "disenchant-crystal" -> "tier-2";
-            case "disenchant-gem" -> "tier-3";
-            default -> null;
+        return DisenchantItemRegistry.configKey(plugin.getConfigManager().getItemsConfig(), itemId);
+    }
+
+    public boolean isDisenchantItemType(String itemId) {
+        return DisenchantItemRegistry.isDisenchantItem(plugin.getConfigManager().getItemsConfig(), itemId);
+    }
+
+    public List<String> getDisenchantItemTypes() {
+        return new ArrayList<>(DisenchantItemRegistry.itemIds(plugin.getConfigManager().getItemsConfig()));
+    }
+
+    public String getDisenchantItemDisplayName(Player player, String itemId) {
+        ConfigurationSection section = DisenchantItemRegistry.section(plugin.getConfigManager().getItemsConfig(), itemId);
+        return configuredItemName(player, itemId, section);
+    }
+
+    private Map<String, String> disenchantItemPlaceholders(Player player, ConfigurationSection section) {
+        Map<String, String> placeholders = new HashMap<>();
+        DisenchantSource source = DisenchantItemRegistry.source(section);
+        placeholders.put("source", sourceDisplayName(player, source));
+        placeholders.put("source_id", source.name());
+        placeholders.put("success_chance", String.valueOf(section.getInt("success-chance", 80)));
+        placeholders.put("max_remove", String.valueOf(section.getInt("max-remove", 1)));
+        placeholders.put("max_rarity", section.getString("max-rarity", "divine"));
+        placeholders.put("selectable", String.valueOf(section.getBoolean("selectable", false)));
+        return placeholders;
+    }
+
+    private String sourceDisplayName(Player player, DisenchantSource source) {
+        return switch (source) {
+            case VANILLA -> plugin.getLanguageManager().getGUIText(player, "disenchant-gui.source-vanilla");
+            case FOTIA -> plugin.getLanguageManager().getGUIText(player, "disenchant-gui.source-fotia");
+            case ANY -> plugin.getLanguageManager().getGUIText(player, "disenchant-gui.source-any");
         };
     }
 
-    /**
-     * 通过 CraftEngine 创建物品
-     *
-     * @param itemId CraftEngine 物品ID
-     * @param amount 数量
-     * @param player 玩家上下文
-     * @return 物品，失败返回 null
-     */
+    private String configuredItemName(Player player, String itemId, ConfigurationSection section) {
+        String name = plugin.getLanguageManager().getItemName(player, itemId);
+        if ((name == null || name.equals(itemId)) && section != null && section.isString("name")) {
+            return section.getString("name", itemId);
+        }
+        return name;
+    }
+
+    private List<String> configuredItemLore(Player player, String itemId, ConfigurationSection section) {
+        List<String> lore = plugin.getLanguageManager().getItemLore(player, itemId);
+        if (lore.isEmpty() && section != null && section.isList("lore")) {
+            return section.getStringList("lore");
+        }
+        return lore;
+    }
+
     private ItemStack createFromCraftEngine(String itemId, int amount, Player player) {
         if (plugin.getIntegrationManager() == null) {
             return null;
@@ -433,8 +409,6 @@ public class CustomItemManager {
         }
         return hook.createItem(itemId, amount, player);
     }
-
-    // ==================== Getter ====================
 
     public NamespacedKey getItemTypeKey() {
         return itemTypeKey;

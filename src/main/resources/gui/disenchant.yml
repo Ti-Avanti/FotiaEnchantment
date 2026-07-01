@@ -48,6 +48,7 @@ items:
     material: ENCHANTED_BOOK
     name: "lang:disenchant-gui.enchantment-name"
     lore:
+      - "lang:disenchant-gui.enchantment-source"
       - "{status_lines}"
 
   cancel:

@@ -299,16 +299,58 @@ public class ConfigManager {
     }
 
     static boolean refreshCustomItemsConfig(YamlConfiguration config) {
-        if (config == null || config.contains("anvil-breakthrough-stone", true)) {
+        if (config == null) {
             return false;
         }
 
-        config.set("anvil-breakthrough-stone.material", "ECHO_SHARD");
-        config.set("anvil-breakthrough-stone.custom-model-data", 10030);
-        config.set("anvil-breakthrough-stone.item-model", "");
-        config.set("anvil-breakthrough-stone.tooltip-style", "");
-        config.set("anvil-breakthrough-stone.craftengine-item", "");
-        config.set("anvil-breakthrough-stone.glow", true);
+        boolean changed = false;
+        if (!config.contains("anvil-breakthrough-stone", true)) {
+            config.set("anvil-breakthrough-stone.material", "ECHO_SHARD");
+            config.set("anvil-breakthrough-stone.custom-model-data", 10030);
+            config.set("anvil-breakthrough-stone.item-model", "");
+            config.set("anvil-breakthrough-stone.tooltip-style", "");
+            config.set("anvil-breakthrough-stone.craftengine-item", "");
+            config.set("anvil-breakthrough-stone.glow", true);
+            changed = true;
+        }
+
+        changed |= ensureDisenchantItem(config, "pure-law-glass", "VANILLA",
+                "AMETHYST_SHARD", 10031, true, 1, false, 80, "divine");
+        changed |= ensureDisenchantItem(config, "star-scar-prism", "FOTIA",
+                "PRISMARINE_CRYSTALS", 10032, true, 3, true, 90, "divine");
+        changed |= ensureDisenchantItem(config, "origin-sanctum-core", "ANY",
+                "HEART_OF_THE_SEA", 10033, true, 5, true, 100, "divine");
+        return changed;
+    }
+
+    private static boolean ensureDisenchantItem(YamlConfiguration config,
+                                                String id,
+                                                String source,
+                                                String material,
+                                                int customModelData,
+                                                boolean glow,
+                                                int maxRemove,
+                                                boolean selectable,
+                                                int successChance,
+                                                String maxRarity) {
+        String path = "disenchant-stone.items." + id;
+        if (config.contains(path, true)) {
+            return false;
+        }
+
+        config.set(path + ".source", source);
+        config.set(path + ".material", material);
+        config.set(path + ".custom-model-data", customModelData);
+        config.set(path + ".item-model", "");
+        config.set(path + ".tooltip-style", "");
+        config.set(path + ".craftengine-item", "");
+        config.set(path + ".glow", glow);
+        config.set(path + ".max-remove", maxRemove);
+        config.set(path + ".selectable", selectable);
+        config.set(path + ".success-chance", successChance);
+        config.set(path + ".destroy-on-fail", false);
+        config.set(path + ".keep-level", true);
+        config.set(path + ".max-rarity", maxRarity);
         return true;
     }
 

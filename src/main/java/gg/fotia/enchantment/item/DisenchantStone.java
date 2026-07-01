@@ -1,34 +1,32 @@
 package gg.fotia.enchantment.item;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.core.EnchantmentData;
-import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * 祛魔之石逻辑
- * 三个等级:
- * - tier-1(碎石): 随机拆卸1个, 成功率从配置读取, 最高辉芒(radiant)
- * - tier-2(晶石): 可选择拆卸最多3个, 成功率从配置读取, 最高耀金(aureate)
- * - tier-3(神石): 可选择拆卸最多5个, 成功率从配置读取, 全等级
- */
 public class DisenchantStone {
 
-    /** 稀有度排序（从低到高） */
     private static final List<String> RARITY_ORDER = Arrays.asList(
             "dustlight", "moonlit", "radiant", "aureate", "divine"
     );
@@ -41,155 +39,158 @@ public class DisenchantStone {
         this.itemManager = itemManager;
     }
 
-    /**
-     * 创建祛魔之石
-     *
-     * @param player 玩家（多语言）
-     * @param tier   等级（tier-1/tier-2/tier-3）
-     * @return 祛魔之石物品
-     */
-    public ItemStack create(Player player, String tier) {
-        return itemManager.createDisenchantStone(player, tier);
+    public ItemStack create(Player player, String key) {
+        return itemManager.createDisenchantStone(player, key);
     }
 
-    /**
-     * 执行拆卸操作
-     *
-     * @param player          玩家
-     * @param equipment       装备物品
-     * @param stone           祛魔之石
-     * @param selectedEnchants 选择的附魔ID列表（tier-1时为null，系统随机选择）
-     * @return 生成的附魔书列表，失败返回空列表
-     */
     public List<ItemStack> disenchant(Player player, ItemStack equipment, ItemStack stone, List<String> selectedEnchants) {
         String itemId = itemManager.identifyItem(stone);
         if (itemId == null) {
             return Collections.emptyList();
         }
-        String tier = itemManager.itemIdToTier(itemId);
-        if (tier == null) {
+        String configKey = itemManager.itemIdToTier(itemId);
+        if (configKey == null) {
             return Collections.emptyList();
         }
 
-        ConfigurationSection tierConfig = getTierConfig(tier);
-        if (tierConfig == null) {
+        ConfigurationSection itemConfig = getConfigSection(configKey);
+        if (itemConfig == null) {
             return Collections.emptyList();
         }
 
-        PDCManager pdcManager = plugin.getEnchantmentManager().getPdcManager();
-        Map<String, Integer> enchants = pdcManager.getEnchantments(equipment);
-        if (enchants.isEmpty()) {
+        int maxRemove = itemConfig.getInt("max-remove", 1);
+        boolean selectable = itemConfig.getBoolean("selectable", false);
+        int successChance = itemConfig.getInt("success-chance", 80);
+        boolean destroyOnFail = itemConfig.getBoolean("destroy-on-fail", false);
+        boolean keepLevel = itemConfig.getBoolean("keep-level", true);
+
+        List<DisenchantTarget> available = collectTargets(equipment, configKey);
+        if (available.isEmpty()) {
             return Collections.emptyList();
         }
 
-        int maxRemove = tierConfig.getInt("max-remove", 1);
-        boolean selectable = tierConfig.getBoolean("selectable", false);
-        int successChance = tierConfig.getInt("success-chance", 80);
-        boolean destroyOnFail = tierConfig.getBoolean("destroy-on-fail", false);
-        boolean keepLevel = tierConfig.getBoolean("keep-level", true);
-
-        // 确定要拆卸的附魔
-        List<String> toRemove;
-        if (!selectable || selectedEnchants == null || selectedEnchants.isEmpty()) {
-            // tier-1: 随机选择
-            List<String> available = new ArrayList<>(enchants.keySet());
-            // 过滤稀有度限制
-            available.removeIf(id -> !canDisenchant(tier, id));
-            if (available.isEmpty()) {
-                return Collections.emptyList();
-            }
-            Collections.shuffle(available);
-            toRemove = available.subList(0, Math.min(maxRemove, available.size()));
-        } else {
-            // tier-2/tier-3: 使用玩家选择的
-            toRemove = new ArrayList<>(selectedEnchants);
-            // 限制数量
-            if (toRemove.size() > maxRemove) {
-                toRemove = toRemove.subList(0, maxRemove);
-            }
-            // 验证是否可以拆卸
-            toRemove.removeIf(id -> !canDisenchant(tier, id) || !enchants.containsKey(id));
-        }
-
+        List<DisenchantTarget> toRemove = DisenchantTargetSelector.select(
+                available,
+                selectable,
+                selectedEnchants,
+                maxRemove,
+                true
+        );
         if (toRemove.isEmpty()) {
             return Collections.emptyList();
         }
 
+        PDCManager pdcManager = plugin.getEnchantmentManager().getPdcManager();
         boolean changedEquipment = false;
         boolean strippedLore = false;
+        ItemStack sourceEquipment = equipment.clone();
         List<ItemStack> results = new ArrayList<>();
 
-        for (String enchantId : toRemove) {
-            int level = enchants.getOrDefault(enchantId, 1);
-
-            // 判断成功率
+        for (DisenchantTarget target : toRemove) {
             boolean success = ThreadLocalRandom.current().nextInt(100) < successChance;
-
             if (success) {
-                // 成功：从装备移除附魔
-                if (!strippedLore) {
+                if (target.type() == DisenchantTargetType.FOTIA && !strippedLore) {
                     EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, equipment);
                     strippedLore = true;
                 }
-                pdcManager.removeEnchantment(equipment, enchantId);
-                changedEquipment = true;
-
-                // 生成附魔书
-                int bookLevel = keepLevel ? level : 1;
-                EnchantmentData enchantData = plugin.getEnchantmentManager().getEnchantment(enchantId);
-                if (enchantData != null) {
-                    ItemStack book = itemManager.getStellarisCodex().createEnchantedBook(player, enchantData, bookLevel);
+                if (removeTarget(equipment, target, pdcManager)) {
+                    changedEquipment = true;
+                }
+                ItemStack book = createBook(player, target, keepLevel);
+                if (book != null) {
                     results.add(book);
                 }
+                sendSuccessMessage(player, target);
+                continue;
+            }
 
-                // 发送成功消息
-                String enchantName = plugin.getLanguageManager().getEnchantName(player, enchantId);
-                Map<String, String> placeholders = new HashMap<>();
-                placeholders.put("enchant_name", enchantName);
-                placeholders.put("level", toRoman(level));
-                plugin.getMessageHelper().sendMessage(player, "disenchant-success", placeholders);
-            } else {
-                // 失败
-                if (destroyOnFail) {
-                    // 附魔被销毁
-                    if (!strippedLore) {
-                        EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, equipment);
-                        strippedLore = true;
-                    }
-                    pdcManager.removeEnchantment(equipment, enchantId);
-                    changedEquipment = true;
-                    plugin.getMessageHelper().sendMessage(player, "disenchant-destroyed");
-                } else {
-                    plugin.getMessageHelper().sendMessage(player, "disenchant-fail");
+            if (destroyOnFail) {
+                if (target.type() == DisenchantTargetType.FOTIA && !strippedLore) {
+                    EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, equipment);
+                    strippedLore = true;
                 }
+                if (removeTarget(equipment, target, pdcManager)) {
+                    changedEquipment = true;
+                }
+                plugin.getMessageHelper().sendMessage(player, "disenchant-destroyed");
+            } else {
+                plugin.getMessageHelper().sendMessage(player, "disenchant-fail");
             }
         }
-        if (changedEquipment) {
-            EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, equipment);
-        }
 
+        if (changedEquipment) {
+            EnchantmentLoreCleaner.applyGeneratedLoreFromSource(plugin, player, equipment, sourceEquipment);
+        }
         return results;
     }
 
-    /**
-     * 检查该等级石头是否能拆卸指定附魔（根据稀有度限制）
-     *
-     * @param tier     等级（tier-1/tier-2/tier-3）
-     * @param enchantId 附魔ID
-     * @return 是否可以拆卸
-     */
-    public boolean canDisenchant(String tier, String enchantId) {
-        ConfigurationSection tierConfig = getTierConfig(tier);
-        if (tierConfig == null) {
-            return false;
+    public List<DisenchantTarget> collectTargets(ItemStack equipment, String configKey) {
+        ConfigurationSection config = getConfigSection(configKey);
+        if (config == null || equipment == null || equipment.getType().isAir()) {
+            return Collections.emptyList();
         }
 
-        String maxRarity = tierConfig.getString("max-rarity", "divine");
-        EnchantmentData enchantData = plugin.getEnchantmentManager().getEnchantment(enchantId);
+        DisenchantSource source = DisenchantItemRegistry.source(config);
+        List<DisenchantTarget> result = new ArrayList<>();
+        if (source.allows(DisenchantTargetType.FOTIA)) {
+            Map<String, Integer> customEnchants = plugin.getEnchantmentManager()
+                    .getPdcManager()
+                    .getEnchantments(equipment);
+            for (Map.Entry<String, Integer> entry : customEnchants.entrySet()) {
+                DisenchantTarget target = new DisenchantTarget(
+                        DisenchantTargetType.FOTIA,
+                        entry.getKey(),
+                        entry.getValue()
+                );
+                if (canDisenchant(configKey, target)) {
+                    result.add(target);
+                }
+            }
+        }
+        if (source.allows(DisenchantTargetType.VANILLA)) {
+            for (DisenchantTarget target : vanillaTargets(equipment)) {
+                if (canDisenchant(configKey, target)) {
+                    result.add(target);
+                }
+            }
+        }
+        return result;
+    }
+
+    public List<DisenchantTarget> selectTargets(ItemStack equipment,
+                                                String configKey,
+                                                List<String> selectedEnchants,
+                                                boolean shuffle) {
+        ConfigurationSection config = getConfigSection(configKey);
+        if (config == null || equipment == null || equipment.getType().isAir()) {
+            return Collections.emptyList();
+        }
+        return DisenchantTargetSelector.select(
+                collectTargets(equipment, configKey),
+                config.getBoolean("selectable", false),
+                selectedEnchants,
+                Math.max(1, config.getInt("max-remove", 1)),
+                shuffle
+        );
+    }
+
+    public boolean canDisenchant(String configKey, String enchantId) {
+        return canDisenchant(configKey, new DisenchantTarget(DisenchantTargetType.FOTIA, enchantId, 1));
+    }
+
+    public boolean canDisenchant(String configKey, DisenchantTarget target) {
+        ConfigurationSection config = getConfigSection(configKey);
+        if (config == null || target == null || !DisenchantItemRegistry.source(config).allows(target.type())) {
+            return false;
+        }
+        if (target.type() == DisenchantTargetType.VANILLA) {
+            return true;
+        }
+
+        String maxRarity = config.getString("max-rarity", "divine");
+        EnchantmentData enchantData = plugin.getEnchantmentManager().getEnchantment(target.id());
         if (enchantData == null) {
-            // 未知附魔默认允许（可能是原版附魔）
-            boolean allowVanilla = tierConfig.getBoolean("allow-vanilla", true);
-            return allowVanilla;
+            return config.getBoolean("allow-vanilla", true);
         }
 
         String enchantRarity = enchantData.getRarity();
@@ -197,71 +198,35 @@ public class DisenchantStone {
             return true;
         }
 
-        // 比较稀有度等级
         int enchantRarityIndex = RARITY_ORDER.indexOf(enchantRarity.toLowerCase(Locale.ROOT));
         int maxRarityIndex = RARITY_ORDER.indexOf(maxRarity.toLowerCase(Locale.ROOT));
-
-        if (enchantRarityIndex == -1 || maxRarityIndex == -1) {
-            return true;
-        }
-
-        return enchantRarityIndex <= maxRarityIndex;
+        return enchantRarityIndex == -1 || maxRarityIndex == -1 || enchantRarityIndex <= maxRarityIndex;
     }
 
-    /**
-     * 获取最大拆卸数量
-     *
-     * @param tier 等级
-     * @return 最大拆卸数量
-     */
-    public int getMaxRemoveCount(String tier) {
-        ConfigurationSection tierConfig = getTierConfig(tier);
-        if (tierConfig == null) return 1;
-        return tierConfig.getInt("max-remove", 1);
+    public int getMaxRemoveCount(String configKey) {
+        ConfigurationSection config = getConfigSection(configKey);
+        return config == null ? 1 : config.getInt("max-remove", 1);
     }
 
-    /**
-     * 获取成功率
-     *
-     * @param tier 等级
-     * @return 成功率（百分比 0-100）
-     */
-    public int getSuccessRate(String tier) {
-        ConfigurationSection tierConfig = getTierConfig(tier);
-        if (tierConfig == null) return 80;
-        return tierConfig.getInt("success-chance", 80);
+    public int getSuccessRate(String configKey) {
+        ConfigurationSection config = getConfigSection(configKey);
+        return config == null ? 80 : config.getInt("success-chance", 80);
     }
 
-    /**
-     * 是否可以选择附魔（shard不可以，crystal和gem可以）
-     *
-     * @param tier 等级
-     * @return 是否可选择
-     */
-    public boolean canSelect(String tier) {
-        ConfigurationSection tierConfig = getTierConfig(tier);
-        if (tierConfig == null) return false;
-        return tierConfig.getBoolean("selectable", false);
+    public boolean canSelect(String configKey) {
+        ConfigurationSection config = getConfigSection(configKey);
+        return config != null && config.getBoolean("selectable", false);
     }
 
-    /**
-     * 检查物品是否为祛魔之石
-     *
-     * @param item 物品
-     * @return 是否为祛魔之石
-     */
     public boolean isDisenchantStone(ItemStack item) {
         String type = itemManager.identifyItem(item);
-        if (type == null) return false;
-        return type.startsWith("disenchant-");
+        if (type == null) {
+            return false;
+        }
+        YamlConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
+        return DisenchantItemRegistry.isDisenchantItem(itemsConfig, type);
     }
 
-    /**
-     * 获取祛魔之石的等级
-     *
-     * @param item 物品
-     * @return 等级（tier-1/tier-2/tier-3），非祛魔之石返回null
-     */
     public String getStoneTier(ItemStack item) {
         String type = itemManager.identifyItem(item);
         if (type == null) {
@@ -270,23 +235,135 @@ public class DisenchantStone {
         return itemManager.itemIdToTier(type);
     }
 
-    // ==================== 内部方法 ====================
-
-    /**
-     * 获取指定等级的配置节
-     */
-    private ConfigurationSection getTierConfig(String tier) {
-        YamlConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
-        return itemsConfig.getConfigurationSection("disenchant-stone.tiers." + tier);
+    private List<DisenchantTarget> vanillaTargets(ItemStack equipment) {
+        if (equipment == null || !equipment.hasItemMeta()) {
+            return Collections.emptyList();
+        }
+        ItemMeta meta = equipment.getItemMeta();
+        if (meta == null) {
+            return Collections.emptyList();
+        }
+        Map<String, Integer> result = new LinkedHashMap<>();
+        for (Map.Entry<Enchantment, Integer> entry : meta.getEnchants().entrySet()) {
+            addVanillaTarget(result, entry.getKey(), entry.getValue());
+        }
+        if (meta instanceof EnchantmentStorageMeta storageMeta) {
+            for (Map.Entry<Enchantment, Integer> entry : storageMeta.getStoredEnchants().entrySet()) {
+                addVanillaTarget(result, entry.getKey(), entry.getValue());
+            }
+        }
+        List<DisenchantTarget> targets = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : result.entrySet()) {
+            targets.add(new DisenchantTarget(DisenchantTargetType.VANILLA, entry.getKey(), entry.getValue()));
+        }
+        return targets;
     }
 
-    /**
-     * 数字转罗马数字
-     */
+    private void addVanillaTarget(Map<String, Integer> result, Enchantment enchantment, int level) {
+        if (enchantment == null || level <= 0) {
+            return;
+        }
+        NamespacedKey key = enchantment.getKey();
+        if (key != null && "minecraft".equals(key.getNamespace())) {
+            result.merge(key.toString(), level, Math::max);
+        }
+    }
+
+    private boolean removeTarget(ItemStack equipment, DisenchantTarget target, PDCManager pdcManager) {
+        if (target.type() == DisenchantTargetType.FOTIA) {
+            pdcManager.removeEnchantment(equipment, target.id());
+            return true;
+        }
+        return removeVanillaEnchantment(equipment, target.id());
+    }
+
+    private boolean removeVanillaEnchantment(ItemStack equipment, String enchantId) {
+        if (equipment == null || enchantId == null || !equipment.hasItemMeta()) {
+            return false;
+        }
+        ItemMeta meta = equipment.getItemMeta();
+        Enchantment enchantment = resolveVanillaEnchantment(enchantId);
+        if (meta == null || enchantment == null) {
+            return false;
+        }
+        boolean modified;
+        if (meta instanceof EnchantmentStorageMeta storageMeta) {
+            modified = storageMeta.removeStoredEnchant(enchantment);
+        } else {
+            modified = meta.removeEnchant(enchantment);
+        }
+        if (modified) {
+            equipment.setItemMeta(meta);
+        }
+        return modified;
+    }
+
+    private ItemStack createBook(Player player, DisenchantTarget target, boolean keepLevel) {
+        int bookLevel = keepLevel ? target.level() : 1;
+        if (target.type() == DisenchantTargetType.FOTIA) {
+            EnchantmentData enchantData = plugin.getEnchantmentManager().getEnchantment(target.id());
+            return enchantData == null ? null : itemManager.getStellarisCodex().createEnchantedBook(player, enchantData, bookLevel);
+        }
+        Enchantment enchantment = resolveVanillaEnchantment(target.id());
+        if (enchantment == null) {
+            return null;
+        }
+        ItemStack book = new ItemStack(Material.ENCHANTED_BOOK);
+        ItemMeta meta = book.getItemMeta();
+        if (meta instanceof EnchantmentStorageMeta storageMeta) {
+            storageMeta.addStoredEnchant(enchantment, bookLevel, true);
+            book.setItemMeta(storageMeta);
+        }
+        return book;
+    }
+
+    private void sendSuccessMessage(Player player, DisenchantTarget target) {
+        String enchantName = target.type() == DisenchantTargetType.FOTIA
+                ? plugin.getLanguageManager().getEnchantName(player, target.id())
+                : target.id();
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("enchant_name", enchantName);
+        placeholders.put("level", toRoman(target.level()));
+        plugin.getMessageHelper().sendMessage(player, "disenchant-success", placeholders);
+    }
+
+    private Enchantment resolveVanillaEnchantment(String id) {
+        NamespacedKey key = namespacedKey(id);
+        if (key == null || !"minecraft".equals(key.getNamespace())) {
+            return null;
+        }
+        return BukkitRegistryCompat.enchantment(key);
+    }
+
+    private NamespacedKey namespacedKey(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        String normalized = id.toLowerCase(Locale.ROOT);
+        int colon = normalized.indexOf(':');
+        if (colon < 0) {
+            return NamespacedKey.minecraft(normalized);
+        }
+        if (colon == 0 || colon == normalized.length() - 1) {
+            return null;
+        }
+        return new NamespacedKey(normalized.substring(0, colon), normalized.substring(colon + 1));
+    }
+
+    private ConfigurationSection getConfigSection(String key) {
+        YamlConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
+        ConfigurationSection section = DisenchantItemRegistry.sectionForConfigKey(itemsConfig, key);
+        if (section != null) {
+            return section;
+        }
+        return DisenchantItemRegistry.section(itemsConfig, key);
+    }
+
     private String toRoman(int num) {
-        if (num <= 0) return String.valueOf(num);
+        if (num <= 0) {
+            return String.valueOf(num);
+        }
         String[] ones = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
-        if (num <= 10) return ones[num];
-        return String.valueOf(num);
+        return num <= 10 ? ones[num] : String.valueOf(num);
     }
 }

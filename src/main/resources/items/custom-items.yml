@@ -68,6 +68,54 @@ stellaris-codex:
 # 祛魔之石 - 三个等级
 # EN: Disenchant stones - three tiers
 disenchant-stone:
+  # 可自定义拆除道具。服主可以复制任意节点并修改 id、source 和 success-chance 创建新道具。
+  # source: VANILLA 只拆原版附魔；FOTIA 只拆 Fotia 附魔；ANY 可拆任意附魔。
+  items:
+    # 净律琉璃 - 只能拆除原版附魔
+    pure-law-glass:
+      source: VANILLA
+      material: AMETHYST_SHARD
+      custom-model-data: 10031
+      item-model: ""
+      tooltip-style: ""
+      craftengine-item: ""
+      glow: true
+      max-remove: 1
+      selectable: false
+      success-chance: 80
+      destroy-on-fail: false
+      keep-level: true
+      max-rarity: divine
+    # 星痕棱晶 - 只能拆除 Fotia 附魔
+    star-scar-prism:
+      source: FOTIA
+      material: PRISMARINE_CRYSTALS
+      custom-model-data: 10032
+      item-model: ""
+      tooltip-style: ""
+      craftengine-item: ""
+      glow: true
+      max-remove: 3
+      selectable: true
+      success-chance: 90
+      destroy-on-fail: false
+      keep-level: true
+      max-rarity: divine
+    # 归源圣核 - 可拆除任意附魔
+    origin-sanctum-core:
+      source: ANY
+      material: HEART_OF_THE_SEA
+      custom-model-data: 10033
+      item-model: ""
+      tooltip-style: ""
+      craftengine-item: ""
+      glow: true
+      max-remove: 5
+      selectable: true
+      success-chance: 100
+      destroy-on-fail: false
+      keep-level: true
+      max-rarity: divine
   tiers:
     # 祛魔碎石 - 随机拆卸1个附魔
     # EN: Disenchant Shard - randomly removes 1 enchantment

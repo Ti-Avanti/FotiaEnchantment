@@ -3,11 +3,12 @@ package gg.fotia.enchantment.gui.disenchant;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentManager;
-import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.gui.BaseGUI;
 import gg.fotia.enchantment.gui.menu.MenuConfig;
 import gg.fotia.enchantment.gui.menu.MenuItemConfig;
 import gg.fotia.enchantment.item.DisenchantStone;
+import gg.fotia.enchantment.item.DisenchantTarget;
+import gg.fotia.enchantment.item.DisenchantTargetType;
 import gg.fotia.enchantment.util.ItemUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -162,10 +163,12 @@ public class DisenchantGUI extends BaseGUI {
         if (equipment == null) {
             return;
         }
-        EnchantmentManager enchantManager = plugin.getEnchantmentManager();
-        PDCManager pdc = enchantManager.getPdcManager();
-        Map<String, Integer> enchants = pdc.getEnchantments(equipment);
-        if (enchants.isEmpty()) {
+        DisenchantStone stoneLogic = plugin.getCustomItemManager().getDisenchantStone();
+        String tier = currentTier();
+        List<DisenchantTarget> targets = tier == null
+                ? Collections.emptyList()
+                : stoneLogic.collectTargets(equipment, tier);
+        if (targets.isEmpty()) {
             return;
         }
 
@@ -174,23 +177,24 @@ public class DisenchantGUI extends BaseGUI {
             return;
         }
 
-        DisenchantStone stoneLogic = plugin.getCustomItemManager().getDisenchantStone();
+        EnchantmentManager enchantManager = plugin.getEnchantmentManager();
         YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
         MenuItemConfig itemConfig = menu.item("enchantment", Material.ENCHANTED_BOOK);
 
         int index = 0;
-        for (Map.Entry<String, Integer> entry : enchants.entrySet()) {
+        for (DisenchantTarget target : targets) {
             if (index >= slots.size()) {
                 break;
             }
 
-            String id = entry.getKey();
-            int level = entry.getValue();
+            String id = target.id();
+            String selectionKey = target.selectionKey();
+            int level = target.level();
 
             EnchantmentData data = enchantManager.getEnchantment(id);
             String name;
             String rarityColor = "<white>";
-            if (data != null) {
+            if (target.type() == DisenchantTargetType.FOTIA && data != null) {
                 name = plugin.getLanguageManager().getEnchantName(player, id);
                 if (data.getRarity() != null) {
                     rarityColor = rarityConfig.getString(data.getRarity() + ".color", "<white>");
@@ -199,15 +203,15 @@ public class DisenchantGUI extends BaseGUI {
                 name = id;
             }
 
-            String tier = currentTier();
             boolean selectable = isSelectable();
-            boolean canRemove = tier != null && stoneLogic.canDisenchant(tier, id);
-            boolean isSelected = selected.contains(id);
+            boolean canRemove = stoneLogic.canDisenchant(tier, target);
+            boolean isSelected = selected.contains(selectionKey);
             Map<String, String> placeholders = Map.of(
                     "enchant_id", id,
                     "enchant_name", name,
                     "level", roman(level),
-                    "rarity_color", rarityColor
+                    "rarity_color", rarityColor,
+                    "source", sourceDisplayName(target.type())
             );
 
             List<String> statusLines = new ArrayList<>();
@@ -227,7 +231,7 @@ public class DisenchantGUI extends BaseGUI {
             ItemMeta meta = book.getItemMeta();
             if (meta != null) {
                 ItemUtils.applyGlint(meta, isSelected);
-                meta.getPersistentDataContainer().set(enchantTagKey, PersistentDataType.STRING, id);
+                meta.getPersistentDataContainer().set(enchantTagKey, PersistentDataType.STRING, selectionKey);
                 book.setItemMeta(meta);
             }
             inventory.setItem(slots.get(index++), book);
@@ -295,7 +299,8 @@ public class DisenchantGUI extends BaseGUI {
         if (tier == null) {
             return;
         }
-        if (!stoneLogic.canDisenchant(tier, id)) {
+        DisenchantTarget target = findTarget(tier, id);
+        if (target == null || !stoneLogic.canDisenchant(tier, target)) {
             return;
         }
         int max = stoneLogic.getMaxRemoveCount(tier);
@@ -320,6 +325,10 @@ public class DisenchantGUI extends BaseGUI {
 
         DisenchantStone stoneLogic = plugin.getCustomItemManager().getDisenchantStone();
         List<String> selectedIds = isSelectable() ? new ArrayList<>(selected) : null;
+        if (stoneLogic.selectTargets(equipment, tier, selectedIds, false).isEmpty()) {
+            plugin.getMessageHelper().sendMessage(player, "disenchant-no-valid-target");
+            return;
+        }
         List<ItemStack> books = stoneLogic.disenchant(player, equipment, stone, selectedIds);
         consumeOneStone();
 
@@ -430,6 +439,31 @@ public class DisenchantGUI extends BaseGUI {
         } else {
             stone.setAmount(amount);
         }
+    }
+
+    private DisenchantTarget findTarget(String tier, String selectionKey) {
+        if (tier == null || selectionKey == null || equipment == null) {
+            return null;
+        }
+        List<DisenchantTarget> targets = plugin.getCustomItemManager()
+                .getDisenchantStone()
+                .collectTargets(equipment, tier);
+        for (DisenchantTarget target : targets) {
+            if (selectionKey.equals(target.selectionKey())) {
+                return target;
+            }
+            if (target.type() == DisenchantTargetType.FOTIA && selectionKey.equals(target.id())) {
+                return target;
+            }
+        }
+        return null;
+    }
+
+    private String sourceDisplayName(DisenchantTargetType type) {
+        return switch (type) {
+            case FOTIA -> plugin.getLanguageManager().getGUIText(player, "disenchant-gui.source-fotia");
+            case VANILLA -> plugin.getLanguageManager().getGUIText(player, "disenchant-gui.source-vanilla");
+        };
     }
 
     private String currentTier() {

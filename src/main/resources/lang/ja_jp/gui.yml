@@ -274,6 +274,11 @@ disenchant-gui:
   place-item: "<!i><gray>Place equipment here"
   place-stone: "<!i><gray>Place disenchant stone here"
 
+  enchantment-source: "<!i><dark_gray>種類: <white>{source}"
+  source-fotia: "<!i><aqua>Fotiaエンチャント"
+  source-vanilla: "<!i><yellow>バニラエンチャント"
+  source-any: "<!i><light_purple>すべてのエンチャント"
+
 anvil-breakthrough-gui:
   title: "<!i><gold>Anvil Breakthrough"
   place-target: "<!i><gray>Place the item to enchant"

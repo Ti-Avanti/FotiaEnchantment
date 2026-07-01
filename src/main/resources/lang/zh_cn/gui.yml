@@ -275,6 +275,11 @@ disenchant-gui:
   place-item: "<!i><gray>请放入装备"
   place-stone: "<!i><gray>请放入祛魔石"
 
+  enchantment-source: "<!i><dark_gray>类型: <white>{source}"
+  source-fotia: "<!i><aqua>Fotia附魔"
+  source-vanilla: "<!i><yellow>原版附魔"
+  source-any: "<!i><light_purple>任意附魔"
+
 anvil-breakthrough-gui:
   title: "<!i><gold>铁砧突破"
   place-target: "<!i><gray>放入要附魔的物品"
