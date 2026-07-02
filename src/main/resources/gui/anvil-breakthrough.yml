@@ -6,17 +6,51 @@
 # EN: Each layout row must contain 9 characters; roles bind characters to functional slots.
 # 文本支持 MiniMessage、旧颜色码 &/§、&#RRGGBB 和 lang:语言键。
 # EN: Text supports MiniMessage, legacy &/§ color codes, &#RRGGBB, and lang: language keys.
+# items 下的物品支持 material、modeldata/custom-model-data、tooltip-style、itemmodel/item-model、name、lore、glow。
+# EN: Items support material, modeldata/custom-model-data, tooltip-style, itemmodel/item-model, name, lore, and glow.
+# 可用占位符：
+# EN: Available placeholders:
+# - {status_lines}: 当前 GUI 校验状态，例如缺少物品、附魔书无效、可以确认等。
+# EN: - {status_lines}: current GUI validation status, such as missing item, invalid book, or ready to confirm.
 
+# GUI 行数，必须和 layout 的行数一致；每行固定 9 格。
+# EN: GUI row count; must match the number of layout rows, and each row is 9 slots wide.
 rows: 4
+
+# GUI 标题。推荐使用 lang:语言键，方便多语言。
+# EN: GUI title. Using lang: keys is recommended for multi-language support.
 title: "lang:anvil-breakthrough-gui.title"
+
+# 是否自动用 background 物品填充没有功能角色的空槽。
+# EN: Whether empty non-functional slots should be filled with the background item.
 fill-empty: true
 
+# GUI 布局。每个字符会通过 roles 绑定到一个功能槽位；相同字符可以出现多次。
+# EN: GUI layout. Each character is mapped to a functional slot through roles; the same character may appear multiple times.
 layout:
   - "#########"
   - "##T#C#B##"
   - "####P####"
   - "##X#I#O##"
 
+# 角色绑定：
+# background = 背景填充槽
+# target = 要突破“过于昂贵”限制的目标装备
+# catalyst = 突破道具槽，必须放入 items/custom-items.yml 中的 anvil-breakthrough-stone
+# book = 玩家想合入目标装备的附魔书
+# preview = 结果预览槽
+# cancel = 取消并返还物品
+# info = 状态说明槽
+# confirm = 确认突破按钮
+# EN: Role bindings:
+# EN: background = decorative filler slot
+# EN: target = target item blocked by vanilla too-expensive anvil behavior
+# EN: catalyst = catalyst slot requiring anvil-breakthrough-stone from items/custom-items.yml
+# EN: book = enchanted book to merge into the target item
+# EN: preview = result preview slot
+# EN: cancel = cancel and return items
+# EN: info = status information slot
+# EN: confirm = confirm breakthrough button
 roles:
   background: "#"
   target: "T"
@@ -27,6 +61,8 @@ roles:
   info: "I"
   confirm: "O"
 
+# 各角色的显示物品配置。功能槽位的交互逻辑由角色名决定，material 只影响显示外观。
+# EN: Display item configuration for each role. Interaction logic is decided by the role name; material only changes appearance.
 items:
   background:
     material: BLACK_STAINED_GLASS_PANE

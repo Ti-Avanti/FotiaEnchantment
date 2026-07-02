@@ -50,9 +50,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class VanillaManager implements Listener {
 
+    private static final long ENCHANTING_FAILURE_MESSAGE_COOLDOWN_MILLIS = 5000L;
+
     private final FotiaEnchantment plugin;
     private final VanillaConfig vanillaConfig;
     private final Map<UUID, PreparedOffer[]> preparedOffers = new ConcurrentHashMap<>();
+    private final Map<UUID, EnchantingFailureMessage> lastEnchantingFailureMessages = new ConcurrentHashMap<>();
 
     public VanillaManager(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -73,6 +76,8 @@ public class VanillaManager implements Listener {
      */
     public void shutdown() {
         HandlerList.unregisterAll(this);
+        preparedOffers.clear();
+        lastEnchantingFailureMessages.clear();
     }
 
     /**
@@ -209,7 +214,9 @@ public class VanillaManager implements Listener {
             }
 
             Enchantment current = offer.getEnchantment();
-            boolean invalidOffer = isDisabled(current) || !isApplicable(current, item);
+            boolean invalidOffer = isDisabled(current)
+                    || !isApplicable(current, item)
+                    || !canApplyEnchantingTableOffer(item, current);
             if (invalidOffer || useConfiguredWeights) {
                 CandidateOffer replacement = pickEnchantingTableCandidate(
                         item,
@@ -224,6 +231,8 @@ public class VanillaManager implements Listener {
                     applyOfferEnchantment(offer, replacement);
                     continue;
                 }
+                offers[slot] = null;
+                continue;
             }
 
             if (!invalidOffer) {
@@ -283,6 +292,15 @@ public class VanillaManager implements Listener {
         if (item != null && plugin.getConfigManager() != null && plugin.getEnchantmentManager() != null) {
             removeConflictingEnchantingTableAdds(item, toAdd, preferred);
             trimEnchantingTableAddsToLimit(item, toAdd, preferred);
+        }
+        if (toAdd.isEmpty()) {
+            preferred = recoverEnchantingTableResult(event, item, toAdd);
+            if (!toAdd.isEmpty() && item != null
+                    && plugin.getConfigManager() != null
+                    && plugin.getEnchantmentManager() != null) {
+                removeConflictingEnchantingTableAdds(item, toAdd, preferred);
+                trimEnchantingTableAddsToLimit(item, toAdd, preferred);
+            }
         }
         if (toAdd.isEmpty()) {
             event.setCancelled(true);
@@ -587,6 +605,49 @@ public class VanillaManager implements Listener {
         }
 
         toAdd.keySet().removeIf(enchantment -> !allowed.contains(enchantment));
+    }
+
+    private boolean canApplyEnchantingTableOffer(ItemStack item, Enchantment enchantment) {
+        if (item == null || enchantment == null) {
+            return false;
+        }
+        if (isFotiaEnchantment(enchantment)) {
+            return customEnchantingTableCandidateData(enchantment, item) != null
+                    && canFitEnchantingTableOfferLimit(item, enchantment);
+        }
+        if (isDisabled(enchantment) || !isApplicable(enchantment, item)) {
+            return false;
+        }
+
+        Map<Enchantment, Integer> keptNative = nativeEnchantments(item);
+        for (Enchantment existing : keptNative.keySet()) {
+            if (nativeEnchantmentConflict(enchantment, existing)) {
+                return false;
+            }
+        }
+
+        if (plugin.getEnchantmentManager() != null
+                && candidateConflictsWithKept(enchantment, keptNative, customEnchantIds(item))) {
+            return false;
+        }
+
+        return canFitEnchantingTableOfferLimit(item, enchantment);
+    }
+
+    private boolean canFitEnchantingTableOfferLimit(ItemStack item, Enchantment enchantment) {
+        if (plugin.getConfigManager() == null || plugin.getEnchantmentManager() == null) {
+            return true;
+        }
+
+        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
+        if (max < 0) {
+            return true;
+        }
+
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        Set<String> keys = limitKeys(item, pdc);
+        String key = limitKey(enchantment);
+        return keys.contains(key) || keys.size() < max;
     }
 
     private List<Map.Entry<Enchantment, Integer>> orderedPendingAdds(Map<Enchantment, Integer> toAdd,
@@ -952,6 +1013,9 @@ public class VanillaManager implements Listener {
                     || !isEnchantingTablePreviewCandidateNamespace(enchantment.getKey().getNamespace())) {
                 continue;
             }
+            if (!canApplyEnchantingTableOffer(item, enchantment)) {
+                continue;
+            }
 
             int weight;
             if (isMinecraftEnchantment(enchantment)) {
@@ -992,24 +1056,20 @@ public class VanillaManager implements Listener {
         for (WeightedEnchantment candidate : candidates) {
             cursor += candidate.weight();
             if (roll < cursor) {
-                return createCandidateOffer(candidate.enchantment(), enchantingSeed, offerSlot, offerCost, currentOfferLevel);
+                return createCandidateOffer(candidate.enchantment(), enchantingSeed, offerSlot, offerCost);
             }
         }
         return createCandidateOffer(candidates.get(candidates.size() - 1).enchantment(),
                 enchantingSeed,
                 offerSlot,
-                offerCost,
-                currentOfferLevel);
+                offerCost);
     }
 
     private CandidateOffer createCandidateOffer(Enchantment enchantment,
                                                 int enchantingSeed,
                                                 int offerSlot,
-                                                int offerCost,
-                                                int currentOfferLevel) {
-        int level = isFotiaEnchantment(enchantment)
-                ? rollFotiaEnchantingTableLevel(enchantment, offerCost, enchantingSeed, offerSlot)
-                : clampLevel(currentOfferLevel, enchantment);
+                                                int offerCost) {
+        int level = rollEnchantingTableLevel(enchantment, offerCost, enchantingSeed, offerSlot);
         return new CandidateOffer(enchantment, level);
     }
 
@@ -1165,6 +1225,32 @@ public class VanillaManager implements Listener {
         return enchantment;
     }
 
+    private Enchantment recoverEnchantingTableResult(EnchantItemEvent event,
+                                                     ItemStack item,
+                                                     Map<Enchantment, Integer> toAdd) {
+        if (event == null || item == null || item.getType() == Material.AIR || toAdd == null) {
+            return null;
+        }
+        CandidateOffer candidate = pickEnchantingTableCandidate(
+                item,
+                true,
+                event.getEnchanter().getEnchantmentSeed(),
+                event.whichButton(),
+                event.getExpLevelCost(),
+                0,
+                event.getEnchantmentHint(),
+                event.getLevelHint());
+        if (candidate == null || candidate.enchantment() == null) {
+            return null;
+        }
+
+        Enchantment enchantment = candidate.enchantment();
+        int startLevel = Math.max(1, enchantment.getStartLevel());
+        int level = Math.max(startLevel, Math.min(candidate.level(), getMaxLevel(enchantment)));
+        toAdd.put(enchantment, level);
+        return enchantment;
+    }
+
     private PreparedOffer consumePreparedOffer(EnchantItemEvent event, ItemStack item) {
         PreparedOffer[] offers = preparedOffers.remove(event.getEnchanter().getUniqueId());
         int button = event.whichButton();
@@ -1182,9 +1268,11 @@ public class VanillaManager implements Listener {
         if (hint == null) {
             return null;
         }
-        int level = isFotiaEnchantment(hint)
-                ? rollFotiaEnchantingTableLevel(hint, event.getExpLevelCost(), event.getEnchanter().getEnchantmentSeed(), event.whichButton())
-                : event.getLevelHint();
+        int level = rollEnchantingTableLevel(
+                hint,
+                event.getExpLevelCost(),
+                event.getEnchanter().getEnchantmentSeed(),
+                event.whichButton());
         return new PreparedOffer(hint, level, item.getType());
     }
 
@@ -1215,9 +1303,25 @@ public class VanillaManager implements Listener {
     }
 
     private void notifyEnchantingTableFailure(Player player, String messageKey) {
-        if (player != null && plugin.getMessageHelper() != null) {
+        if (player != null && plugin.getMessageHelper() != null
+                && !shouldThrottleEnchantingTableFailure(player, messageKey)) {
             plugin.getMessageHelper().sendMessage(player, messageKey);
         }
+    }
+
+    private boolean shouldThrottleEnchantingTableFailure(Player player, String messageKey) {
+        if (player == null || messageKey == null) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        EnchantingFailureMessage previous = lastEnchantingFailureMessages.get(player.getUniqueId());
+        if (previous != null
+                && messageKey.equals(previous.messageKey())
+                && now - previous.createdAtMillis() < ENCHANTING_FAILURE_MESSAGE_COOLDOWN_MILLIS) {
+            return true;
+        }
+        lastEnchantingFailureMessages.put(player.getUniqueId(), new EnchantingFailureMessage(messageKey, now));
+        return false;
     }
 
     /**
@@ -1230,10 +1334,10 @@ public class VanillaManager implements Listener {
         }
     }
 
-    private int rollFotiaEnchantingTableLevel(Enchantment enchantment,
-                                              int offerCost,
-                                              int enchantingSeed,
-                                              int offerSlot) {
+    private int rollEnchantingTableLevel(Enchantment enchantment,
+                                         int offerCost,
+                                         int enchantingSeed,
+                                         int offerSlot) {
         int maxLevel = Math.max(1, getMaxLevel(enchantment));
         int level;
         if (plugin.getConfigManager() == null || !plugin.getConfigManager().isEnchantingTableLevelRollEnabled()) {
@@ -1291,5 +1395,8 @@ public class VanillaManager implements Listener {
     }
 
     private record PreparedOffer(Enchantment enchantment, int level, Material itemType) {
+    }
+
+    private record EnchantingFailureMessage(String messageKey, long createdAtMillis) {
     }
 }

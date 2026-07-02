@@ -4,16 +4,38 @@
 # ============================================
 # F = 碎片展示，A = 箭头提示，R = 随机魔典预览，C = 合成按钮。
 # EN: F = fragment display; A = arrow hint; R = random codex preview; C = craft button.
+# 文本支持 MiniMessage、旧颜色码 &/§、&#RRGGBB 和 lang:语言键。
+# EN: Text supports MiniMessage, legacy &/§ color codes, &#RRGGBB, and lang: language keys.
+# items 下的物品支持 material、modeldata/custom-model-data、tooltip-style、itemmodel/item-model、name、lore、glow。
+# EN: Items support material, modeldata/custom-model-data, tooltip-style, itemmodel/item-model, name, lore, and glow.
+# 可用占位符：
+# EN: Available placeholders:
+# - {current}: 玩家当前拥有的星辉残页数量。
+# EN: - {current}: amount of Starweave Fragments the player currently has.
+# - {cost}: 合成一次星芒魔典需要的星辉残页数量。
+# EN: - {cost}: amount of Starweave Fragments required for one craft.
 
+# GUI 行数，必须和 layout 的行数一致；每行固定 9 格。
+# EN: GUI row count; must match the number of layout rows, and each row is 9 slots wide.
 rows: 3
+
+# GUI 标题。推荐使用 lang:语言键，方便多语言。
+# EN: GUI title. Using lang: keys is recommended for multi-language support.
 title: "lang:craft-gui.title"
+
+# 是否自动用 background 物品填充没有功能角色的空槽。
+# EN: Whether empty non-functional slots should be filled with the background item.
 fill-empty: true
 
+# GUI 布局。每个字符会通过 roles 绑定到一个功能槽位；相同字符可以出现多次。
+# EN: GUI layout. Each character is mapped to a functional slot through roles; the same character may appear multiple times.
 layout:
   - "#########"
   - "##F#A#R##"
   - "####C####"
 
+# 角色绑定：fragment 是碎片显示，arrow 是箭头提示，result-preview 是随机魔典预览，craft-button 是合成按钮。
+# EN: Role bindings: fragment is the fragment display, arrow is the hint, result-preview is the random codex preview, and craft-button is the craft button.
 roles:
   background: "#"
   fragment: "F"
@@ -21,6 +43,8 @@ roles:
   result-preview: "R"
   craft-button: "C"
 
+# 各角色的显示物品配置。功能槽位的交互逻辑由角色名决定，material 只影响显示外观。
+# EN: Display item configuration for each role. Interaction logic is decided by the role name; material only changes appearance.
 items:
   background:
     material: BLACK_STAINED_GLASS_PANE

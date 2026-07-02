@@ -244,4 +244,55 @@ class VanillaManagerPreparedOfferSyncTest {
         assertTrue(source.contains("enchanting-table-already-fotia"),
                 "Cancelled enchanting table apply event must tell the player why the click did nothing");
     }
+
+    @Test
+    void enchantingTableReplacementCandidatesRollLevelsForVanillaAndFotia() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("rollEnchantingTableLevel(enchantment, offerCost, enchantingSeed, offerSlot)"),
+                "Replacement candidates must use the configurable level roll policy for both vanilla and Fotia enchantments");
+        assertFalse(source.contains("clampLevel(currentOfferLevel, enchantment)"),
+                "Vanilla replacement candidates must not inherit the original slot level, which makes high-cost offers nearly always max level");
+    }
+
+    @Test
+    void enchantingTablePreviewFiltersCandidatesThatWouldFailOnApply() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("canApplyEnchantingTableOffer(item, current)"),
+                "Existing preview offers must be checked with the same conflict and slot-limit rules used during apply");
+        assertTrue(source.contains("canApplyEnchantingTableOffer(item, enchantment)"),
+                "Replacement candidates must be skipped if they would be removed during EnchantItemEvent");
+        assertTrue(source.contains("offers[slot] = null"),
+                "Preview offers with no valid replacement must be removed before players can click them");
+    }
+
+    @Test
+    void enchantingTableFailureMessagesAreThrottled() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("ENCHANTING_FAILURE_MESSAGE_COOLDOWN_MILLIS"),
+                "Enchanting table failure messages need a cooldown so repeated stale clicks do not spam chat");
+        assertTrue(source.contains("lastEnchantingFailureMessages"),
+                "The failure cooldown must remember each player's recent enchanting table message");
+        assertTrue(source.contains("shouldThrottleEnchantingTableFailure"),
+                "Message sending must be guarded by an explicit throttle check");
+    }
+
+    @Test
+    void enchantingTableApplyRecoversAValidCandidateBeforeNoResultFailure() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("recoverEnchantingTableResult(event, item, toAdd)"),
+                "Apply stage must try to recover a valid candidate before cancelling with no-result");
+        assertTrue(source.contains("pickEnchantingTableCandidate("),
+                "Recovery must use the same configured candidate picker as preview generation");
+        assertTrue(source.indexOf("recoverEnchantingTableResult(event, item, toAdd)")
+                        < source.indexOf("notifyEnchantingTableFailure(event.getEnchanter(), \"enchanting-table-no-result\")"),
+                "No-result messaging should only happen after the recovery attempt has failed");
+    }
 }

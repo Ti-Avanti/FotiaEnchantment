@@ -84,8 +84,8 @@ grindstone:
   disabled: false
 
 # ============================================
-# 附魔台自定义附魔补充抽取
-# EN: Extra custom enchantment rolls for the enchanting table
+# 附魔台附魔抽取
+# EN: Enchantment rolls for the enchanting table
 # ============================================
 enchanting-table:
   # 自定义附魔配置中的 obtain.enchanting-table-weight 可参考：
@@ -104,12 +104,20 @@ enchanting-table:
   # 每次额外抽取的最高概率
   # EN: Maximum chance for each extra custom roll
   max-custom-chance: 0.95
-  # 附魔台 Fotia 附魔等级抽取；关闭后会恢复旧版按消耗等级线性放大的等级
-  # EN: Fotia enchantment level rolls from the enchanting table; disable to use the old cost-scaled level
+  # 附魔台等级抽取；同时影响 Fotia 自定义附魔，以及被本插件按权重重选的原版附魔。
+  # enabled: true 时按下方 tiers 权重随机等级，避免高档附魔几乎总是满级。
+  # enabled: false 时恢复旧版按附魔消耗等级线性放大的等级。
+  # EN: Enchanting table level rolls for Fotia enchantments and vanilla enchantments reselected by this plugin.
+  # EN: When enabled, the tiers below decide level weights so high-cost offers are not almost always max level.
+  # EN: When disabled, the old cost-scaled level logic is used.
   level-roll:
     enabled: true
-    # 按附魔消耗等级选择档位。权重越大，该等级越容易出现；高于附魔 max-level 的权重会被自动忽略
-    # EN: Tiers are selected by enchantment cost. Higher weights make that level more likely; levels above max-level are ignored
+    # 按附魔消耗等级选择档位，插件会使用第一个 max-cost 大于等于本次消耗等级的档位。
+    # weights 下的数字是“附魔等级: 权重”，权重越大越容易出现；不是百分比，不需要相加等于 100。
+    # 如果某个等级高于该附魔自己的 max-level，会自动忽略，不会让附魔突破等级上限。
+    # EN: Tiers are selected by enchantment cost; the first max-cost >= current cost is used.
+    # EN: weights are "level: weight"; larger weights are more likely and do not need to add up to 100.
+    # EN: Levels above that enchantment's max-level are ignored and cannot bypass max-level limits.
     tiers:
       low:
         max-cost: 10
@@ -172,12 +180,20 @@ item-drops:
   # 怪物掉落
   # EN: Mob drops
   mob-drop:
+    # 是否启用怪物掉落自定义道具。
+    # EN: Whether mobs can drop custom items.
     enabled: true
     # 全局掉落概率百分比（各怪物可单独覆盖）
     # EN: Global drop chance percentage; each mob can override it
     default-chance: 0.5
     # 每种怪物的掉落配置
     # EN: Per-mob drop configuration
+    # 节点名使用 Bukkit EntityType，例如 ZOMBIE、WITHER_SKELETON、ENDER_DRAGON。
+    # EN: Node names use Bukkit EntityType values, such as ZOMBIE, WITHER_SKELETON, and ENDER_DRAGON.
+    # chance 是百分比，1.0 = 1%，100.0 = 必定掉落。
+    # EN: chance is a percentage; 1.0 = 1%, and 100.0 = guaranteed.
+    # items 填写 items/custom-items.yml 中的道具 ID，例如 starweave-fragment、disenchant-shard。
+    # EN: items are custom item ids from items/custom-items.yml, such as starweave-fragment or disenchant-shard.
     mobs:
       ZOMBIE:
         chance: 0.3
@@ -203,7 +219,15 @@ item-drops:
   # 挖矿掉落
   # EN: Mining drops
   mining-drop:
+    # 是否启用方块挖掘掉落自定义道具。
+    # EN: Whether mined blocks can drop custom items.
     enabled: true
+    # 每种方块的掉落配置。
+    # EN: Per-block drop configuration.
+    # 节点名使用 Bukkit Material，例如 DIAMOND_ORE、DEEPSLATE_DIAMOND_ORE、ANCIENT_DEBRIS。
+    # EN: Node names use Bukkit Material values, such as DIAMOND_ORE, DEEPSLATE_DIAMOND_ORE, and ANCIENT_DEBRIS.
+    # chance 是百分比，1.0 = 1%，100.0 = 必定掉落；items 填写 items/custom-items.yml 中的道具 ID。
+    # EN: chance is a percentage, 1.0 = 1%, 100.0 = guaranteed; items are custom item ids from items/custom-items.yml.
     blocks:
       DIAMOND_ORE:
         chance: 0.5

@@ -8,17 +8,43 @@
 # EN: Text supports MiniMessage, legacy &/§ color codes, &#RRGGBB, and lang: language keys.
 # items 下的物品支持 material、modeldata、tooltip-style、itemmodel、name、lore。
 # EN: Items support material, modeldata, tooltip-style, itemmodel, name, and lore.
+# 可用占位符：
+# EN: Available placeholders:
+# - {status_lines}: 每个可拆附魔的可用状态、限制原因或选择状态。
+# EN: - {status_lines}: availability, blocking reason, or selection status for each removable enchantment.
+# - {mode_hint}: 当前祛魔石的拆除模式提示。
+# EN: - {mode_hint}: removal mode hint for the current disenchant stone.
 
+# GUI 行数，必须和 layout 的行数一致；每行固定 9 格。
+# EN: GUI row count; must match the number of layout rows, and each row is 9 slots wide.
 rows: 4
+
+# GUI 标题。推荐使用 lang:语言键，方便多语言。
+# EN: GUI title. Using lang: keys is recommended for multi-language support.
 title: "lang:disenchant-gui.title"
+
+# 是否自动用 background 物品填充没有功能角色的空槽。
+# EN: Whether empty non-functional slots should be filled with the background item.
 fill-empty: true
 
+# GUI 布局。每个字符会通过 roles 绑定到一个功能槽位；相同字符可以出现多次。
+# EN: GUI layout. Each character is mapped to a functional slot through roles; the same character may appear multiple times.
 layout:
   - "####Q##T#"
   - "#########"
   - "LLLLLLLLL"
   - "##C#H#O##"
 
+# 角色绑定：
+# equipment = 要拆除附魔的装备或附魔书
+# stone = 祛魔道具槽
+# enchantments = 可拆附魔列表区域
+# cancel/info/confirm = 取消、信息、确认按钮
+# EN: Role bindings:
+# EN: equipment = item or enchanted book to remove enchantments from
+# EN: stone = disenchant item slot
+# EN: enchantments = removable enchantment list area
+# EN: cancel/info/confirm = cancel, information, and confirm buttons
 roles:
   background: "#"
   equipment: "Q"
@@ -28,6 +54,8 @@ roles:
   info: "H"
   confirm: "O"
 
+# 各角色的显示物品配置。功能槽位的交互逻辑由角色名决定，material 只影响显示外观。
+# EN: Display item configuration for each role. Interaction logic is decided by the role name; material only changes appearance.
 items:
   background:
     material: BLACK_STAINED_GLASS_PANE

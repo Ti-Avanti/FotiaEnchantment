@@ -5,10 +5,26 @@
 # EN: Item text such as name and lore is configured in lang/ language files
 # 此处只配置非文本属性
 # EN: Only non-text properties are configured here
+# 通用字段说明：
+# EN: Common fields:
+# - material: 原版物品材质，必须是有效 Bukkit Material。
+# EN: - material: vanilla item material; must be a valid Bukkit Material.
+# - custom-model-data 或 modeldata: 资源包模型数据；0 或删除表示不设置。
+# EN: - custom-model-data or modeldata: resource-pack model data; 0 or removing the field disables it.
+# - item-model 或 itemmodel: 1.21+ 物品模型键，例如 fotiaenchantment:starweave_fragment；留空表示不设置。
+# EN: - item-model or itemmodel: 1.21+ item model key, such as fotiaenchantment:starweave_fragment; blank disables it.
+# - tooltip-style: 1.21+ tooltip 样式键；留空表示使用原版默认样式。
+# EN: - tooltip-style: 1.21+ tooltip style key; blank uses vanilla default style.
+# - craftengine-item: CraftEngine 物品 ID；填写后优先使用 CraftEngine 物品外观。
+# EN: - craftengine-item: CraftEngine item id; when set, CraftEngine item appearance is used first.
+# - glow: 是否显示附魔光效，不会额外添加实际附魔。
+# EN: - glow: whether to show enchant glint; it does not add a real enchantment.
 # ============================================
 
 # 星辉残页 - 基础碎片道具
 # EN: Starweave Fragment - basic fragment item
+# 用途：怪物掉落、挖矿掉落、碎片合成星芒魔典。
+# EN: Used by mob drops, mining drops, and Stellaris Codex crafting.
 starweave-fragment:
   material: AMETHYST_SHARD
   custom-model-data: 10001
@@ -68,8 +84,26 @@ stellaris-codex:
 # 祛魔之石 - 三个等级
 # EN: Disenchant stones - three tiers
 disenchant-stone:
-  # 可自定义拆除道具。服主可以复制任意节点并修改 id、source 和 success-chance 创建新道具。
-  # source: VANILLA 只拆原版附魔；FOTIA 只拆 Fotia 附魔；ANY 可拆任意附魔。
+  # 新版自定义拆除道具列表。
+  # EN: New custom disenchant item list.
+  # 服主可以复制 items 下任意节点，修改节点名、source、success-chance、max-remove 等字段创建新道具。
+  # EN: Server owners can copy any node under items and change its node name, source, success-chance, max-remove, and other fields to create new items.
+  # 字段说明：
+  # EN: Field notes:
+  # - source: VANILLA 只拆原版附魔；FOTIA 只拆 Fotia 附魔；ANY 可拆任意附魔。
+  # EN: - source: VANILLA removes only vanilla enchantments; FOTIA removes only Fotia enchantments; ANY removes both.
+  # - max-remove: 单次最多拆除几个附魔。
+  # EN: - max-remove: maximum enchantments removed in one operation.
+  # - selectable: true 允许玩家手动选择要拆的附魔；false 时随机选择可拆附魔。
+  # EN: - selectable: true lets players select enchantments; false randomly chooses removable enchantments.
+  # - success-chance: 成功率百分比，范围 0-100；失败时是否损毁由 destroy-on-fail 决定。
+  # EN: - success-chance: success chance percentage, 0-100; destroy-on-fail decides what happens on failure.
+  # - destroy-on-fail: 失败时是否销毁被拆除目标物品。
+  # EN: - destroy-on-fail: whether the target item is destroyed on failure.
+  # - keep-level: true 时拆出的附魔书保留原等级；false 时按 1 级返还。
+  # EN: - keep-level: true keeps the original enchantment level on returned books; false returns level 1.
+  # - max-rarity: 允许拆除的最高 Fotia 稀有度；原版附魔不受该字段限制。
+  # EN: - max-rarity: highest Fotia rarity allowed for removal; vanilla enchantments are not limited by this field.
   items:
     # 净律琉璃 - 只能拆除原版附魔
     pure-law-glass:
@@ -116,6 +150,10 @@ disenchant-stone:
       destroy-on-fail: false
       keep-level: true
       max-rarity: divine
+  # 旧版等级配置，保留用于兼容旧服务器配置。
+  # EN: Legacy tier configuration kept for older server configs.
+  # 新服推荐使用上方 items 自定义道具；tiers 内 allow-vanilla 只控制是否允许拆原版附魔。
+  # EN: New servers should use the items section above; allow-vanilla inside tiers only controls vanilla enchantment removal.
   tiers:
     # 祛魔碎石 - 随机拆卸1个附魔
     # EN: Disenchant Shard - randomly removes 1 enchantment
@@ -159,6 +197,10 @@ disenchant-stone:
 
 # 星铸棱晶 - 用于打开突破过于昂贵限制的专用 GUI
 # EN: Starforged Prism - opens the dedicated GUI for bypassing vanilla too-expensive anvil blocking
+# 用途：玩家手持该道具右键会打开 gui/anvil-breakthrough.yml 配置的突破 GUI。
+# EN: Used to open the breakthrough GUI configured in gui/anvil-breakthrough.yml when right-clicked.
+# 只控制道具外观与识别；GUI 布局和提示文本分别在 gui/ 与 lang/ 文件中配置。
+# EN: Only controls item appearance and identification; GUI layout and text are configured in gui/ and lang/ files.
 anvil-breakthrough-stone:
   material: ECHO_SHARD
   custom-model-data: 10030

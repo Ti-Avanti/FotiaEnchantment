@@ -8,11 +8,25 @@
 # EN: roles bind layout characters to functions; items configure the appearance for those functions.
 # 文本支持 MiniMessage、旧颜色码 &/§、&#RRGGBB、lang:语言键。
 # EN: Text supports MiniMessage, legacy &/§ color codes, &#RRGGBB, and lang: language keys.
+# items 下的物品支持 material、modeldata/custom-model-data、tooltip-style、itemmodel/item-model、name、lore、glow。
+# EN: Items support material, modeldata/custom-model-data, tooltip-style, itemmodel/item-model, name, lore, and glow.
+# 可用占位符由对应功能槽位决定，例如 {active_prefix}、{category_name}、{status}、{rarity_color}。
+# EN: Available placeholders depend on each functional slot, such as {active_prefix}, {category_name}, {status}, and {rarity_color}.
 
+# GUI 行数，必须和 layout 的行数一致；每行固定 9 格。
+# EN: GUI row count; must match the number of layout rows, and each row is 9 slots wide.
 rows: 6
+
+# GUI 标题。推荐使用 lang:语言键，方便多语言。
+# EN: GUI title. Using lang: keys is recommended for multi-language support.
 title: "lang:admin-gui.title"
+
+# 是否自动用 background 物品填充没有功能角色的空槽。
+# EN: Whether empty non-functional slots should be filled with the background item.
 fill-empty: true
 
+# GUI 布局。每个字符会通过 roles 绑定到一个功能槽位；相同字符可以出现多次。
+# EN: GUI layout. Each character is mapped to a functional slot through roles; the same character may appear multiple times.
 layout:
   - "#A#MRDTU#"
   - "EEEEEEEEE"
@@ -21,6 +35,8 @@ layout:
   - "EEEEEEEEE"
   - "P###X#H#N"
 
+# 角色绑定。修改字符时，需要同时修改 layout 中对应字符，否则该功能槽位不会出现。
+# EN: Role bindings. When changing a character, update the matching layout character or the functional slot will not appear.
 roles:
   background: "#"
   category-all: "A"
@@ -35,6 +51,8 @@ roles:
   shortcut-help: "H"
   next-page: "N"
 
+# 各角色的显示物品配置。功能槽位的交互逻辑由角色名决定，material 只影响显示外观。
+# EN: Display item configuration for each role. Interaction logic is decided by the role name; material only changes appearance.
 items:
   background:
     material: BLACK_STAINED_GLASS_PANE
