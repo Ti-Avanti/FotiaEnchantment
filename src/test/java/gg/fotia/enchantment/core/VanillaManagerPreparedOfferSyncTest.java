@@ -295,4 +295,30 @@ class VanillaManagerPreparedOfferSyncTest {
                         < source.indexOf("notifyEnchantingTableFailure(event.getEnchanter(), \"enchanting-table-no-result\")"),
                 "No-result messaging should only happen after the recovery attempt has failed");
     }
+
+    @Test
+    void enchantingTableBooksBypassItemApplicabilityFilters() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("isEnchantingTableBook(item)"),
+                "Enchanting table logic must treat a plain book as an enchantment-book carrier");
+        assertTrue(source.contains("!isEnchantingTableBook(item) && !isApplicable(enchantment, item)"),
+                "Vanilla book candidates must not be removed because the enchantment is not applicable to BOOK itself");
+        assertTrue(source.contains("!isEnchantingTableBook(item) && !pdc.isApplicable(item, data)"),
+                "Fotia book candidates must not be removed because the custom enchantment is not applicable to BOOK itself");
+    }
+
+    @Test
+    void vanillaApplicabilityFallbackDoesNotRequireConfiguredApplicableItems() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertFalse(source.contains("override != null && !override.getApplicableItems().isEmpty()) {\n"
+                        + "                if (!isEnchantingTableBook(item) && !isApplicable(enchant, item))"),
+                "Enchanting table apply cleanup must use Bukkit applicability even when vanilla applicable-items is empty");
+        assertFalse(source.contains("override != null && !override.getApplicableItems().isEmpty()) {\n"
+                        + "                    if (!isApplicable(enchant, result))"),
+                "Anvil result cleanup must use Bukkit applicability even when vanilla applicable-items is empty");
+    }
 }

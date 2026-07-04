@@ -17,6 +17,7 @@ import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
 import gg.fotia.enchantment.pipeline.trigger.TriggerRegistry;
 import gg.fotia.enchantment.pipeline.trigger.impl.*;
 import gg.fotia.enchantment.util.SchedulerUtils;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -262,7 +263,7 @@ public class EffectPipeline {
     }
 
     public boolean hasActiveEnchantment(ItemStack item, String triggerId) {
-        if (item == null || item.getType().isAir()) {
+        if (!isRuntimeEffectSource(item)) {
             return false;
         }
         List<TriggerBinding> bindings = triggerIndex.get(normalizeTriggerId(triggerId));
@@ -295,7 +296,7 @@ public class EffectPipeline {
         };
 
         for (ItemStack item : itemsToCheck) {
-            if (item == null || item.getType().isAir()) {
+            if (!isRuntimeEffectSource(item)) {
                 continue;
             }
 
@@ -317,7 +318,7 @@ public class EffectPipeline {
      * 获取物品上某附魔的等级。
      */
     private int getEnchantLevel(ItemStack item, EnchantmentData data) {
-        if (item == null || data == null || data.getId() == null) {
+        if (!isRuntimeEffectSource(item) || data == null || data.getId() == null) {
             return 0;
         }
         EnchantmentManager enchantmentManager = plugin.getEnchantmentManager();
@@ -325,7 +326,21 @@ public class EffectPipeline {
             return 0;
         }
         PDCManager pdcManager = enchantmentManager.getPdcManager();
+        if (!pdcManager.isApplicable(item, data)) {
+            return 0;
+        }
         return pdcManager.getEnchantmentLevel(item, data.getId());
+    }
+
+    private static boolean isRuntimeEffectSource(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+        if (item.getType() == Material.BOOK
+                || item.getType() == Material.ENCHANTED_BOOK) {
+            return false;
+        }
+        return true;
     }
 
     /**

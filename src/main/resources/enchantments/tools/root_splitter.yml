@@ -41,6 +41,10 @@ effects:
         max-blocks: "{level} * 5"
       - type: BONUS_DROP
         value: "{level}"
+        excluded-blocks:
+          - ANCIENT_DEBRIS
+        excluded-block-groups:
+          - SHULKER_BOX
       - type: PARTICLE
         particle: "COMPOSTER"
         count: 14

@@ -9,6 +9,7 @@ import gg.fotia.enchantment.core.VanillaManager;
 import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -85,6 +86,9 @@ public class EnchantmentDisplayListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryClick(InventoryClickEvent event) {
+        if (event instanceof InventoryCreativeEvent) {
+            return;
+        }
         if (event.getWhoClicked() instanceof Player player) {
             scheduleNormalize(player);
         }
@@ -93,6 +97,9 @@ public class EnchantmentDisplayListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onInventoryCreative(InventoryCreativeEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
+            if (shouldSkipInventoryNormalization(player)) {
+                return;
+            }
             ItemStack cursor = event.getCursor();
             if (normalizeItem(player, cursor, validityRules())) {
                 event.setCursor(cursor);
@@ -125,6 +132,9 @@ public class EnchantmentDisplayListener implements Listener {
     }
 
     private void scheduleNormalize(Player player) {
+        if (shouldSkipInventoryNormalization(player)) {
+            return;
+        }
         Bukkit.getScheduler().runTask(plugin, () -> normalizePlayer(player));
     }
 
@@ -195,7 +205,7 @@ public class EnchantmentDisplayListener implements Listener {
     }
 
     private void normalizePlayer(Player player) {
-        if (player == null || !player.isOnline()) {
+        if (player == null || !player.isOnline() || shouldSkipInventoryNormalization(player)) {
             return;
         }
 
@@ -312,11 +322,19 @@ public class EnchantmentDisplayListener implements Listener {
     private List<PlayerItemSnapshot> snapshotOnlinePlayers() {
         List<PlayerItemSnapshot> snapshots = new ArrayList<>();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player != null && player.isOnline()) {
+            if (player != null && player.isOnline() && !shouldSkipInventoryNormalization(player)) {
                 snapshots.add(new PlayerItemSnapshot(player.getUniqueId(), snapshotItems(player)));
             }
         }
         return snapshots;
+    }
+
+    private boolean shouldSkipInventoryNormalization(Player player) {
+        if (player == null) {
+            return true;
+        }
+        GameMode gameMode = player.getGameMode();
+        return gameMode == GameMode.CREATIVE || gameMode == GameMode.SPECTATOR;
     }
 
     private List<ItemStack> snapshotItems(Player player) {

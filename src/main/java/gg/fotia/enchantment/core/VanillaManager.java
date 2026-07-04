@@ -136,6 +136,10 @@ public class VanillaManager implements Listener {
         return false;
     }
 
+    private static boolean isEnchantingTableBook(ItemStack item) {
+        return item != null && item.getType() == Material.BOOK;
+    }
+
     static boolean matchesApplicableItemToken(Material itemType, String configuredToken) {
         if (itemType == null || configuredToken == null) {
             return false;
@@ -215,7 +219,6 @@ public class VanillaManager implements Listener {
 
             Enchantment current = offer.getEnchantment();
             boolean invalidOffer = isDisabled(current)
-                    || !isApplicable(current, item)
                     || !canApplyEnchantingTableOffer(item, current);
             if (invalidOffer || useConfiguredWeights) {
                 CandidateOffer replacement = pickEnchantingTableCandidate(
@@ -274,12 +277,9 @@ public class VanillaManager implements Listener {
             }
 
             // 检查适用物品
-            VanillaOverride override = getOverrideFor(enchant);
-            if (override != null && !override.getApplicableItems().isEmpty()) {
-                if (!isApplicable(enchant, item)) {
-                    iterator.remove();
-                    continue;
-                }
+            if (!isEnchantingTableBook(item) && !isApplicable(enchant, item)) {
+                iterator.remove();
+                continue;
             }
 
             // 限制最大等级
@@ -385,12 +385,9 @@ public class VanillaManager implements Listener {
                 }
 
                 // 检查适用物品
-                VanillaOverride override = getOverrideFor(enchant);
-                if (override != null && !override.getApplicableItems().isEmpty()) {
-                    if (!isApplicable(enchant, result)) {
-                        meta.removeEnchant(enchant);
-                        modified = true;
-                    }
+                if (!isApplicable(enchant, result)) {
+                    meta.removeEnchant(enchant);
+                    modified = true;
                 }
 
                 // 检查冲突
@@ -615,7 +612,8 @@ public class VanillaManager implements Listener {
             return customEnchantingTableCandidateData(enchantment, item) != null
                     && canFitEnchantingTableOfferLimit(item, enchantment);
         }
-        if (isDisabled(enchantment) || !isApplicable(enchantment, item)) {
+        if (isDisabled(enchantment)
+                || (!isEnchantingTableBook(item) && !isApplicable(enchantment, item))) {
             return false;
         }
 
@@ -1019,7 +1017,8 @@ public class VanillaManager implements Listener {
 
             int weight;
             if (isMinecraftEnchantment(enchantment)) {
-                if (isDisabled(enchantment) || !isApplicable(enchantment, item)) {
+                if (isDisabled(enchantment)
+                        || (!isEnchantingTableBook(item) && !isApplicable(enchantment, item))) {
                     continue;
                 }
                 weight = useConfiguredWeights ? configuredWeightOrDefault(enchantment) : 10;
@@ -1151,7 +1150,10 @@ public class VanillaManager implements Listener {
         }
 
         PDCManager pdc = manager.getPdcManager();
-        if (pdc == null || !pdc.isApplicable(item, data)) {
+        if (pdc == null) {
+            return null;
+        }
+        if (!isEnchantingTableBook(item) && !pdc.isApplicable(item, data)) {
             return null;
         }
         if (pdc.hasConflict(item, data, manager::getEnchantment)) {
@@ -1208,7 +1210,8 @@ public class VanillaManager implements Listener {
         }
 
         Enchantment enchantment = selected.enchantment();
-        if (isDisabled(enchantment) || !isApplicable(enchantment, item)) {
+        if (isDisabled(enchantment)
+                || (!isEnchantingTableBook(item) && !isApplicable(enchantment, item))) {
             return null;
         }
 

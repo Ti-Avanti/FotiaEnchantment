@@ -3,6 +3,9 @@ package gg.fotia.enchantment.pipeline;
 import gg.fotia.enchantment.core.EnchantmentData;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +36,19 @@ class EffectPipelineTriggerIndexTest {
         assertEquals(0, index.get("HOLD").get(0).getEffectIndex());
         assertEquals(2, index.get("HOLD").get(1).getEffectIndex());
         assertSame(active, index.get("WEAR").get(0).getData());
+    }
+
+    @Test
+    void runtimeEffectSourcesRejectEnchantmentBooks() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/pipeline/EffectPipeline.java"));
+
+        assertTrue(source.contains("isRuntimeEffectSource(item)"),
+                "Effect execution must pass through a central runtime item eligibility check");
+        assertTrue(source.contains("item.getType() == Material.BOOK"),
+                "Plain books must never act as runtime enchantment sources");
+        assertTrue(source.contains("item.getType() == Material.ENCHANTED_BOOK"),
+                "Enchanted books must store enchantments without triggering their effects directly");
     }
 
     private static EnchantmentData enchantment(String id, boolean enabled, EnchantmentData.EffectBlock... blocks) {

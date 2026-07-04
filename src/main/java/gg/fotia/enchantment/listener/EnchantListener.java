@@ -61,7 +61,7 @@ public class EnchantListener implements Listener {
             if (!data.getObtain().isEnchantingTable()) {
                 continue;
             }
-            if (!pdc.isApplicable(item, data)) {
+            if (!isEnchantingTableBook(item) && !pdc.isApplicable(item, data)) {
                 continue;
             }
             if (data.getObtain().getEnchantingTableWeight() <= 0) {
@@ -313,6 +313,10 @@ public class EnchantListener implements Listener {
         return Registry.ENCHANTMENT.get(new NamespacedKey(
                 EnchantmentRegistry.getNamespace(),
                 enchantId.toLowerCase(Locale.ROOT)));
+    }
+
+    private static boolean isEnchantingTableBook(ItemStack item) {
+        return item != null && item.getType() == Material.BOOK;
     }
 
     private record PendingCustomEnchant(String id, int level) {

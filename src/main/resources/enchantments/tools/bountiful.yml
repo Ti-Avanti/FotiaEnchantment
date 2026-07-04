@@ -66,3 +66,7 @@ effects:
       # 额外掉落物（倍率随等级增加）
       - type: BONUS_DROP
         multiplier: "{level} * 0.5 + 1"
+        excluded-blocks:
+          - ANCIENT_DEBRIS
+        excluded-block-groups:
+          - SHULKER_BOX

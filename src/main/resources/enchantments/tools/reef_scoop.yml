@@ -40,6 +40,10 @@ effects:
     actions:
       - type: BONUS_DROP
         value: "{level}"
+        excluded-blocks:
+          - ANCIENT_DEBRIS
+        excluded-block-groups:
+          - SHULKER_BOX
       - type: PARTICLE
         particle: "DRIPPING_WATER"
         count: 10

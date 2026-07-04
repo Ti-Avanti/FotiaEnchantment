@@ -39,6 +39,10 @@ effects:
     actions:
       - type: BONUS_DROP
         value: "{level} * 2"
+        excluded-blocks:
+          - ANCIENT_DEBRIS
+        excluded-block-groups:
+          - SHULKER_BOX
       - type: PARTICLE
         particle: "FIREWORK"
         count: 8

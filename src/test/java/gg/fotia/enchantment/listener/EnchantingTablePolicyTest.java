@@ -34,4 +34,15 @@ class EnchantingTablePolicyTest {
         assertTrue(source.contains("!pdc.getEnchantments(item).isEmpty()"),
                 "Custom enchanting table rolls must not run on items that already have Fotia enchantments");
     }
+
+    @Test
+    void customEnchantingTableRollsTreatPlainBooksAsEnchantmentCarriers() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/listener/EnchantListener.java"));
+
+        assertTrue(source.contains("isEnchantingTableBook(item)"),
+                "Custom enchanting table rolls must identify plain books as enchantment carriers");
+        assertTrue(source.contains("!isEnchantingTableBook(item) && !pdc.isApplicable(item, data)"),
+                "Custom enchanting table rolls must not reject Fotia book candidates because they are not applicable to BOOK");
+    }
 }
