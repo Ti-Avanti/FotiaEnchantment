@@ -49,4 +49,17 @@ class VanillaConfigMigrationTest {
                 VanillaConfig.migrateDescription("lunge", List.of("自定义描述"))
         );
     }
+
+    @Test
+    void vanillaOverrideCanSeparateEnchantingTableMaxLevel() {
+        VanillaConfig.VanillaOverride override = new VanillaConfig.VanillaOverride("sharpness");
+
+        assertEquals(-1, override.getEnchantingTableMaxLevel());
+
+        override.setMaxLevel(10);
+        override.setEnchantingTableMaxLevel(5);
+
+        assertEquals(10, override.getMaxLevel());
+        assertEquals(5, override.getEnchantingTableMaxLevel());
+    }
 }

@@ -108,6 +108,18 @@ public class VanillaManager implements Listener {
     }
 
     /**
+     * 获取附魔台可生成的最大等级。
+     * <p>默认使用原版附魔台等级上限，不会因为 max-level 提高而自动让附魔台生成超原版等级。</p>
+     */
+    private int getEnchantingTableMaxLevel(Enchantment enchant) {
+        int generalMaxLevel = getMaxLevel(enchant);
+        VanillaOverride override = getOverrideFor(enchant);
+        int configuredTableMax = override != null ? override.getEnchantingTableMaxLevel() : -1;
+        int tableMaxLevel = configuredTableMax == -1 ? enchant.getMaxLevel() : configuredTableMax;
+        return Math.min(generalMaxLevel, tableMaxLevel);
+    }
+
+    /**
      * 获取冲突列表（包括原版冲突 + 额外配置冲突）
      */
     public List<String> getConflicts(Enchantment enchant) {
@@ -283,7 +295,7 @@ public class VanillaManager implements Listener {
             }
 
             // 限制最大等级
-            int maxLevel = getMaxLevel(enchant);
+            int maxLevel = getEnchantingTableMaxLevel(enchant);
             if (entry.getValue() > maxLevel) {
                 entry.setValue(maxLevel);
             }
@@ -1223,7 +1235,7 @@ public class VanillaManager implements Listener {
         }
 
         int startLevel = Math.max(1, enchantment.getStartLevel());
-        int level = Math.max(startLevel, Math.min(selected.level(), getMaxLevel(enchantment)));
+        int level = Math.max(startLevel, Math.min(selected.level(), getEnchantingTableMaxLevel(enchantment)));
         toAdd.put(enchantment, level);
         return enchantment;
     }
@@ -1249,7 +1261,7 @@ public class VanillaManager implements Listener {
 
         Enchantment enchantment = candidate.enchantment();
         int startLevel = Math.max(1, enchantment.getStartLevel());
-        int level = Math.max(startLevel, Math.min(candidate.level(), getMaxLevel(enchantment)));
+        int level = Math.max(startLevel, Math.min(candidate.level(), getEnchantingTableMaxLevel(enchantment)));
         toAdd.put(enchantment, level);
         return enchantment;
     }
@@ -1341,7 +1353,7 @@ public class VanillaManager implements Listener {
                                          int offerCost,
                                          int enchantingSeed,
                                          int offerSlot) {
-        int maxLevel = Math.max(1, getMaxLevel(enchantment));
+        int maxLevel = Math.max(1, getEnchantingTableMaxLevel(enchantment));
         int level;
         if (plugin.getConfigManager() == null || !plugin.getConfigManager().isEnchantingTableLevelRollEnabled()) {
             level = EnchantingTableLevelPolicy.legacyScaledLevel(maxLevel, offerCost);
@@ -1359,7 +1371,7 @@ public class VanillaManager implements Listener {
 
     private int clampLevel(int level, Enchantment enchantment) {
         int startLevel = Math.max(1, enchantment.getStartLevel());
-        int maxLevel = Math.max(startLevel, getMaxLevel(enchantment));
+        int maxLevel = Math.max(startLevel, getEnchantingTableMaxLevel(enchantment));
         return Math.max(startLevel, Math.min(level, maxLevel));
     }
 

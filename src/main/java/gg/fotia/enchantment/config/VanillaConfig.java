@@ -110,6 +110,7 @@ public class VanillaConfig {
         VanillaOverride override = new VanillaOverride(enchantName);
         override.setDisabled(config.getBoolean("disabled", false));
         override.setMaxLevel(config.getInt("max-level", -1));
+        override.setEnchantingTableMaxLevel(config.getInt("enchanting-table-max-level", -1));
         override.setConflicts(config.getStringList("conflicts"));
         List<String> configuredApplicableItems = config.getStringList("applicable-items");
         List<String> migratedApplicableItems = migrateApplicableItems(enchantName, configuredApplicableItems);
@@ -243,6 +244,7 @@ public class VanillaConfig {
         private final String name;
         private boolean disabled;
         private int maxLevel;
+        private int enchantingTableMaxLevel;
         private List<String> conflicts;
         private List<String> applicableItems;
         private int enchantingTableWeight;
@@ -253,6 +255,7 @@ public class VanillaConfig {
             this.name = name;
             this.disabled = false;
             this.maxLevel = -1;
+            this.enchantingTableMaxLevel = -1;
             this.conflicts = new ArrayList<>();
             this.applicableItems = new ArrayList<>();
             this.enchantingTableWeight = -1;
@@ -278,6 +281,14 @@ public class VanillaConfig {
 
         public void setMaxLevel(int maxLevel) {
             this.maxLevel = maxLevel;
+        }
+
+        public int getEnchantingTableMaxLevel() {
+            return enchantingTableMaxLevel;
+        }
+
+        public void setEnchantingTableMaxLevel(int enchantingTableMaxLevel) {
+            this.enchantingTableMaxLevel = enchantingTableMaxLevel;
         }
 
         public List<String> getConflicts() {
@@ -340,6 +351,10 @@ public class VanillaConfig {
                 # 覆盖最大等级（-1 表示不修改，使用原版默认值）
                 # 原版默认最大等级: %d
                 max-level: -1
+
+                # 附魔台最高可生成等级（-1 表示使用原版默认等级）
+                # 该值仍不会超过 max-level；例如 max-level: 10 且这里为 5 时，铁砧/指令可保留 X，附魔台最多生成 V
+                enchanting-table-max-level: -1
 
                 # 额外冲突的附魔ID列表（填写 minecraft 命名空间下的键名，例如 infinity）
                 conflicts: []

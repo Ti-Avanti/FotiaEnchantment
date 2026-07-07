@@ -174,8 +174,8 @@ public class EnchantListener implements Listener {
 
         ItemStack result = inputs.result();
 
-        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(result.getType());
-        ItemStack mergeTarget = result;
+        ItemStack mergeTarget = inputs.target();
+        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(mergeTarget.getType());
         Map<String, Integer> existing = pdc.getEnchantments(mergeTarget);
         AnvilCustomEnchantMerge.Result merge = AnvilCustomEnchantMerge.merge(
                 existing,

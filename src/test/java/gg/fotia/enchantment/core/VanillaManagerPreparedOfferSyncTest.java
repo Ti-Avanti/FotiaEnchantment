@@ -257,6 +257,17 @@ class VanillaManagerPreparedOfferSyncTest {
     }
 
     @Test
+    void enchantingTableUsesDedicatedMaxLevelCap() throws IOException {
+        String source = Files.readString(Path.of(
+                "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
+
+        assertTrue(source.contains("getEnchantingTableMaxLevel(enchantment)"),
+                "Enchanting table level rolls must use the dedicated enchanting-table max level cap");
+        assertTrue(source.contains("private int getEnchantingTableMaxLevel(Enchantment enchant)"),
+                "VanillaManager must expose a separate resolver for enchanting table max levels");
+    }
+
+    @Test
     void enchantingTablePreviewFiltersCandidatesThatWouldFailOnApply() throws IOException {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));

@@ -66,6 +66,35 @@ class AnvilCustomEnchantMergeTest {
     }
 
     @Test
+    void levelFourPlusLevelFourUpgradesToLevelFive() {
+        EnchantmentData data = enchant("blaze_resist", 5);
+
+        AnvilCustomEnchantMerge.Result result = AnvilCustomEnchantMerge.merge(
+                Map.of("blaze_resist", 4),
+                Map.of("blaze_resist", 4),
+                id -> data,
+                ignored -> true,
+                false,
+                1,
+                8
+        );
+
+        assertTrue(result.modified());
+        assertEquals(5, result.enchantments().get("blaze_resist"));
+    }
+
+    @Test
+    void anvilListenerReadsExistingCustomEnchantsFromInputTarget() throws Exception {
+        String source = java.nio.file.Files.readString(java.nio.file.Path.of(
+                "src/main/java/gg/fotia/enchantment/listener/EnchantListener.java"));
+
+        assertTrue(source.contains("ItemStack mergeTarget = inputs.target()"),
+                "Anvil merging must read existing Fotia data from the left input target, not Bukkit's preview result");
+        assertTrue(source.contains("Map<String, Integer> existing = pdc.getEnchantments(mergeTarget)"),
+                "Existing custom enchant levels must come from the merge target before writing the preview result");
+    }
+
+    @Test
     void newEnchantRespectsExistingEnchantLimitCount() {
         EnchantmentData data = enchant("blaze_resist", 3);
 
