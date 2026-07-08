@@ -4,6 +4,7 @@ import gg.fotia.enchantment.core.EnchantmentData;
 import org.bukkit.Material;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -67,6 +68,62 @@ class AnvilBreakthroughServiceTest {
 
         assertFalse(result.modified());
         assertEquals(Map.of(), result.enchantments());
+    }
+
+    @Test
+    void breakthroughMergeSupportsVanillaStoredEnchantments() {
+        String sharpness = "minecraft:sharpness";
+
+        AnvilBreakthroughService.VanillaResult<String> result = AnvilBreakthroughService.mergeVanillaEnchantments(
+                Map.of(),
+                Map.of(sharpness, 10),
+                enchantment -> true,
+                (enchantment, existing) -> false,
+                enchantment -> 10,
+                0,
+                8
+        );
+
+        assertTrue(result.modified());
+        assertEquals(10, result.enchantments().get(sharpness));
+    }
+
+    @Test
+    void breakthroughMergeDoesNotBypassVanillaNewEnchantLimit() {
+        String sharpness = "minecraft:sharpness";
+
+        AnvilBreakthroughService.VanillaResult<String> result = AnvilBreakthroughService.mergeVanillaEnchantments(
+                Map.of(),
+                Map.of(sharpness, 10),
+                enchantment -> true,
+                (enchantment, existing) -> false,
+                enchantment -> 10,
+                8,
+                8
+        );
+
+        assertFalse(result.modified());
+        assertEquals(Map.of(), result.enchantments());
+    }
+
+    @Test
+    void breakthroughMergeCanUpgradeExistingVanillaEnchantmentOverLimit() {
+        String sharpness = "minecraft:sharpness";
+        Map<String, Integer> existing = new HashMap<>();
+        existing.put(sharpness, 4);
+
+        AnvilBreakthroughService.VanillaResult<String> result = AnvilBreakthroughService.mergeVanillaEnchantments(
+                existing,
+                Map.of(sharpness, 4),
+                enchantment -> true,
+                (enchantment, current) -> false,
+                enchantment -> 10,
+                9,
+                8
+        );
+
+        assertTrue(result.modified());
+        assertEquals(5, result.enchantments().get(sharpness));
     }
 
     private static EnchantmentData enchant(String id, int maxLevel, Material material) {

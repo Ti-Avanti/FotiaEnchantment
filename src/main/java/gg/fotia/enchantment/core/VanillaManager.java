@@ -845,7 +845,7 @@ public class VanillaManager implements Listener {
         return second;
     }
 
-    private boolean hasAnvilConflict(Enchantment enchant, Map<Enchantment, Integer> existingEnchants) {
+    public boolean hasAnvilConflict(Enchantment enchant, Map<Enchantment, Integer> existingEnchants) {
         return hasConflictWith(enchant, existingEnchants);
     }
 

@@ -23,6 +23,7 @@ Output YAML snippets by file path. Keep YAML as UTF-8 without BOM.
 - Use `codex-pools`, not `codex.enabled` or `codex.weight`.
 - Put probability in `effects[].conditions` with `type: chance`; do not put `chance` directly in the effect block.
 - Prefer root-level `enchanting-table-weight` and `villager-trade-price-range` in new configs. The loader accepts legacy nested `obtain.enchanting-table-weight` and `obtain.villager-trade-price-range`, but do not generate that style.
+- `enchanting-table-max-level` belongs only in `vanilla/<vanilla_enchantment>.yml` override configs. It is not a custom enchantment field, so do not write it into `enchantments/...` files.
 - If `obtain.villager-trade: false`, `villager-trade-price-range` is ignored by the plugin. If villager trading is enabled or not explicitly disabled, `villager-trade-price-range` must be a two-integer list such as `[16, 40]` or a YAML block list. Do not write `min` / `max`.
 - `conflicts` may only reference existing enchantment IDs, IDs generated in the same answer, or IDs the user explicitly told you to keep. If unsure, write `conflicts: []`.
 
@@ -138,6 +139,42 @@ BOOTS
 Keep `enchanting-table-weight` and `villager-trade-price-range` at the file root in new examples. Nested `obtain.*` versions are only compatibility input.
 
 `codex-pools`: map from rarity ID to integer weight.
+
+## Vanilla Enchantment Override Configs
+
+Vanilla override configs live under `vanilla/<vanilla_enchantment_id>.yml` and only adjust Minecraft vanilla enchantments, such as `sharpness.yml`, `mending.yml`, or `lunge.yml`.
+
+Only output `vanilla/...` configs when the user explicitly asks to change vanilla enchantments, vanilla enchantment levels, vanilla enchantment disabled state, vanilla conflicts, or vanilla applicable items. Do not put these fields into custom enchantment files under `enchantments/...`.
+
+Common shape:
+
+```yaml
+# vanilla/sharpness.yml
+disabled: false
+max-level: 10
+enchanting-table-max-level: 5
+conflicts: []
+applicable-items:
+  - SWORD
+  - AXE
+```
+
+Field meanings:
+
+- `disabled`: disables this vanilla enchantment.
+- `max-level`: the overall allowed max level for this vanilla enchantment. `-1` keeps the vanilla default. Anvils, commands, and high-level books preserve levels according to this value.
+- `enchanting-table-max-level`: the highest level the enchanting table may generate. `-1` keeps the vanilla enchanting-table default. This value never exceeds `max-level`.
+- `conflicts`: additional conflicting enchantment IDs.
+- `applicable-items`: item categories or materials that may receive this vanilla enchantment.
+
+Typical requirement:
+
+```yaml
+max-level: 10
+enchanting-table-max-level: 5
+```
+
+This means anvils, commands, or books may keep Sharpness X, but the enchanting table can generate at most Sharpness V.
 
 ## Effect Pipeline
 
@@ -326,6 +363,8 @@ Formulas support `{level}`, numbers, spaces, parentheses, and `+ - * /` only. Do
 
 This guide is only for generating enchantment YAML and language entries. Do not output Java source changes, engineering workflow steps, operations scripts, or unrelated project procedures unless the user explicitly asks for a task outside enchantment config writing.
 
+Vanilla override configs are separate from custom enchantment configs. Use `vanilla/...` for vanilla enchantments and `enchantments/...` for Fotia custom enchantments.
+
 The anvil breakthrough stone and the "too expensive" bypass GUI are system custom-item / GUI configs, not enchantment YAML fields. They are controlled by `items/custom-items.yml` entry `anvil-breakthrough-stone` and `gui/anvil-breakthrough.yml`. Unless the user explicitly asks to change system items or GUI layout, do not invent enchantment fields such as `breakthrough`, `too-expensive`, or `anvil-gui`.
 
 ## AI Self-Check
@@ -342,6 +381,7 @@ Before returning or writing an enchantment, check:
 - Trigger, condition, and action IDs are supported by this guide or `VIBEDOC.md`.
 - Chance is written as a `chance` condition when probability is part of the design.
 - Formulas use `{level}` where scaling is expected.
+- If `enchanting-table-max-level` is output, the target file is a `vanilla/...` override config, not an `enchantments/...` custom enchantment config.
 - Language files include both `name` and `description`.
 - YAML indentation is valid.
 - The answer stays focused on enchantment config and language entries, with no unrelated engineering workflow mixed in.

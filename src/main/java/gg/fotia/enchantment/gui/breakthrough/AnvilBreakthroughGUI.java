@@ -12,6 +12,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
@@ -280,7 +281,11 @@ public class AnvilBreakthroughGUI extends BaseGUI {
     }
 
     private boolean bookEnchantmentsEmpty(ItemStack item) {
-        return plugin.getEnchantmentManager().getPdcManager().getEnchantments(item).isEmpty();
+        if (!plugin.getEnchantmentManager().getPdcManager().getEnchantments(item).isEmpty()) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        return !(meta instanceof EnchantmentStorageMeta storageMeta) || storageMeta.getStoredEnchants().isEmpty();
     }
 
     private boolean isCatalyst(ItemStack item) {
