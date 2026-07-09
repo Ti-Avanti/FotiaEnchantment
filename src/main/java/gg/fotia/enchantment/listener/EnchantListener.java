@@ -163,12 +163,12 @@ public class EnchantListener implements Listener {
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
         PDCManager pdc = enchantManager.getPdcManager();
 
-        AnvilBookMerge inputs = anvilBookMerge(first, second, event.getResult());
+        AnvilMergeInput inputs = anvilMergeInput(first, second, event.getResult());
         if (inputs == null) {
             return;
         }
-        Map<String, Integer> bookEnchants = pdc.getEnchantments(inputs.book());
-        if (bookEnchants.isEmpty()) {
+        Map<String, Integer> sourceEnchants = pdc.getEnchantments(inputs.source());
+        if (sourceEnchants.isEmpty()) {
             return;
         }
 
@@ -179,7 +179,7 @@ public class EnchantListener implements Listener {
         Map<String, Integer> existing = pdc.getEnchantments(mergeTarget);
         AnvilCustomEnchantMerge.Result merge = AnvilCustomEnchantMerge.merge(
                 existing,
-                bookEnchants,
+                sourceEnchants,
                 enchantManager::getEnchantment,
                 data -> pdc.isApplicable(mergeTarget, data),
                 mergeTarget.getType() == Material.ENCHANTED_BOOK,
@@ -200,19 +200,22 @@ public class EnchantListener implements Listener {
         }
     }
 
-    private AnvilBookMerge anvilBookMerge(ItemStack first, ItemStack second, ItemStack currentResult) {
+    private AnvilMergeInput anvilMergeInput(ItemStack first, ItemStack second, ItemStack currentResult) {
         if (first == null || second == null || first.getType().isAir() || second.getType().isAir()) {
             return null;
         }
 
         ItemStack target;
-        ItemStack book;
+        ItemStack source;
         if (second.getType() == Material.ENCHANTED_BOOK) {
             target = first;
-            book = second;
+            source = second;
         } else if (first.getType() == Material.ENCHANTED_BOOK && second.getType() != Material.ENCHANTED_BOOK) {
             target = second;
-            book = first;
+            source = first;
+        } else if (first.getType() == second.getType()) {
+            target = first;
+            source = second;
         } else {
             return null;
         }
@@ -221,7 +224,7 @@ public class EnchantListener implements Listener {
                 && currentResult.getType() == target.getType()
                 ? currentResult.clone()
                 : target.clone();
-        return new AnvilBookMerge(target, book, result);
+        return new AnvilMergeInput(target, source, result);
     }
 
     private boolean updateSingleBookDisplay(Player player,
@@ -322,6 +325,6 @@ public class EnchantListener implements Listener {
     private record PendingCustomEnchant(String id, int level) {
     }
 
-    private record AnvilBookMerge(ItemStack target, ItemStack book, ItemStack result) {
+    private record AnvilMergeInput(ItemStack target, ItemStack source, ItemStack result) {
     }
 }

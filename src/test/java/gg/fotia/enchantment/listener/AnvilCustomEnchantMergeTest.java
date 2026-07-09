@@ -84,6 +84,15 @@ class AnvilCustomEnchantMergeTest {
     }
 
     @Test
+    void anvilListenerAcceptsSameTypeItemsAsCustomEnchantMergeInputs() throws Exception {
+        String source = java.nio.file.Files.readString(java.nio.file.Path.of(
+                "src/main/java/gg/fotia/enchantment/listener/EnchantListener.java"));
+
+        assertTrue(source.contains("first.getType() == second.getType()"),
+                "Fotia anvil merging must also accept same-type item + item inputs, not only enchanted books");
+    }
+
+    @Test
     void anvilListenerReadsExistingCustomEnchantsFromInputTarget() throws Exception {
         String source = java.nio.file.Files.readString(java.nio.file.Path.of(
                 "src/main/java/gg/fotia/enchantment/listener/EnchantListener.java"));
