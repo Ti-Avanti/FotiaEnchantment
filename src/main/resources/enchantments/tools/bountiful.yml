@@ -32,9 +32,17 @@ applicable-items:
   - SHOVEL
   - HOE
 
-# 冲突的附魔ID列表（与自动熔炼冲突）
+# 冲突的附魔ID列表。与自动熔炼、其他矿石额外掉落附魔和精准采集冲突，避免重复结算掉落。
+# EN: Conflicts with Auto Smelt, other ore bonus-drop enchantments, and Silk Touch.
 conflicts:
   - auto_smelt
+  - ore_harvest
+  - gem_sense
+  - fortune_pulse
+  - deep_prospector
+  - stone_eater
+  - quarry_echo
+  - minecraft:silk_touch
 
 # 获取方式配置
 # EN: Acquisition method configuration

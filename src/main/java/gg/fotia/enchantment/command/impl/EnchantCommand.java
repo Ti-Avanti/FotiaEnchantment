@@ -10,6 +10,7 @@ import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lang.MessageHelper;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import org.bukkit.command.CommandSender;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -142,6 +143,10 @@ public class EnchantCommand implements SubCommand {
                         player,
                         EnchantmentConflictPolicy.normalizeCustomId(existingId));
             }
+        }
+        Enchantment nativeConflict = pdcManager.findNativeConflict(item, data);
+        if (nativeConflict != null && nativeConflict.getKey() != null) {
+            return nativeConflict.getKey().toString();
         }
         return "unknown";
     }

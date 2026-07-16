@@ -256,7 +256,36 @@ public class PDCManager {
             return false;
         }
         Map<String, Integer> existing = getEnchantments(item);
-        return EnchantmentConflictPolicy.hasCustomConflict(data.getId(), data, existing, dataResolver);
+        return EnchantmentConflictPolicy.hasCustomConflict(data.getId(), data, existing, dataResolver)
+                || findNativeConflict(item, data) != null;
+    }
+
+    /**
+     * 查找与 Fotia 附魔配置冲突的原版附魔，附魔书同时检查存储附魔。
+     */
+    public Enchantment findNativeConflict(ItemStack item, EnchantmentData data) {
+        if (item == null || data == null || !item.hasItemMeta()) {
+            return null;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return null;
+        }
+
+        Enchantment conflict = findNativeConflict(data, meta.getEnchants().keySet());
+        if (conflict != null || !(meta instanceof EnchantmentStorageMeta storageMeta)) {
+            return conflict;
+        }
+        return findNativeConflict(data, storageMeta.getStoredEnchants().keySet());
+    }
+
+    private Enchantment findNativeConflict(EnchantmentData data, Iterable<Enchantment> enchantments) {
+        for (Enchantment enchantment : enchantments) {
+            if (EnchantmentConflictPolicy.referencesBukkit(data.getConflicts(), enchantment)) {
+                return enchantment;
+            }
+        }
+        return null;
     }
 
     /**

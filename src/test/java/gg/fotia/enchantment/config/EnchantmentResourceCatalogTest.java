@@ -40,6 +40,9 @@ class EnchantmentResourceCatalogTest {
     private static final Set<String> CATEGORIES = Set.of("melee", "ranged", "armor", "tools", "universal");
     private static final Set<String> RARITIES = Set.of("dustlight", "moonlit", "radiant", "aureate", "divine");
     private static final Set<String> GROUPS = Set.of("fire", "ice", "lightning", "defensive", "offensive", "utility", "movement", "mining");
+    private static final Set<String> ORE_BONUS_DROP_ENCHANTMENTS = Set.of(
+            "ore_harvest", "gem_sense", "fortune_pulse", "deep_prospector",
+            "stone_eater", "quarry_echo", "bountiful");
     private static final Set<String> ITEM_ALIASES = Set.of(
             "SWORD", "SPEAR", "AXE", "PICKAXE", "SHOVEL", "HOE", "BOW", "CROSSBOW", "TRIDENT",
             "FISHING_ROD", "SHIELD", "ELYTRA", "HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS");
@@ -110,6 +113,26 @@ class EnchantmentResourceCatalogTest {
                 "Sharpness override must allow spear items");
         assertEquals("突进", string(lunge, "display-name"));
         assertFalse(list(lunge, "description").isEmpty(), "Lunge must have a configured description");
+    }
+
+    @Test
+    void oreBonusDropEnchantmentsAreMutuallyExclusiveAndConflictWithSilkTouch() throws IOException {
+        for (String id : ORE_BONUS_DROP_ENCHANTMENTS) {
+            Map<String, Object> enchantment = yamlMap(ENCHANTMENTS.resolve("tools").resolve(id + ".yml"));
+            Set<String> conflicts = new HashSet<>();
+            for (Object conflict : list(enchantment, "conflicts")) {
+                conflicts.add(String.valueOf(conflict).toLowerCase(Locale.ROOT));
+            }
+
+            assertTrue(conflicts.contains("minecraft:silk_touch"),
+                    id + " must conflict with Silk Touch");
+            for (String otherId : ORE_BONUS_DROP_ENCHANTMENTS) {
+                if (!id.equals(otherId)) {
+                    assertTrue(conflicts.contains(otherId),
+                            id + " must conflict with " + otherId);
+                }
+            }
+        }
     }
 
     @Test

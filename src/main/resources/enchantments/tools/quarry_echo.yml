@@ -15,7 +15,16 @@ category: tools
 applicable-items:
   - PICKAXE
 
-conflicts: []
+# 矿石额外掉落附魔互斥，并与精准采集冲突，避免重复结算掉落。
+# EN: Mutually exclusive with other ore bonus-drop enchantments and Silk Touch.
+conflicts:
+  - ore_harvest
+  - gem_sense
+  - fortune_pulse
+  - deep_prospector
+  - stone_eater
+  - bountiful
+  - minecraft:silk_touch
 
 obtain:
   enchanting-table: true
