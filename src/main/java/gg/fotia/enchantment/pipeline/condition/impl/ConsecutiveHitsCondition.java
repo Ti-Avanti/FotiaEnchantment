@@ -60,6 +60,10 @@ public class ConsecutiveHitsCondition implements Condition {
         HITS.remove(uid);
     }
 
+    public static void clearAll() {
+        HITS.clear();
+    }
+
     private static final class Entry {
         final UUID targetId;
         final int count;

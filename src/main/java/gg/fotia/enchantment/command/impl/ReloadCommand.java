@@ -45,6 +45,7 @@ public class ReloadCommand implements SubCommand {
     public void execute(CommandSender sender, String[] args) {
         // 重载配置管理器
         plugin.getConfigManager().reload();
+        plugin.getNaturalOreTracker().reload();
 
         // 重载语言管理器
         plugin.getLanguageManager().reload();
@@ -54,6 +55,7 @@ public class ReloadCommand implements SubCommand {
 
         // 重载原版附魔覆盖与效果管道运行参数
         plugin.getVanillaManager().reload();
+        plugin.getEnchantmentDisplayListener().reload();
         plugin.getEffectPipeline().reload();
 
         List<ConfigIssue> configIssues = new java.util.ArrayList<>(plugin.getConfigManager().getConfigIssues());

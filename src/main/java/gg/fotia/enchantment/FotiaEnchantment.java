@@ -17,6 +17,7 @@ import gg.fotia.enchantment.listener.GrindstoneDisableListener;
 import gg.fotia.enchantment.listener.ItemDropListener;
 import gg.fotia.enchantment.listener.ItemUseListener;
 import gg.fotia.enchantment.listener.TradeListener;
+import gg.fotia.enchantment.mining.NaturalOreTracker;
 import gg.fotia.enchantment.update.UpdateChecker;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -35,6 +36,8 @@ public class FotiaEnchantment extends JavaPlugin {
     private GUIManager guiManager;
     private CommandManager commandManager;
     private UpdateChecker updateChecker;
+    private NaturalOreTracker naturalOreTracker;
+    private EnchantmentDisplayListener enchantmentDisplayListener;
 
     @Override
     public void onLoad() {
@@ -55,6 +58,10 @@ public class FotiaEnchantment extends JavaPlugin {
         // 初始化配置管理器
         configManager = new ConfigManager(this);
         configManager.loadAll();
+
+        // 记录玩家放置的矿石，供所有挖矿掉落路径统一判定
+        naturalOreTracker = new NaturalOreTracker(this);
+        naturalOreTracker.init();
 
         // 初始化多语言系统
         languageManager = new LanguageManager(this);
@@ -101,6 +108,12 @@ public class FotiaEnchantment extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (enchantmentDisplayListener != null) {
+            enchantmentDisplayListener.shutdown();
+        }
+        if (naturalOreTracker != null) {
+            naturalOreTracker.shutdown();
+        }
         if (effectPipeline != null) {
             effectPipeline.shutdown();
         }
@@ -125,7 +138,8 @@ public class FotiaEnchantment extends JavaPlugin {
         pm.registerEvents(new ItemUseListener(this), this);
         pm.registerEvents(new ItemDropListener(this), this);
         pm.registerEvents(new EnchantListener(this), this);
-        pm.registerEvents(new EnchantmentDisplayListener(this), this);
+        enchantmentDisplayListener = new EnchantmentDisplayListener(this);
+        pm.registerEvents(enchantmentDisplayListener, this);
         pm.registerEvents(new GrindstoneDisableListener(this), this);
         pm.registerEvents(new TradeListener(this), this);
     }
@@ -176,5 +190,13 @@ public class FotiaEnchantment extends JavaPlugin {
 
     public UpdateChecker getUpdateChecker() {
         return updateChecker;
+    }
+
+    public NaturalOreTracker getNaturalOreTracker() {
+        return naturalOreTracker;
+    }
+
+    public EnchantmentDisplayListener getEnchantmentDisplayListener() {
+        return enchantmentDisplayListener;
     }
 }

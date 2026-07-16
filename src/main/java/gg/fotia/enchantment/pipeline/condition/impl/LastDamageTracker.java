@@ -33,4 +33,8 @@ public final class LastDamageTracker {
         if (uid == null) return;
         LAST_DAMAGE.remove(uid);
     }
+
+    public static void clearAll() {
+        LAST_DAMAGE.clear();
+    }
 }

@@ -66,4 +66,8 @@ public class CooldownCheckCondition implements Condition {
             COOLDOWNS.remove(uid);
         }
     }
+
+    public static void clearAll() {
+        COOLDOWNS.clear();
+    }
 }

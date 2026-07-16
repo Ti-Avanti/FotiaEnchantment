@@ -2,8 +2,10 @@ package gg.fotia.enchantment.pipeline.trigger;
 
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -12,7 +14,7 @@ import java.util.function.Supplier;
  * 触发器注册表 - 管理所有触发器的注册和实例化
  *
  * <p>插件启动时通过 {@link #register(String, Supplier)} 注册触发器工厂，
- * 然后调用 {@link #activateAll(EffectPipeline)} 实例化并激活所有触发器。
+ * 然后按当前附魔配置实例化并激活实际使用的触发器。
  */
 public class TriggerRegistry {
 
@@ -49,13 +51,45 @@ public class TriggerRegistry {
      * 激活所有已注册的触发器
      */
     public void activateAll(EffectPipeline pipeline) {
-        for (Map.Entry<String, Supplier<Trigger>> entry : triggerFactories.entrySet()) {
-            String id = entry.getKey();
-            // 跳过已激活的触发器
+        activateOnly(pipeline, triggerFactories.keySet());
+    }
+
+    /**
+     * 仅激活指定触发器，并注销配置中已不再使用的触发器。
+     */
+    public void activateOnly(EffectPipeline pipeline, Collection<String> ids) {
+        Set<String> requestedIds = new HashSet<>();
+        if (ids != null) {
+            for (String id : ids) {
+                if (id != null) {
+                    requestedIds.add(id.toUpperCase());
+                }
+            }
+        }
+
+        for (String activeId : Set.copyOf(activeTriggers.keySet())) {
+            if (requestedIds.contains(activeId)) {
+                continue;
+            }
+            Trigger trigger = activeTriggers.remove(activeId);
+            if (trigger != null) {
+                try {
+                    trigger.unregister();
+                } catch (Exception ignored) {
+                    // 忽略单个触发器注销异常
+                }
+            }
+        }
+
+        for (String id : requestedIds) {
             if (activeTriggers.containsKey(id)) {
                 continue;
             }
-            Trigger trigger = entry.getValue().get();
+            Supplier<Trigger> factory = triggerFactories.get(id);
+            if (factory == null) {
+                continue;
+            }
+            Trigger trigger = factory.get();
             if (trigger == null) {
                 continue;
             }

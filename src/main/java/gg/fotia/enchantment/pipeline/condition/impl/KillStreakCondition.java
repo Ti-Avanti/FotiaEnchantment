@@ -55,4 +55,8 @@ public class KillStreakCondition implements Condition {
         if (uid == null) return 0;
         return KILL_STREAK.getOrDefault(uid, 0);
     }
+
+    public static void clearAll() {
+        KILL_STREAK.clear();
+    }
 }

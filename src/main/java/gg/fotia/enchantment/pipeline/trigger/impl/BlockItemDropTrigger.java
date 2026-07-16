@@ -41,6 +41,10 @@ public class BlockItemDropTrigger implements Trigger, Listener {
         if (player == null) {
             return;
         }
+        FotiaEnchantment plugin = FotiaEnchantment.getInstance();
+        if (plugin.getNaturalOreTracker().isPlayerPlacedOre(event.getBlockState())) {
+            return;
+        }
         // value = 掉落物数量
         int dropCount = event.getItems() != null ? event.getItems().size() : 0;
         TriggerContext context = TriggerContext.builder()

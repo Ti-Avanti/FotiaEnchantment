@@ -2,6 +2,7 @@ package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.item.CustomItemManager;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -77,7 +78,10 @@ public class ItemDropListener implements Listener {
         }
 
         Player player = event.getPlayer();
-        if (player.getGameMode().toString().equals("CREATIVE")) {
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+        if (plugin.getNaturalOreTracker().isPlayerPlacedOre(event.getBlock())) {
             return;
         }
 

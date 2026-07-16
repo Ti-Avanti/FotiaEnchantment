@@ -48,6 +48,10 @@ public class MineOreTrigger implements Trigger, Listener {
         if (!isOre(type)) {
             return;
         }
+        FotiaEnchantment plugin = FotiaEnchantment.getInstance();
+        if (plugin.getNaturalOreTracker().isPlayerPlacedOre(event.getBlock())) {
+            return;
+        }
         TriggerContext context = TriggerContext.builder()
                 .player(player)
                 .event(event)

@@ -33,11 +33,13 @@ class EnchantmentDisplayListenerTest {
     }
 
     @Test
-    void asyncNormalizationDetectsDisabledVanillaEnchantments() throws IOException {
+    void scheduledNormalizationRemovesDisabledVanillaEnchantments() throws IOException {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/listener/EnchantmentDisplayListener.java"));
 
-        assertTrue(source.contains("hasDisabledEnchantments(item)"),
-                "Background item normalization must notice vanilla enchantments disabled by config");
+        assertTrue(source.contains("scheduleNormalize(player)"),
+                "Periodic validity scanning must schedule player inventory normalization");
+        assertTrue(source.contains("removeDisabledEnchantments(item)"),
+                "Scheduled inventory normalization must apply vanilla disabled enchantment config");
     }
 }

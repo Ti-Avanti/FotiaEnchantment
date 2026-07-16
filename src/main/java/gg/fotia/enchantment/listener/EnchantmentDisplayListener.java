@@ -8,6 +8,7 @@ import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.core.VanillaManager;
 import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
+import gg.fotia.enchantment.util.SchedulerUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
@@ -32,17 +33,38 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class EnchantmentDisplayListener implements Listener {
 
     private final FotiaEnchantment plugin;
+    private final Set<UUID> pendingNormalizations = ConcurrentHashMap.newKeySet();
+    private final Queue<UUID> validityScanQueue = new ConcurrentLinkedQueue<>();
+    private volatile EnchantmentItemSanitizer.ValidityRules cachedValidityRules;
+    private Object validityScanTask;
 
     public EnchantmentDisplayListener(FotiaEnchantment plugin) {
         this.plugin = plugin;
-        Bukkit.getScheduler().runTaskTimer(plugin, this::startAsyncValidityScan, 20L, itemValidityCheckInterval());
+        refreshValidityRules();
+        restartValidityScan();
+    }
+
+    public void reload() {
+        refreshValidityRules();
+        validityScanQueue.clear();
+        restartValidityScan();
+    }
+
+    public void shutdown() {
+        SchedulerUtils.cancelTask(validityScanTask);
+        validityScanTask = null;
+        validityScanQueue.clear();
+        pendingNormalizations.clear();
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -128,18 +150,34 @@ public class EnchantmentDisplayListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onServerCommand(ServerCommandEvent event) {
-        Bukkit.getScheduler().runTask(plugin, this::normalizeOnlinePlayers);
+        SchedulerUtils.runTask(plugin, this::normalizeOnlinePlayers);
     }
 
     private void scheduleNormalize(Player player) {
-        if (shouldSkipInventoryNormalization(player)) {
+        if (player == null) {
             return;
         }
-        Bukkit.getScheduler().runTask(plugin, () -> normalizePlayer(player));
+        UUID playerId = player.getUniqueId();
+        if (!pendingNormalizations.add(playerId)) {
+            return;
+        }
+        Object task = SchedulerUtils.runEntityTask(plugin, player, () -> {
+            try {
+                normalizePlayer(player);
+            } finally {
+                pendingNormalizations.remove(playerId);
+            }
+        });
+        if (task == null) {
+            pendingNormalizations.remove(playerId);
+        }
     }
 
     private void scheduleNormalizeMechanicTopInventory(Player player, Inventory inventory) {
-        Bukkit.getScheduler().runTask(plugin, () -> {
+        if (player == null) {
+            return;
+        }
+        SchedulerUtils.runEntityTask(plugin, player, () -> {
             if (player == null
                     || !player.isOnline()
                     || inventory == null
@@ -158,50 +196,34 @@ public class EnchantmentDisplayListener implements Listener {
 
     private void normalizeOnlinePlayers() {
         for (Player player : Bukkit.getOnlinePlayers()) {
-            normalizePlayer(player);
+            scheduleNormalize(player);
         }
     }
 
-    private void startAsyncValidityScan() {
-        PDCManager pdc = pdcManager();
-        EnchantmentManager manager = plugin.getEnchantmentManager();
-        if (pdc == null || manager == null) {
-            return;
-        }
+    private void restartValidityScan() {
+        SchedulerUtils.cancelTask(validityScanTask);
+        validityScanTask = SchedulerUtils.runTaskTimer(
+                plugin, this::scheduleValidityBatch, 20L, itemValidityCheckInterval());
+    }
 
-        EnchantmentItemSanitizer.ValidityRules rules =
-                EnchantmentItemSanitizer.ValidityRules.from(manager.getAllEnchantments());
-        VanillaManager vanillaManager = plugin.getVanillaManager();
-        List<PlayerItemSnapshot> snapshots = snapshotOnlinePlayers();
-        if (snapshots.isEmpty()) {
-            return;
-        }
-
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            List<UUID> playersToNormalize = new ArrayList<>();
-            for (PlayerItemSnapshot snapshot : snapshots) {
-                if (snapshot.requiresNormalization(pdc, rules, vanillaManager)) {
-                    playersToNormalize.add(snapshot.playerId());
-                }
+    private void scheduleValidityBatch() {
+        if (validityScanQueue.isEmpty()) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                validityScanQueue.offer(player.getUniqueId());
             }
-            if (playersToNormalize.isEmpty()) {
+        }
+
+        int batchSize = plugin.getConfigManager().getItemValidityCheckPlayersPerRun();
+        for (int processed = 0; processed < batchSize; processed++) {
+            UUID playerId = validityScanQueue.poll();
+            if (playerId == null) {
                 return;
             }
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                boolean changedAny = false;
-                for (UUID playerId : playersToNormalize) {
-                    Player player = Bukkit.getPlayer(playerId);
-                    if (player != null && player.isOnline()) {
-                        normalizePlayer(player);
-                        changedAny = true;
-                    }
-                }
-                if (changedAny) {
-                    plugin.getLogger().fine("Normalized enchantment data for " + playersToNormalize.size()
-                            + " online player(s).");
-                }
-            });
-        });
+            Player player = Bukkit.getPlayer(playerId);
+            if (player != null) {
+                scheduleNormalize(player);
+            }
+        }
     }
 
     private void normalizePlayer(Player player) {
@@ -306,8 +328,17 @@ public class EnchantmentDisplayListener implements Listener {
     }
 
     private EnchantmentItemSanitizer.ValidityRules validityRules() {
+        EnchantmentItemSanitizer.ValidityRules rules = cachedValidityRules;
+        if (rules == null) {
+            refreshValidityRules();
+            rules = cachedValidityRules;
+        }
+        return rules;
+    }
+
+    private void refreshValidityRules() {
         EnchantmentManager manager = plugin.getEnchantmentManager();
-        return manager == null
+        cachedValidityRules = manager == null
                 ? EnchantmentItemSanitizer.ValidityRules.from(List.of())
                 : EnchantmentItemSanitizer.ValidityRules.from(manager.getAllEnchantments());
     }
@@ -319,16 +350,6 @@ public class EnchantmentDisplayListener implements Listener {
         return Math.max(20L, plugin.getConfigManager().getItemValidityCheckInterval());
     }
 
-    private List<PlayerItemSnapshot> snapshotOnlinePlayers() {
-        List<PlayerItemSnapshot> snapshots = new ArrayList<>();
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player != null && player.isOnline() && !shouldSkipInventoryNormalization(player)) {
-                snapshots.add(new PlayerItemSnapshot(player.getUniqueId(), snapshotItems(player)));
-            }
-        }
-        return snapshots;
-    }
-
     private boolean shouldSkipInventoryNormalization(Player player) {
         if (player == null) {
             return true;
@@ -337,40 +358,4 @@ public class EnchantmentDisplayListener implements Listener {
         return gameMode == GameMode.CREATIVE || gameMode == GameMode.SPECTATOR;
     }
 
-    private List<ItemStack> snapshotItems(Player player) {
-        List<ItemStack> items = new ArrayList<>();
-        addInventoryContents(items, player.getInventory());
-        ItemStack cursor = player.getItemOnCursor();
-        if (cursor != null) {
-            items.add(cursor.clone());
-        }
-        return items;
-    }
-
-    private void addInventoryContents(List<ItemStack> items, Inventory inventory) {
-        if (inventory == null) {
-            return;
-        }
-        for (ItemStack item : inventory.getContents()) {
-            if (item != null) {
-                items.add(item.clone());
-            }
-        }
-    }
-
-    private record PlayerItemSnapshot(UUID playerId, List<ItemStack> items) {
-        boolean requiresNormalization(PDCManager pdc,
-                                      EnchantmentItemSanitizer.ValidityRules rules,
-                                      VanillaManager vanillaManager) {
-            for (ItemStack item : items) {
-                if (EnchantmentItemSanitizer.requiresNormalization(item, pdc, rules)) {
-                    return true;
-                }
-                if (vanillaManager != null && vanillaManager.hasDisabledEnchantments(item)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
 }

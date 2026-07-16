@@ -14,6 +14,8 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.world.EntitiesUnloadEvent;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.Map;
@@ -102,6 +104,21 @@ public class AssistTrigger implements Trigger, Listener {
                     .build();
             pipeline.execute(context);
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        UUID playerId = event.getPlayer().getUniqueId();
+        damageMap.remove(playerId);
+        damageMap.values().removeIf(contributors -> {
+            contributors.remove(playerId);
+            return contributors.isEmpty();
+        });
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onEntitiesUnload(EntitiesUnloadEvent event) {
+        event.getEntities().forEach(entity -> damageMap.remove(entity.getUniqueId()));
     }
 
     /**

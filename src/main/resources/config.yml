@@ -151,9 +151,29 @@ performance:
   # 每tick最大效果执行数，防止卡服
   # EN: Maximum effect executions per tick to reduce server lag
   max-effects-per-tick: 50
-  # 玩家物品附魔有效性异步检测间隔（tick），用于清理已删除、禁用或不再适用的自定义附魔
-  # EN: Async interval in ticks for cleaning deleted, disabled, or inapplicable custom enchantments from player items
+  # 玩家物品附魔有效性分批检查间隔（tick），用于清理已删除、禁用或不再适用的自定义附魔
+  # EN: Batched interval in ticks for cleaning deleted, disabled, or inapplicable custom enchantments from player items
   item-validity-check-interval: 40
+  # 每轮最多处理的玩家数。在线人数较多时可调低，完整检查会自动分到后续轮次
+  # EN: Maximum players processed per run; remaining players are handled in later runs
+  item-validity-check-players-per-run: 8
+
+# ============================================
+# 自然矿石保护
+# EN: Natural ore protection
+# ============================================
+mining:
+  natural-ore-protection:
+    # 启用后，玩家放置的矿石不会触发挖矿自定义道具掉落、MINE_ORE、BLOCK_ITEM_DROP 或 BONUS_DROP。
+    # 标记保存在区块数据中，服务器重启或区块卸载后仍然有效，可阻止精准采集矿石反复放置、挖掘刷取掉落。
+    # EN: Prevent player-placed ores from triggering mining drops and related effects; markers persist in chunk data.
+    enabled: true
+    # 需要追踪的方块。支持精确 Bukkit Material 名称，以及前缀或后缀通配符 *。
+    # 默认 *_ORE 包含普通、深板岩和下界矿石；ANCIENT_DEBRIS 需要单独列出。
+    # EN: Tracked Bukkit materials. Exact names and prefix/suffix wildcards are supported.
+    tracked-materials:
+      - "*_ORE"
+      - "ANCIENT_DEBRIS"
 
 # ============================================
 # 星芒魔典配置

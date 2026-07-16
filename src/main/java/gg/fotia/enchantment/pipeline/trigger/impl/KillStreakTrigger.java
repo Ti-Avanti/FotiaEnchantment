@@ -12,6 +12,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.Map;
 import java.util.UUID;
@@ -73,5 +74,10 @@ public class KillStreakTrigger implements Trigger, Listener {
     public void onPlayerDeath(PlayerDeathEvent event) {
         // 玩家死亡时重置自己的连杀数
         killStreaks.remove(event.getEntity().getUniqueId());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        killStreaks.remove(event.getPlayer().getUniqueId());
     }
 }

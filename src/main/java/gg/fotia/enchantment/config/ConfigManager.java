@@ -41,6 +41,39 @@ public class ConfigManager {
               disabled: false
             """;
 
+    private static final String NATURAL_ORE_PROTECTION_CONFIG_BLOCK = """
+
+            # ============================================
+            # 自然矿石保护
+            # EN: Natural ore protection
+            # ============================================
+            mining:
+              natural-ore-protection:
+                # 启用后，玩家放置的矿石不会触发挖矿自定义道具掉落、MINE_ORE、BLOCK_ITEM_DROP 或 BONUS_DROP。
+                # 标记保存在区块数据中，服务器重启或区块卸载后仍然有效，可阻止精准采集矿石反复放置、挖掘刷取掉落。
+                # EN: Prevent player-placed ores from triggering mining drops and related effects; markers persist in chunk data.
+                enabled: true
+                # 需要追踪的方块。支持精确 Bukkit Material 名称，以及前缀或后缀通配符 *。
+                # 默认 *_ORE 包含普通、深板岩和下界矿石；ANCIENT_DEBRIS 需要单独列出。
+                # EN: Tracked Bukkit materials. Exact names and prefix/suffix wildcards are supported.
+                tracked-materials:
+                  - "*_ORE"
+                  - "ANCIENT_DEBRIS"
+            """;
+
+    private static final List<String> NATURAL_ORE_PROTECTION_CHILD_LINES = List.of(
+            "  natural-ore-protection:",
+            "    # 启用后，玩家放置的矿石不会触发挖矿自定义道具掉落、MINE_ORE、BLOCK_ITEM_DROP 或 BONUS_DROP。",
+            "    # 标记保存在区块数据中，服务器重启或区块卸载后仍然有效，可阻止精准采集矿石反复放置、挖掘刷取掉落。",
+            "    # EN: Prevent player-placed ores from triggering mining drops and related effects; markers persist in chunk data.",
+            "    enabled: true",
+            "    # 需要追踪的方块。支持精确 Bukkit Material 名称，以及前缀或后缀通配符 *。",
+            "    # 默认 *_ORE 包含普通、深板岩和下界矿石；ANCIENT_DEBRIS 需要单独列出。",
+            "    # EN: Tracked Bukkit materials. Exact names and prefix/suffix wildcards are supported.",
+            "    tracked-materials:",
+            "      - \"*_ORE\"",
+            "      - \"ANCIENT_DEBRIS\"");
+
     private final FotiaEnchantment plugin;
     private YamlConfiguration mainConfig;
     private YamlConfiguration rarityConfig;
@@ -90,6 +123,12 @@ public class ConfigManager {
         if (ensureEnchantingTableLevelRollConfig(mainConfig)) {
             mainConfig = loadConfig("config.yml", issues);
         }
+        if (appendMissingNaturalOreProtectionConfig(mainConfig)) {
+            mainConfig = loadConfig("config.yml", issues);
+        }
+        if (ensureItemValidityBatchConfig(mainConfig)) {
+            mainConfig = loadConfig("config.yml", issues);
+        }
         rarityConfig = loadConfig("rarity.yml", issues);
         groupsConfig = loadConfig("groups.yml", issues);
         loadGuiConfigs(issues);
@@ -113,6 +152,12 @@ public class ConfigManager {
             mainConfig = loadConfig("config.yml", issues);
         }
         if (ensureEnchantingTableLevelRollConfig(mainConfig)) {
+            mainConfig = loadConfig("config.yml", issues);
+        }
+        if (appendMissingNaturalOreProtectionConfig(mainConfig)) {
+            mainConfig = loadConfig("config.yml", issues);
+        }
+        if (ensureItemValidityBatchConfig(mainConfig)) {
             mainConfig = loadConfig("config.yml", issues);
         }
         rarityConfig = loadConfig("rarity.yml", issues);
@@ -192,6 +237,69 @@ public class ConfigManager {
             plugin.getLogger().warning("无法向 config.yml 追加砂轮配置: " + ex.getMessage());
             return false;
         }
+    }
+
+    private boolean appendMissingNaturalOreProtectionConfig(YamlConfiguration config) {
+        if (config == null || config.contains("mining.natural-ore-protection")) {
+            return false;
+        }
+
+        File file = new File(plugin.getDataFolder(), "config.yml");
+        try {
+            if (config.contains("mining")) {
+                List<String> lines = new ArrayList<>(Files.readAllLines(file.toPath(), StandardCharsets.UTF_8));
+                for (int index = 0; index < lines.size(); index++) {
+                    String line = lines.get(index);
+                    String stripped = line.stripLeading();
+                    boolean topLevel = stripped.length() == line.length();
+                    if (!topLevel || !(stripped.equals("mining:") || stripped.startsWith("mining: #"))) {
+                        continue;
+                    }
+                    lines.addAll(index + 1, NATURAL_ORE_PROTECTION_CHILD_LINES);
+                    Files.write(file.toPath(), lines, StandardCharsets.UTF_8,
+                            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                    return true;
+                }
+                config.set("mining.natural-ore-protection.enabled", true);
+                config.set("mining.natural-ore-protection.tracked-materials",
+                        List.of("*_ORE", "ANCIENT_DEBRIS"));
+                config.save(file);
+                return true;
+            }
+            Files.writeString(file.toPath(), NATURAL_ORE_PROTECTION_CONFIG_BLOCK, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            return true;
+        } catch (IOException ex) {
+            plugin.getLogger().warning("无法向 config.yml 追加自然矿石保护配置: " + ex.getMessage());
+            return false;
+        }
+    }
+
+    private boolean ensureItemValidityBatchConfig(YamlConfiguration config) {
+        if (config == null || config.contains("performance.item-validity-check-players-per-run")) {
+            return false;
+        }
+
+        Path path = new File(plugin.getDataFolder(), "config.yml").toPath();
+        try {
+            List<String> lines = new ArrayList<>(Files.readAllLines(path, StandardCharsets.UTF_8));
+            for (int index = 0; index < lines.size(); index++) {
+                String line = lines.get(index);
+                if (!line.trim().startsWith("item-validity-check-interval:")) {
+                    continue;
+                }
+                String indent = line.substring(0, line.indexOf(line.trim()));
+                lines.add(index + 1, indent + "# 每轮最多处理的玩家数。在线人数较多时可调低，完整检查会自动分到后续轮次");
+                lines.add(index + 2, indent + "# EN: Maximum players processed per run; remaining players are handled in later runs");
+                lines.add(index + 3, indent + "item-validity-check-players-per-run: 8");
+                Files.write(path, lines, StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                return true;
+            }
+        } catch (IOException ex) {
+            plugin.getLogger().warning("无法向 config.yml 写入物品有效性检查批次配置: " + ex.getMessage());
+        }
+        return false;
     }
 
     private boolean ensureEnchantingTableLevelRollConfig(YamlConfiguration config) {
@@ -700,6 +808,10 @@ public class ConfigManager {
 
     public long getItemValidityCheckInterval() {
         return Math.max(20L, mainConfig.getLong("performance.item-validity-check-interval", 40L));
+    }
+
+    public int getItemValidityCheckPlayersPerRun() {
+        return Math.max(1, mainConfig.getInt("performance.item-validity-check-players-per-run", 8));
     }
 
     /**

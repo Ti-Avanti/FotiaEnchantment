@@ -30,7 +30,7 @@ dependencies:
       load: BEFORE
       join-classpath: true
     packetevents:
-      required: false
+      required: true
       load: BEFORE
       join-classpath: true
     CraftEngine:

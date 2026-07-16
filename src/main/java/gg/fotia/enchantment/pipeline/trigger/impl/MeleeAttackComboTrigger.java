@@ -12,6 +12,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.Map;
 import java.util.UUID;
@@ -83,6 +84,11 @@ public class MeleeAttackComboTrigger implements Trigger, Listener {
                 .triggerId(getId())
                 .build();
         pipeline.execute(context);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        comboMap.remove(event.getPlayer().getUniqueId());
     }
 
     /**

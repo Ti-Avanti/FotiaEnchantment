@@ -1,5 +1,6 @@
 package gg.fotia.enchantment.pipeline.effect.impl;
 
+import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.pipeline.effect.Effect;
 import gg.fotia.enchantment.pipeline.effect.EffectContext;
 import org.bukkit.Location;
@@ -30,7 +31,7 @@ public class BonusDropEffect implements Effect {
     public void execute(EffectContext context) {
         Event event = context.getTriggerContext().getEvent();
         Map<String, Object> extraParams = context.getConfig() == null ? Map.of() : context.getConfig().getExtraParams();
-        if (isExcludedBlock(blockType(event), extraParams)) {
+        if (isPlayerPlacedOre(context, event) || isExcludedBlock(blockType(event), extraParams)) {
             return;
         }
 
@@ -90,6 +91,20 @@ public class BonusDropEffect implements Effect {
             return breakEvent.getBlock().getType();
         }
         return null;
+    }
+
+    private boolean isPlayerPlacedOre(EffectContext context, Event event) {
+        FotiaEnchantment plugin = context.getPlugin();
+        if (plugin == null || plugin.getNaturalOreTracker() == null) {
+            return false;
+        }
+        if (event instanceof BlockDropItemEvent dropEvent) {
+            return plugin.getNaturalOreTracker().isPlayerPlacedOre(dropEvent.getBlockState());
+        }
+        if (event instanceof BlockBreakEvent breakEvent) {
+            return plugin.getNaturalOreTracker().isPlayerPlacedOre(breakEvent.getBlock());
+        }
+        return false;
     }
 
     static boolean isExcludedBlock(Material blockType, Map<String, Object> extraParams) {

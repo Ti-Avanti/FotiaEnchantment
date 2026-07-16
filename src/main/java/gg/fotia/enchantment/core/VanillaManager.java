@@ -23,6 +23,7 @@ import org.bukkit.event.enchantment.EnchantItemEvent;
 import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.inventory.PrepareGrindstoneEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -78,6 +79,13 @@ public class VanillaManager implements Listener {
         HandlerList.unregisterAll(this);
         preparedOffers.clear();
         lastEnchantingFailureMessages.clear();
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        UUID playerId = event.getPlayer().getUniqueId();
+        preparedOffers.remove(playerId);
+        lastEnchantingFailureMessages.remove(playerId);
     }
 
     /**

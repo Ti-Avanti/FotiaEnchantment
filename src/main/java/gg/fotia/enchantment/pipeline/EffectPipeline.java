@@ -8,6 +8,7 @@ import gg.fotia.enchantment.integration.WorldGuardHook;
 import gg.fotia.enchantment.pipeline.condition.Condition;
 import gg.fotia.enchantment.pipeline.condition.ConditionContext;
 import gg.fotia.enchantment.pipeline.condition.ConditionRegistry;
+import gg.fotia.enchantment.pipeline.condition.ConditionStateListener;
 import gg.fotia.enchantment.pipeline.condition.impl.*;
 import gg.fotia.enchantment.pipeline.effect.Effect;
 import gg.fotia.enchantment.pipeline.effect.EffectContext;
@@ -49,6 +50,7 @@ public class EffectPipeline {
     private final ConditionRegistry conditionRegistry;
     private final EffectRegistry effectRegistry;
     private final CooldownManager cooldownManager;
+    private final ConditionStateListener conditionStateListener;
 
     private int maxEffectsPerTick;
     private int currentTickEffects = 0;
@@ -63,6 +65,7 @@ public class EffectPipeline {
         this.conditionRegistry = new ConditionRegistry();
         this.effectRegistry = new EffectRegistry();
         this.cooldownManager = new CooldownManager();
+        this.conditionStateListener = new ConditionStateListener(plugin, cooldownManager);
         this.maxEffectsPerTick = plugin.getConfigManager().getMainConfig()
                 .getInt("performance.max-effects-per-tick", 50);
     }
@@ -75,8 +78,9 @@ public class EffectPipeline {
         registerBuiltinConditions();
         registerBuiltinEffects();
         rebuildTriggerIndex();
+        conditionStateListener.register();
         startMaintenanceTasks();
-        triggerRegistry.activateAll(this);
+        triggerRegistry.activateOnly(this, triggerIndex.keySet());
         plugin.getLogger().info("效果管道已初始化");
     }
 
@@ -85,6 +89,7 @@ public class EffectPipeline {
      */
     public void shutdown() {
         triggerRegistry.deactivateAll();
+        conditionStateListener.shutdown();
         stopMaintenanceTasks();
         cooldownManager.clearAll();
     }
@@ -98,7 +103,7 @@ public class EffectPipeline {
                 .getInt("performance.max-effects-per-tick", 50);
         currentTickEffects = 0;
         rebuildTriggerIndex();
-        triggerRegistry.activateAll(this);
+        triggerRegistry.activateOnly(this, triggerIndex.keySet());
     }
 
     /**

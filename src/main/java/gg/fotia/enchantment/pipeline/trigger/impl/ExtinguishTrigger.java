@@ -6,8 +6,11 @@ import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashSet;
@@ -33,6 +36,8 @@ public class ExtinguishTrigger implements Trigger, Listener {
     @Override
     public void register(EffectPipeline pipeline) {
         this.pipeline = pipeline;
+        FotiaEnchantment plugin = FotiaEnchantment.getInstance();
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);
         this.task = new BukkitRunnable() {
             @Override
             public void run() {
@@ -59,6 +64,11 @@ public class ExtinguishTrigger implements Trigger, Listener {
             }
         };
         task.runTaskTimer(FotiaEnchantment.getInstance(), 5L, 5L);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        burning.remove(event.getPlayer().getUniqueId());
     }
 
     @Override
