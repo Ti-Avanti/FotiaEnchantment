@@ -40,6 +40,43 @@ class EnchantmentConfigValidationTest {
     }
 
     @Test
+    void missingApplicableItemsRejectsTheEnchantmentConfiguration() {
+        File file = tempDir.resolve("missing_applicable_items.yml").toFile();
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("id", "missing_applicable_items");
+
+        List<EnchantmentConfig.ConfigIssue> issues = EnchantmentConfig.validateForLoad(yaml, file);
+
+        assertTrue(issues.stream().anyMatch(issue ->
+                "applicable-items".equals(issue.path())), () -> issues.toString());
+    }
+
+    @Test
+    void emptyApplicableItemsRejectsTheEnchantmentConfiguration() {
+        File file = tempDir.resolve("empty_applicable_items.yml").toFile();
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("id", "empty_applicable_items");
+        yaml.set("applicable-items", List.of());
+
+        List<EnchantmentConfig.ConfigIssue> issues = EnchantmentConfig.validateForLoad(yaml, file);
+
+        assertTrue(issues.stream().anyMatch(issue ->
+                "applicable-items".equals(issue.path())), () -> issues.toString());
+    }
+
+    @Test
+    void allApplicableItemsSentinelIsAcceptedExplicitly() {
+        File file = tempDir.resolve("all_applicable_items.yml").toFile();
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("id", "all_applicable_items");
+        yaml.set("applicable-items", List.of("ALL"));
+
+        List<EnchantmentConfig.ConfigIssue> issues = EnchantmentConfig.validateForLoad(yaml, file);
+
+        assertTrue(issues.isEmpty(), () -> issues.toString());
+    }
+
+    @Test
     void invalidEffectReportsExactNestedConfigPaths() {
         File file = tempDir.resolve("bad_effect.yml").toFile();
         YamlConfiguration yaml = new YamlConfiguration();

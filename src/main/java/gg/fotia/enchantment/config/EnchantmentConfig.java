@@ -42,6 +42,7 @@ public class EnchantmentConfig {
 
     /** 物品类别标签 → 实际 Material 列表 */
     private static final Map<String, List<Material>> CATEGORY_MATERIALS = buildCategoryMaterials();
+    private static final String ALL_APPLICABLE_ITEMS_TOKEN = "ALL";
     private static final Pattern YAML_LOCATION_PATTERN = Pattern.compile("line (\\d+), column (\\d+)");
 
     public EnchantmentConfig(FotiaEnchantment plugin) {
@@ -543,6 +544,8 @@ public class EnchantmentConfig {
                                                 List<ConfigIssue> issues) {
         String path = "applicable-items";
         if (!yaml.contains(path)) {
+            issues.add(issue(enchantmentId, file, path,
+                    "缺少必填字段；若需适用于全部物品，请显式配置 [ALL]"));
             return;
         }
         if (!yaml.isList(path)) {
@@ -551,11 +554,31 @@ public class EnchantmentConfig {
         }
 
         List<?> items = yaml.getList(path);
+        if (items == null || items.isEmpty()) {
+            issues.add(issue(enchantmentId, file, path,
+                    "不能为空；若需适用于全部物品，请显式配置 [ALL]"));
+            return;
+        }
+
+        boolean containsAll = items.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                .anyMatch(ALL_APPLICABLE_ITEMS_TOKEN::equals);
+        if (containsAll && items.size() != 1) {
+            issues.add(issue(enchantmentId, file, path,
+                    "ALL 必须单独使用，不能与其他物品或类别同时配置"));
+            return;
+        }
+
         for (int i = 0; items != null && i < items.size(); i++) {
             Object item = items.get(i);
             String itemPath = path + "[" + i + "]";
             if (!(item instanceof String value) || value.isBlank()) {
                 issues.add(issue(enchantmentId, file, itemPath, "必须是非空字符串"));
+                continue;
+            }
+            if (ALL_APPLICABLE_ITEMS_TOKEN.equalsIgnoreCase(value.trim())) {
                 continue;
             }
             if (!isValidMaterialToken(value)) {
@@ -760,6 +783,10 @@ public class EnchantmentConfig {
                 continue;
             }
             String upper = token.trim().toUpperCase(Locale.ROOT);
+            if (ALL_APPLICABLE_ITEMS_TOKEN.equals(upper)) {
+                // The validated ALL token is represented by an unrestricted material list.
+                return result;
+            }
 
             // 优先匹配类别标签
             List<Material> mats = CATEGORY_MATERIALS.get(upper);

@@ -45,7 +45,7 @@ class EnchantmentResourceCatalogTest {
             "stone_eater", "quarry_echo", "bountiful");
     private static final Set<String> ITEM_ALIASES = Set.of(
             "SWORD", "SPEAR", "AXE", "PICKAXE", "SHOVEL", "HOE", "BOW", "CROSSBOW", "TRIDENT",
-            "FISHING_ROD", "SHIELD", "ELYTRA", "HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS");
+            "FISHING_ROD", "SHIELD", "ELYTRA", "HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS", "ALL");
     private static final Set<String> TRIGGERS = Set.of(
             "ANVIL_USE", "ARMOR_ABSORB", "ARROW_BOUNCE", "ASSIST", "BELL_RING", "BITE",
             "BLOCK_ITEM_DROP", "BONEMEAL_CROP", "BOW_ATTACK", "BOW_SHOOT", "BREAK_SPAWNER",
