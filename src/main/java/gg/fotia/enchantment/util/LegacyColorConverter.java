@@ -27,6 +27,11 @@ public class LegacyColorConverter {
             return text;
         }
 
+        // 快速路径: 不含 &/§ 的纯 MiniMessage 文本无需任何正则处理
+        if (text.indexOf('&') < 0 && text.indexOf('§') < 0) {
+            return text;
+        }
+
         // 1. 转换 §x§R§R§G§G§B§B 格式为 <color:#RRGGBB>
         text = convertSectionHex(text);
 

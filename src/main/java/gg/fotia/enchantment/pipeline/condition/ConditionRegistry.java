@@ -4,14 +4,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
- * 条件注册表 - 管理所有条件实现的注册与实例化
+ * 条件注册表 - 管理所有条件实现的注册与实例化。
+ * 条件实现均为无状态对象, get 返回按 ID 缓存的共享实例, 避免每次检查都新建对象。
  */
 public class ConditionRegistry {
 
     private final Map<String, Supplier<Condition>> conditionFactories = new HashMap<>();
+    private final Map<String, Condition> sharedInstances = new ConcurrentHashMap<>();
 
     /**
      * 注册一个条件工厂
@@ -23,11 +26,13 @@ public class ConditionRegistry {
         if (id == null || factory == null) {
             return;
         }
-        conditionFactories.put(id.toLowerCase(), factory);
+        String key = id.toLowerCase();
+        conditionFactories.put(key, factory);
+        sharedInstances.remove(key);
     }
 
     /**
-     * 根据ID获取一个新的条件实例
+     * 根据ID获取共享条件实例
      *
      * @param id 条件ID
      * @return 条件实例，若未注册返回 null
@@ -36,8 +41,20 @@ public class ConditionRegistry {
         if (id == null) {
             return null;
         }
-        Supplier<Condition> factory = conditionFactories.get(id.toLowerCase());
-        return factory == null ? null : factory.get();
+        String key = id.toLowerCase();
+        Condition cached = sharedInstances.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        Supplier<Condition> factory = conditionFactories.get(key);
+        if (factory == null) {
+            return null;
+        }
+        Condition instance = factory.get();
+        if (instance != null) {
+            sharedInstances.put(key, instance);
+        }
+        return instance;
     }
 
     /**

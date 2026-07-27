@@ -73,6 +73,9 @@ obtain:
   # 是否可从村民交易获取
   # EN: Whether custom enchantments can appear in villager trades
   villager-trade: true
+  # 图书管理员刷新交易时加入自定义附魔书交易的概率 (0.0-1.0)
+  # EN: Chance (0.0-1.0) that a librarian trade refresh injects a custom enchanted book trade
+  villager-trade-inject-chance: 0.25
 
 # ============================================
 # 砂轮
@@ -145,8 +148,8 @@ enchanting-table:
 # EN: Performance settings
 # ============================================
 performance:
-  # TIMER类触发器检查间隔(tick)，值越大性能越好但响应越慢
-  # EN: Interval in ticks for TIMER trigger checks; larger values improve performance but respond more slowly
+  # 持续类触发器(如 ELYTRA_GLIDE 滑翔)的检查间隔(tick)，值越大性能越好但响应越慢
+  # EN: Interval in ticks for continuous trigger checks (e.g. ELYTRA_GLIDE); larger values improve performance but respond more slowly
   effect-check-interval: 1
   # 每tick最大效果执行数，防止卡服
   # EN: Maximum effect executions per tick to reduce server lag
@@ -157,6 +160,15 @@ performance:
   # 每轮最多处理的玩家数。在线人数较多时可调低，完整检查会自动分到后续轮次
   # EN: Maximum players processed per run; remaining players are handled in later runs
   item-validity-check-players-per-run: 8
+
+# ============================================
+# 触发器设置
+# EN: Trigger settings
+# ============================================
+triggers:
+  # TIMER_CUSTOM 自定义定时触发器的间隔(tick)
+  # EN: Interval in ticks for the TIMER_CUSTOM trigger
+  timer-custom-interval: 200
 
 # ============================================
 # 自然矿石保护

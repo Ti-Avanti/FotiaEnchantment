@@ -6,6 +6,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -15,8 +16,10 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -25,11 +28,16 @@ import java.util.concurrent.ThreadLocalRandom;
  * 1. 怪物死亡时按 config.yml 中 item-drops.mob-drop 配置概率掉落
  * 2. 玩家挖矿时按 config.yml 中 item-drops.mining-drop 配置概率掉落
  * 仅当击杀者/挖掘者为玩家时触发
+ * <p>
+ * 掉落表按配置代数惰性解析为 EnumMap, 事件热路径不再重复读取 YAML。
  */
 public class ItemDropListener implements Listener {
 
     private final FotiaEnchantment plugin;
     private final CustomItemManager itemManager;
+
+    private volatile DropTables tables;
+    private volatile int tablesGeneration = Integer.MIN_VALUE;
 
     public ItemDropListener(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -38,8 +46,8 @@ public class ItemDropListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
-        YamlConfiguration mainConfig = plugin.getConfigManager().getMainConfig();
-        if (!mainConfig.getBoolean("item-drops.mob-drop.enabled", false)) {
+        DropTables dropTables = tables();
+        if (!dropTables.mobEnabled || dropTables.mobs.isEmpty()) {
             return;
         }
 
@@ -49,31 +57,24 @@ public class ItemDropListener implements Listener {
             return;
         }
 
-        ConfigurationSection mobsSection = mainConfig.getConfigurationSection("item-drops.mob-drop.mobs");
-        if (mobsSection == null) {
+        DropEntry entry = dropTables.mobs.get(entity.getType());
+        if (entry == null) {
             return;
         }
 
-        String mobKey = entity.getType().name().toUpperCase(Locale.ROOT);
-        ConfigurationSection mobConfig = mobsSection.getConfigurationSection(mobKey);
-        if (mobConfig == null) {
-            return;
+        if (rollChance(entry.chance())) {
+            String itemId = pickRandom(entry.items());
+            ItemStack drop = createItem(killer, itemId, 1);
+            if (drop != null) {
+                event.getDrops().add(drop);
+            }
         }
-
-        double defaultChance = mainConfig.getDouble("item-drops.mob-drop.default-chance", 0.0);
-        double chance = mobConfig.getDouble("chance", defaultChance);
-        List<String> items = mobConfig.getStringList("items");
-        if (items.isEmpty()) {
-            return;
-        }
-
-        rollAndDrop(event, killer, chance, items);
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        YamlConfiguration mainConfig = plugin.getConfigManager().getMainConfig();
-        if (!mainConfig.getBoolean("item-drops.mining-drop.enabled", false)) {
+        DropTables dropTables = tables();
+        if (!dropTables.miningEnabled || dropTables.blocks.isEmpty()) {
             return;
         }
 
@@ -81,31 +82,19 @@ public class ItemDropListener implements Listener {
         if (player.getGameMode() == GameMode.CREATIVE) {
             return;
         }
+
+        DropEntry entry = dropTables.blocks.get(event.getBlock().getType());
+        if (entry == null) {
+            return;
+        }
+        // 玩家放置矿石检查放在掉落表命中之后, 未配置掉落的方块不触达追踪器
         if (plugin.getNaturalOreTracker().isPlayerPlacedOre(event.getBlock())) {
             return;
         }
 
-        ConfigurationSection blocksSection = mainConfig.getConfigurationSection("item-drops.mining-drop.blocks");
-        if (blocksSection == null) {
-            return;
-        }
-
-        Material type = event.getBlock().getType();
-        String blockKey = type.name().toUpperCase(Locale.ROOT);
-        ConfigurationSection blockConfig = blocksSection.getConfigurationSection(blockKey);
-        if (blockConfig == null) {
-            return;
-        }
-
-        double chance = blockConfig.getDouble("chance", 0.0);
-        List<String> items = blockConfig.getStringList("items");
-        if (items.isEmpty()) {
-            return;
-        }
-
         // 挖矿掉落物直接落地
-        if (rollChance(chance)) {
-            String itemId = pickRandom(items);
+        if (rollChance(entry.chance())) {
+            String itemId = pickRandom(entry.items());
             ItemStack drop = createItem(player, itemId, 1);
             if (drop != null) {
                 event.getBlock().getWorld().dropItemNaturally(event.getBlock().getLocation(), drop);
@@ -114,17 +103,70 @@ public class ItemDropListener implements Listener {
     }
 
     /**
-     * 怪物掉落: 按概率添加到 EntityDeathEvent 的掉落列表
+     * 获取当前掉落表, 配置代数变化时重建
      */
-    private void rollAndDrop(EntityDeathEvent event, Player player, double chance, List<String> items) {
-        if (!rollChance(chance)) {
-            return;
+    private DropTables tables() {
+        int generation = plugin.getConfigManager().getConfigGeneration();
+        DropTables current = tables;
+        if (current != null && tablesGeneration == generation) {
+            return current;
         }
-        String itemId = pickRandom(items);
-        ItemStack drop = createItem(player, itemId, 1);
-        if (drop != null) {
-            event.getDrops().add(drop);
+        DropTables rebuilt = buildTables(plugin.getConfigManager().getMainConfig());
+        tables = rebuilt;
+        tablesGeneration = generation;
+        return rebuilt;
+    }
+
+    private DropTables buildTables(YamlConfiguration config) {
+        boolean mobEnabled = config.getBoolean("item-drops.mob-drop.enabled", false);
+        boolean miningEnabled = config.getBoolean("item-drops.mining-drop.enabled", false);
+        double defaultChance = config.getDouble("item-drops.mob-drop.default-chance", 0.0);
+
+        Map<EntityType, DropEntry> mobs = new EnumMap<>(EntityType.class);
+        ConfigurationSection mobsSection = config.getConfigurationSection("item-drops.mob-drop.mobs");
+        if (mobsSection != null) {
+            for (String key : mobsSection.getKeys(false)) {
+                ConfigurationSection mobConfig = mobsSection.getConfigurationSection(key);
+                if (mobConfig == null) {
+                    continue;
+                }
+                EntityType type;
+                try {
+                    type = EntityType.valueOf(key.trim().toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException ex) {
+                    plugin.getLogger().warning("item-drops.mob-drop.mobs 中存在未知实体类型: " + key);
+                    continue;
+                }
+                List<String> items = List.copyOf(mobConfig.getStringList("items"));
+                if (items.isEmpty()) {
+                    continue;
+                }
+                mobs.put(type, new DropEntry(mobConfig.getDouble("chance", defaultChance), items));
+            }
         }
+
+        Map<Material, DropEntry> blocks = new EnumMap<>(Material.class);
+        ConfigurationSection blocksSection = config.getConfigurationSection("item-drops.mining-drop.blocks");
+        if (blocksSection != null) {
+            for (String key : blocksSection.getKeys(false)) {
+                ConfigurationSection blockConfig = blocksSection.getConfigurationSection(key);
+                if (blockConfig == null) {
+                    continue;
+                }
+                Material material = Material.matchMaterial(key.trim());
+                if (material == null) {
+                    plugin.getLogger().warning("item-drops.mining-drop.blocks 中存在未知方块类型: " + key);
+                    continue;
+                }
+                List<String> items = List.copyOf(blockConfig.getStringList("items"));
+                if (items.isEmpty()) {
+                    continue;
+                }
+                blocks.put(material, new DropEntry(blockConfig.getDouble("chance", 0.0), items));
+            }
+        }
+
+        return new DropTables(mobEnabled, miningEnabled, mobs, blocks);
     }
 
     /**
@@ -153,5 +195,14 @@ public class ItemDropListener implements Listener {
             case "disenchant-gem" -> itemManager.createDisenchantStone(player, "tier-3");
             default -> null;
         };
+    }
+
+    private record DropTables(boolean mobEnabled,
+                              boolean miningEnabled,
+                              Map<EntityType, DropEntry> mobs,
+                              Map<Material, DropEntry> blocks) {
+    }
+
+    private record DropEntry(double chance, List<String> items) {
     }
 }

@@ -41,6 +41,7 @@ public class AdminGUI extends BaseGUI {
     /** 物品 PDC: 标记物品对应的附魔 ID */
     private final NamespacedKey enchantTagKey;
     private final NamespacedKey actionTagKey;
+    private final NamespacedKey categoryTagKey;
 
     private MenuConfig menu;
     private String currentCategory = "all";
@@ -51,6 +52,7 @@ public class AdminGUI extends BaseGUI {
         super(plugin, player);
         this.enchantTagKey = new NamespacedKey(plugin, "admin_gui_enchant");
         this.actionTagKey = new NamespacedKey(plugin, "admin_gui_action");
+        this.categoryTagKey = new NamespacedKey(plugin, "admin_gui_category");
     }
 
     @Override
@@ -122,7 +124,7 @@ public class AdminGUI extends BaseGUI {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.getPersistentDataContainer().set(
-                    new NamespacedKey(plugin, "admin_gui_category"),
+                    categoryTagKey,
                     PersistentDataType.STRING,
                     category
             );
@@ -365,8 +367,7 @@ public class AdminGUI extends BaseGUI {
             }
 
             // 类别切换
-            String cat = pdc.get(new NamespacedKey(plugin, "admin_gui_category"),
-                    PersistentDataType.STRING);
+            String cat = pdc.get(categoryTagKey, PersistentDataType.STRING);
             if (cat != null) {
                 currentCategory = cat;
                 currentPage = 0;

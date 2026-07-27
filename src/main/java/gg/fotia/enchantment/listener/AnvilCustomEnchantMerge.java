@@ -5,6 +5,8 @@ import gg.fotia.enchantment.core.EnchantmentConflictPolicy;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -20,6 +22,21 @@ public final class AnvilCustomEnchantMerge {
                                boolean targetIsEnchantedBook,
                                int currentEnchantCount,
                                int maxEnchantments) {
+        return merge(existing, incoming, dataResolver, applicable,
+                targetIsEnchantedBook, currentEnchantCount, maxEnchantments, null);
+    }
+
+    /**
+     * @param groupLimitAllows 同组附魔上限检查 (候选附魔, 当前已合并附魔ID集合) → 是否允许新增; null 表示不检查
+     */
+    public static Result merge(Map<String, Integer> existing,
+                               Map<String, Integer> incoming,
+                               Function<String, EnchantmentData> dataResolver,
+                               Predicate<EnchantmentData> applicable,
+                               boolean targetIsEnchantedBook,
+                               int currentEnchantCount,
+                               int maxEnchantments,
+                               BiPredicate<EnchantmentData, Set<String>> groupLimitAllows) {
         Map<String, Integer> merged = normalizedCopy(existing);
         if (incoming == null || incoming.isEmpty() || dataResolver == null) {
             return new Result(Map.copyOf(merged), false);
@@ -52,6 +69,10 @@ public final class AnvilCustomEnchantMerge {
             int newLevel = mergedLevel(existingLevel, incomingLevel, maxLevel);
             if (existingLevel == 0) {
                 if (limited && currentCount >= maxEnchantments) {
+                    continue;
+                }
+                // 同组附魔数量上限 (groups.yml max-per-item)
+                if (groupLimitAllows != null && !groupLimitAllows.test(data, merged.keySet())) {
                     continue;
                 }
                 currentCount++;

@@ -54,7 +54,7 @@ public abstract class BaseGUI {
     /** 处理点击事件 (始终已被 GUIManager 取消默认行为) */
     public abstract void handleClick(InventoryClickEvent event);
 
-    /** 处理关闭事件 */
+    /** 处理关闭事件 (插件禁用强制关闭时 event 为 null, 实现不得依赖该参数非空) */
     public abstract void handleClose(InventoryCloseEvent event);
 
     public Player getPlayer() {

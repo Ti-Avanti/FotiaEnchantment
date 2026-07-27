@@ -108,6 +108,9 @@ public class FotiaEnchantment extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (guiManager != null) {
+            guiManager.shutdown();
+        }
         if (enchantmentDisplayListener != null) {
             enchantmentDisplayListener.shutdown();
         }

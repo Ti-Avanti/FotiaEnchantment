@@ -22,9 +22,11 @@ enchanting-table-no-result: "{prefix}<!i><red>No valid enchantment result is ava
 no-permission: "{prefix}<!i><red>You do not have permission to do this"
 player-not-found: "{prefix}<!i><red>Player <gold>{player}</gold> not found"
 enchant-not-found: "{prefix}<!i><red>Enchantment <gold>{enchant_id}</gold> not found"
+enchant-disabled: "{prefix}<!i><red>Enchantment <gold>{enchant_id}</gold> is disabled"
 invalid-level: "{prefix}<!i><red>Invalid level, max level for this enchantment is <gold>{max_level}</gold>"
 not-holding-item: "{prefix}<!i><red>Please hold an item"
 item-not-found: "{prefix}<!i><red>Item <gold>{item_id}</gold> not found"
+rarity-not-found: "{prefix}<!i><red>Unknown rarity <gold>{rarity}</gold>"
 
 # Command messages
 command-help: "{prefix}<!i><gold>Commands: <yellow>/fe list [category] [page]</yellow><gray>, <yellow>/fe info <enchant_id></yellow><gray>, <yellow>/fe gui [guide|admin]</yellow><gray>, <yellow>/fe reload</yellow>"

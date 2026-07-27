@@ -3,6 +3,7 @@ package gg.fotia.enchantment.listener;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.compat.BukkitItemFlags;
 import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
+import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.core.VanillaManager;
@@ -34,6 +35,7 @@ import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -116,20 +118,6 @@ public class EnchantmentDisplayListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-    public void onInventoryCreative(InventoryCreativeEvent event) {
-        if (event.getWhoClicked() instanceof Player player) {
-            if (shouldSkipInventoryNormalization(player)) {
-                return;
-            }
-            ItemStack cursor = event.getCursor();
-            if (normalizeItem(player, cursor, validityRules())) {
-                event.setCursor(cursor);
-            }
-            scheduleNormalize(player);
-        }
-    }
-
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
@@ -145,12 +133,37 @@ public class EnchantmentDisplayListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
-        scheduleNormalize(event.getPlayer());
+        // 仅发放/修改物品类命令需要立即规范化, 其余命令交给周期巡检兜底
+        if (isItemGrantingCommand(event.getMessage())) {
+            scheduleNormalize(event.getPlayer());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onServerCommand(ServerCommandEvent event) {
-        SchedulerUtils.runTask(plugin, this::normalizeOnlinePlayers);
+        if (isItemGrantingCommand(event.getCommand())) {
+            SchedulerUtils.runTask(plugin, this::normalizeOnlinePlayers);
+        }
+    }
+
+    /**
+     * 判断命令是否可能给玩家发放/修改物品
+     */
+    static boolean isItemGrantingCommand(String message) {
+        if (message == null || message.isEmpty()) {
+            return false;
+        }
+        String command = message.charAt(0) == '/' ? message.substring(1) : message;
+        int space = command.indexOf(' ');
+        String label = (space > 0 ? command.substring(0, space) : command).toLowerCase(Locale.ROOT);
+        int colon = label.indexOf(':');
+        if (colon >= 0 && colon < label.length() - 1) {
+            label = label.substring(colon + 1);
+        }
+        return switch (label) {
+            case "give", "item", "i", "giveitem", "fe", "enchant", "clear" -> true;
+            default -> false;
+        };
     }
 
     private void scheduleNormalize(Player player) {
@@ -161,13 +174,14 @@ public class EnchantmentDisplayListener implements Listener {
         if (!pendingNormalizations.add(playerId)) {
             return;
         }
+        // Folia 下实体在任务执行前被移除时走 retired 回调, 避免 pending 标记永久滞留
         Object task = SchedulerUtils.runEntityTask(plugin, player, () -> {
             try {
                 normalizePlayer(player);
             } finally {
                 pendingNormalizations.remove(playerId);
             }
-        });
+        }, () -> pendingNormalizations.remove(playerId));
         if (task == null) {
             pendingNormalizations.remove(playerId);
         }
@@ -276,22 +290,31 @@ public class EnchantmentDisplayListener implements Listener {
         if (meta == null) {
             return false;
         }
+        // 廉价预筛: 无附魔无 lore 且不可能需要槽位行的物品(背包中绝大多数)直接跳过
+        if (!isNormalizationRelevant(item, meta, pdc)) {
+            return false;
+        }
 
-        ItemStack source = item.clone();
         boolean needsSanitization = EnchantmentItemSanitizer.needsSanitization(item, pdc, rules);
-        boolean changed = needsSanitization && EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, item);
-        changed |= EnchantmentItemSanitizer.sanitize(plugin, item);
         VanillaManager vanillaManager = plugin.getVanillaManager();
-        changed |= vanillaManager != null && vanillaManager.removeDisabledEnchantments(item);
+        boolean hasDisabled = vanillaManager != null && vanillaManager.hasDisabledEnchantments(item);
+        // 仅当确实要修改附魔时才克隆原件(供 FromSource 清理旧 lore)
+        ItemStack source = (needsSanitization || hasDisabled) ? item.clone() : null;
+
+        boolean changed = needsSanitization && EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, item);
+        changed |= needsSanitization && EnchantmentItemSanitizer.sanitize(plugin, item, rules);
+        changed |= hasDisabled && vanillaManager.removeDisabledEnchantments(item);
 
         meta = item.getItemMeta();
         if (meta == null) {
             return changed;
         }
 
-        changed |= changed
-                ? EnchantmentLoreCleaner.applyGeneratedLoreFromSource(plugin, player, item, source)
-                : EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, item);
+        if (changed && source != null) {
+            changed |= EnchantmentLoreCleaner.applyGeneratedLoreFromSource(plugin, player, item, source);
+        } else {
+            changed |= EnchantmentLoreCleaner.applyGeneratedLore(plugin, player, item);
+        }
         meta = item.getItemMeta();
         if (meta == null) {
             return changed;
@@ -299,7 +322,7 @@ public class EnchantmentDisplayListener implements Listener {
 
         boolean hasStoredEnchants = meta instanceof EnchantmentStorageMeta storageMeta
                 && !storageMeta.getStoredEnchants().isEmpty();
-        boolean hasLegacyCustomEnchants = !pdc.getLegacyEnchantments(item).isEmpty();
+        boolean hasLegacyCustomEnchants = !pdc.getLegacyEnchantments(meta).isEmpty();
         if (!EnchantmentDisplayPolicy.shouldHideNativeEnchantments(
                 meta.hasEnchants(),
                 hasStoredEnchants,
@@ -320,6 +343,30 @@ public class EnchantmentDisplayListener implements Listener {
             item.setItemMeta(meta);
         }
         return changed;
+    }
+
+    /**
+     * 判断物品是否可能需要任何规范化处理。
+     * 有附魔/存储附魔/自定义附魔/lore 的物品需要; 其余仅当
+     * 物品不可堆叠且属于可附魔材质(可能需要生成空槽位行)时需要。
+     */
+    private boolean isNormalizationRelevant(ItemStack item, ItemMeta meta, PDCManager pdc) {
+        if (meta.hasEnchants() || meta.hasLore()) {
+            return true;
+        }
+        if (meta instanceof EnchantmentStorageMeta storageMeta && !storageMeta.getStoredEnchants().isEmpty()) {
+            return true;
+        }
+        if (!pdc.getLegacyEnchantments(meta).isEmpty()) {
+            return true;
+        }
+        // 无附魔无 lore: 仅当可能显示空槽位行时才需要处理 (对齐 shouldDisplayEnchantSlotLore)
+        if (item.getMaxStackSize() > 1) {
+            return false;
+        }
+        EnchantmentManager manager = plugin.getEnchantmentManager();
+        return EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
+                || (manager != null && !manager.getApplicable(item.getType()).isEmpty());
     }
 
     private PDCManager pdcManager() {

@@ -36,7 +36,8 @@ public class TakeDamageTrigger implements Trigger, Listener {
         HandlerList.unregisterAll(this);
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    // HIGHEST 而非 MONITOR: 下游效果会修改/取消伤害事件(减伤/闪避等), MONITOR 阶段只允许观察
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
             return;

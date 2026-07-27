@@ -7,7 +7,6 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -39,7 +38,6 @@ public class VeinMineEffect implements Effect {
         if (targetType.isAir()) return;
 
         int max = Math.max(1, context.getIntParam("max-blocks", 16));
-        ItemStack tool = player.getInventory().getItemInMainHand();
 
         // BFS 搜索相邻同类方块（不包含起点，因为起点本身已被破坏）
         Set<Block> visited = new HashSet<>();
@@ -59,8 +57,9 @@ public class VeinMineEffect implements Effect {
                         if (neighbor.getType() != targetType) continue;
                         if (broken >= max) break;
 
-                        // 调用 breakNaturally 以正确触发掉落与耐久消耗
-                        if (neighbor.breakNaturally(tool)) {
+                        // 以玩家身份破坏: 触发 BlockBreakEvent 供保护插件否决,
+                        // 并正确处理掉落、工具附魔与耐久消耗 (管道重入守卫防止递归连锁)
+                        if (player.breakBlock(neighbor)) {
                             broken++;
                             queue.add(neighbor);
                         }

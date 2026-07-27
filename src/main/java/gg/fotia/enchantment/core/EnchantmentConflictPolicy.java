@@ -30,11 +30,11 @@ public final class EnchantmentConflictPolicy {
             if (normalizedExistingId.isEmpty() || normalizedCandidateId.equals(normalizedExistingId)) {
                 continue;
             }
-            if (referencesCustom(candidate.getConflicts(), normalizedExistingId)) {
+            if (candidate.conflictsWithCustom(normalizedExistingId)) {
                 return true;
             }
             EnchantmentData existing = dataResolver == null ? null : dataResolver.apply(normalizedExistingId);
-            if (existing != null && referencesCustom(existing.getConflicts(), normalizedCandidateId)) {
+            if (existing != null && existing.conflictsWithCustom(normalizedCandidateId)) {
                 return true;
             }
         }
@@ -63,6 +63,19 @@ public final class EnchantmentConflictPolicy {
             }
         }
         return false;
+    }
+
+    /**
+     * 基于 {@link EnchantmentData} 预归一化冲突集合的 O(1) 原版附魔冲突判定
+     */
+    public static boolean referencesBukkit(EnchantmentData data, Enchantment enchantment) {
+        if (data == null || enchantment == null || enchantment.getKey() == null) {
+            return false;
+        }
+        NamespacedKey key = enchantment.getKey();
+        return data.conflictsWithBukkitKey(
+                key.toString().toLowerCase(Locale.ROOT),
+                key.getKey().toLowerCase(Locale.ROOT));
     }
 
     public static boolean referencesBukkit(Collection<String> references, Enchantment enchantment) {

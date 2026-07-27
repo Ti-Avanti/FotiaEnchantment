@@ -9,6 +9,9 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 粒子效果 - 在目标或玩家位置播放粒子
@@ -23,6 +26,9 @@ import java.util.Locale;
  */
 public class ParticleEffect implements Effect {
 
+    /** 粒子名 → 解析结果缓存 (含无效名), 避免每次执行走 valueOf 异常控制流 */
+    private static final Map<String, Optional<Particle>> PARTICLE_CACHE = new ConcurrentHashMap<>();
+
     @Override
     public String getId() {
         return "PARTICLE";
@@ -31,10 +37,14 @@ public class ParticleEffect implements Effect {
     @Override
     public void execute(EffectContext context) {
         String particleName = context.getExtraParam("particle", "CRIT").toUpperCase(Locale.ROOT);
-        Particle particle;
-        try {
-            particle = Particle.valueOf(particleName);
-        } catch (IllegalArgumentException ex) {
+        Particle particle = PARTICLE_CACHE.computeIfAbsent(particleName, name -> {
+            try {
+                return Optional.of(Particle.valueOf(name));
+            } catch (IllegalArgumentException ex) {
+                return Optional.empty();
+            }
+        }).orElse(null);
+        if (particle == null) {
             return;
         }
 

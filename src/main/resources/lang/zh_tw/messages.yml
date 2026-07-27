@@ -27,9 +27,11 @@ enchanting-table-no-result: "{prefix}<!i><red>本次附魔沒有可套用的結�
 no-permission: "{prefix}<!i><red>你没有权限执行此操作"
 player-not-found: "{prefix}<!i><red>找不到玩家 <gold>{player}</gold>"
 enchant-not-found: "{prefix}<!i><red>找不到附魔 <gold>{enchant_id}</gold>"
+enchant-disabled: "{prefix}<!i><red>附魔 <gold>{enchant_id}</gold> 已被停用"
 invalid-level: "{prefix}<!i><red>无效的等级，此附魔最大等级为 <gold>{max_level}</gold>"
 not-holding-item: "{prefix}<!i><red>请手持一个物品"
 item-not-found: "{prefix}<!i><red>找不到道具 <gold>{item_id}</gold>"
+rarity-not-found: "{prefix}<!i><red>未知稀有度 <gold>{rarity}</gold>"
 
 # 命令消息
 # EN: Command messages

@@ -372,10 +372,15 @@ public class CatalogCondition implements Condition {
     private static boolean nearBlock(Player player, EnchantmentData.ConditionConfig cfg) {
         int radius = (int) parseDouble(cfg.getString("radius", "5"), 5);
         Location base = player.getLocation();
+        World world = player.getWorld();
+        int baseX = base.getBlockX();
+        int baseY = base.getBlockY();
+        int baseZ = base.getBlockZ();
+        // 整数坐标直取方块, 避免半径立方体内上千次 Location 克隆分配
         for (int x = -radius; x <= radius; x++) {
             for (int y = -radius; y <= radius; y++) {
                 for (int z = -radius; z <= radius; z++) {
-                    if (blockMatches(base.clone().add(x, y, z).getBlock(), cfg)) {
+                    if (blockMatches(world.getBlockAt(baseX + x, baseY + y, baseZ + z), cfg)) {
                         return true;
                     }
                 }

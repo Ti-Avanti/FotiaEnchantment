@@ -17,6 +17,8 @@ public class McMMOHook {
 
     private final Logger logger;
     private boolean available;
+    /** 能力检查失败只告警一次, 避免条件在战斗热路径反复触发刷屏 */
+    private volatile boolean failureLogged;
 
     public McMMOHook(Logger logger) {
         this.logger = logger;
@@ -50,7 +52,10 @@ public class McMMOHook {
         } catch (IllegalArgumentException e) {
             return 0;
         } catch (Exception e) {
-            logger.log(Level.WARNING, "获取 mcMMO 技能等级时出错: " + skill, e);
+            if (!failureLogged) {
+                failureLogged = true;
+                logger.log(Level.WARNING, "获取 mcMMO 技能等级时出错 (后续同类错误不再提示): " + skill, e);
+            }
             return 0;
         }
     }

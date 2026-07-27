@@ -20,7 +20,18 @@ public final class EnchantmentItemSanitizer {
     }
 
     public static boolean sanitize(FotiaEnchantment plugin, ItemStack item) {
-        if (plugin == null || item == null || item.getType().isAir() || !item.hasItemMeta()) {
+        EnchantmentManager manager = plugin == null ? null : plugin.getEnchantmentManager();
+        if (manager == null) {
+            return false;
+        }
+        return sanitize(plugin, item, ValidityRules.from(manager.getAllEnchantments()));
+    }
+
+    /**
+     * 使用调用方缓存的规则表修正物品, 避免每件物品重建全量规则
+     */
+    public static boolean sanitize(FotiaEnchantment plugin, ItemStack item, ValidityRules rules) {
+        if (plugin == null || item == null || item.getType().isAir() || !item.hasItemMeta() || rules == null) {
             return false;
         }
 
@@ -35,21 +46,13 @@ public final class EnchantmentItemSanitizer {
             return false;
         }
 
-        Map<String, Integer> valid = validEnchantments(
-                existing,
-                item.getType(),
-                ValidityRules.from(manager.getAllEnchantments())
-        );
+        Map<String, Integer> valid = validEnchantments(existing, item.getType(), rules);
         if (existing.equals(valid)) {
             return false;
         }
 
-        for (String enchantId : existing.keySet()) {
-            pdc.removeEnchantment(item, enchantId);
-        }
-        for (Map.Entry<String, Integer> entry : valid.entrySet()) {
-            pdc.addEnchantment(item, entry.getKey(), entry.getValue());
-        }
+        // 批量覆写, 单次 meta 往返完成全部修正
+        pdc.setEnchantments(item, valid);
         return true;
     }
 
@@ -108,10 +111,13 @@ public final class EnchantmentItemSanitizer {
     }
 
     public static boolean isValid(EnchantmentData data, Material material, int level) {
-        if (data == null) {
+        if (data == null || !data.isEnabled() || level <= 0 || data.getMaxLevel() <= 0) {
             return false;
         }
-        return isValid(EnchantmentRule.from(data), material, level);
+        if (material == Material.ENCHANTED_BOOK) {
+            return true;
+        }
+        return data.getApplicableItems().isEmpty() || data.isApplicableTo(material);
     }
 
     private static boolean isValid(EnchantmentRule rule, Material material, int level) {

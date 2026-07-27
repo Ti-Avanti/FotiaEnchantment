@@ -5,6 +5,7 @@ import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
+import gg.fotia.enchantment.lore.item.EnchantmentRarityOrder;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
@@ -16,7 +17,6 @@ import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -26,10 +26,6 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class DisenchantStone {
-
-    private static final List<String> RARITY_ORDER = Arrays.asList(
-            "dustlight", "moonlit", "radiant", "aureate", "divine"
-    );
 
     private final FotiaEnchantment plugin;
     private final CustomItemManager itemManager;
@@ -198,9 +194,16 @@ public class DisenchantStone {
             return true;
         }
 
-        int enchantRarityIndex = RARITY_ORDER.indexOf(enchantRarity.toLowerCase(Locale.ROOT));
-        int maxRarityIndex = RARITY_ORDER.indexOf(maxRarity.toLowerCase(Locale.ROOT));
-        return enchantRarityIndex == -1 || maxRarityIndex == -1 || enchantRarityIndex <= maxRarityIndex;
+        // 稀有度顺序来自 rarity.yml (按 weight 排序, 名次越小越稀有), 支持服主自定义稀有度
+        int enchantRank = plugin.getConfigManager().getRarityRank(enchantRarity);
+        int maxRank = plugin.getConfigManager().getRarityRank(maxRarity);
+        if (enchantRank == EnchantmentRarityOrder.UNKNOWN_RANK
+                || maxRank == EnchantmentRarityOrder.UNKNOWN_RANK) {
+            // 未定义的稀有度不做限制, 与历史行为一致
+            return true;
+        }
+        // 附魔稀有度不得高于 max-rarity 上限
+        return enchantRank >= maxRank;
     }
 
     public int getMaxRemoveCount(String configKey) {

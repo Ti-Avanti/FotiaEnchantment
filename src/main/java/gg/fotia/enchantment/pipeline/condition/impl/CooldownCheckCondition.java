@@ -13,10 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 冷却检查条件 - 额外冷却限制
  * <p>config 字段：
  * <ul>
- *   <li>key: 冷却 key（不同条件可独立设置）</li>
+ *   <li>key: 冷却 key（不同条件可独立设置；实际存储时按附魔ID隔离，避免跨附魔共享冷却）</li>
  *   <li>value: 冷却时长（tick），可为表达式</li>
  * </ul>
- * 满足时即记录冷却；冷却中则不满足。
+ * 检查阶段只读; 冷却在本次动作真正执行后才记录,
+ * 避免后续条件失败或动作未执行时白白消耗冷却。
  */
 public class CooldownCheckCondition implements Condition {
 
@@ -40,22 +41,51 @@ public class CooldownCheckCondition implements Condition {
             return true;
         }
 
-        String key = cfg.getString("key", "default");
-        String valueStr = cfg.getString("value", "0");
-        long ticks = (long) context.evaluateExpression(valueStr);
+        long ticks = cooldownTicks(context, cfg);
         if (ticks <= 0) {
             return true;
         }
 
-        UUID uid = player.getUniqueId();
-        Map<String, Long> map = COOLDOWNS.computeIfAbsent(uid, k -> new ConcurrentHashMap<>());
-        long now = System.currentTimeMillis();
-        Long expireAt = map.get(key);
-        if (expireAt != null && now < expireAt) {
-            return false;
+        Map<String, Long> map = COOLDOWNS.get(player.getUniqueId());
+        if (map == null) {
+            return true;
         }
-        map.put(key, now + ticks * MS_PER_TICK);
+        Long expireAt = map.get(scopedKey(context, cfg));
+        return expireAt == null || System.currentTimeMillis() >= expireAt;
+    }
+
+    @Override
+    public boolean requiresPostCommit() {
         return true;
+    }
+
+    @Override
+    public void onEffectsExecuted(ConditionContext context) {
+        Player player = context.getTriggerContext().getPlayer();
+        EnchantmentData.ConditionConfig cfg = context.getConfig();
+        if (player == null || cfg == null) {
+            return;
+        }
+        long ticks = cooldownTicks(context, cfg);
+        if (ticks <= 0) {
+            return;
+        }
+        COOLDOWNS.computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>())
+                .put(scopedKey(context, cfg), System.currentTimeMillis() + ticks * MS_PER_TICK);
+    }
+
+    private long cooldownTicks(ConditionContext context, EnchantmentData.ConditionConfig cfg) {
+        String valueStr = cfg.getString("value", "0");
+        return (long) context.evaluateExpression(valueStr);
+    }
+
+    /**
+     * 冷却键按附魔ID隔离, 默认 key 不再跨附魔共享
+     */
+    private String scopedKey(ConditionContext context, EnchantmentData.ConditionConfig cfg) {
+        String key = cfg.getString("key", "default");
+        String enchantId = context.getEnchantId();
+        return enchantId == null || enchantId.isEmpty() ? key : enchantId + ":" + key;
     }
 
     /**

@@ -83,15 +83,11 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     private void fallbackToDynamicCommand(Throwable cause) {
-        boolean legacyRegistered = registerDynamicCommand();
-        if (!legacyRegistered) {
-            if (cause instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            if (cause instanceof LinkageError linkageError) {
-                throw linkageError;
-            }
-            throw new IllegalStateException(cause);
+        // CommandMap.register 返回 false 只表示以 fallback 前缀(fotiaenchantment:fe)注册,
+        // 命令仍然可用, 不构成致命失败
+        if (!registerDynamicCommand()) {
+            plugin.getLogger().warning("命令 /fe 与其他插件冲突, 已以 "
+                    + plugin.getName().toLowerCase(Locale.ROOT) + ":fe 前缀注册");
         }
         plugin.getLogger().warning("Paper command registration failed; using Bukkit command fallback. Cause: "
                 + cause.getClass().getSimpleName() + ": " + String.valueOf(cause.getMessage()));

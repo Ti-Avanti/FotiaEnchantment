@@ -43,7 +43,8 @@ public class GrindstoneDisableListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryOpen(InventoryOpenEvent event) {
-        if (!isDisabled() || event.getInventory().getType() != InventoryType.GRINDSTONE) {
+        // 先做廉价的容器类型判断, 再查配置
+        if (event.getInventory().getType() != InventoryType.GRINDSTONE || !isDisabled()) {
             return;
         }
 
@@ -55,7 +56,8 @@ public class GrindstoneDisableListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!isDisabled() || event.getInventory().getType() != InventoryType.GRINDSTONE) {
+        // 先做廉价的容器类型判断, 再查配置 (任意点击都会走到这里)
+        if (event.getInventory().getType() != InventoryType.GRINDSTONE || !isDisabled()) {
             return;
         }
 

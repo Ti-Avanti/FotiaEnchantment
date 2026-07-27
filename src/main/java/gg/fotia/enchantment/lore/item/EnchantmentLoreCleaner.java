@@ -10,9 +10,8 @@ import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.core.VanillaManager;
 import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
-import gg.fotia.enchantment.util.LegacyColorConverter;
+import gg.fotia.enchantment.util.MiniMessageCache;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -28,11 +27,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 public final class EnchantmentLoreCleaner {
 
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
+
+    /** "已用/总数" 摘要行匹配, 预编译避免热路径每行编译正则 */
+    private static final Pattern SLOT_SUMMARY_PATTERN = Pattern.compile("\\d+\\s*/\\s*\\d+");
+
+    /**
+     * 槽位候选行缓存: key = 空槽文本 + 摘要文本 + 上限。
+     * 以内容为键, 语言/配置重载后自然产生新条目; 超上限整体清空。
+     */
+    private static final int SLOT_LORE_CACHE_MAX = 256;
+    private static final Map<String, List<Component>> SLOT_LORE_CACHE = new ConcurrentHashMap<>();
 
     private EnchantmentLoreCleaner() {
     }
@@ -112,12 +122,14 @@ public final class EnchantmentLoreCleaner {
             return false;
         }
 
+        // meta.lore() 每次调用都会深拷贝组件列表, 只取一次
+        List<Component> originalLore = meta.lore();
         List<Component> generatedLore = generatedLore(plugin, player, item, meta, false);
         if (generatedLore.isEmpty()) {
             List<Component> strippedLore = stripPotentialSlotLoreCopies(
-                    meta.lore(),
+                    originalLore,
                     potentialSlotLore(plugin, player, item));
-            if (sameLore(meta.lore(), strippedLore)) {
+            if (sameLore(originalLore, strippedLore)) {
                 return false;
             }
             meta.lore(strippedLore.isEmpty() ? null : strippedLore);
@@ -125,9 +137,9 @@ public final class EnchantmentLoreCleaner {
             return true;
         }
 
-        List<Component> existingLore = stripPotentialSlotLoreCopies(meta.lore(), potentialSlotLore(plugin, player, item));
+        List<Component> existingLore = stripPotentialSlotLoreCopies(originalLore, potentialSlotLore(plugin, player, item));
         List<Component> mergedLore = mergeGeneratedLore(existingLore, generatedLore);
-        if (sameLore(meta.lore(), mergedLore)) {
+        if (sameLore(originalLore, mergedLore)) {
             return false;
         }
 
@@ -184,7 +196,7 @@ public final class EnchantmentLoreCleaner {
 
         PDCManager pdc = enchantManager.getPdcManager();
         Map<String, LoreEntry> entries = new LinkedHashMap<>();
-        for (Map.Entry<String, Integer> entry : pdc.getEnchantments(item).entrySet()) {
+        for (Map.Entry<String, Integer> entry : pdc.getEnchantments(meta).entrySet()) {
             String id = normalizeId(entry.getKey());
             int level = entry.getValue();
             EnchantmentData data = enchantManager.getEnchantment(id);
@@ -206,7 +218,7 @@ public final class EnchantmentLoreCleaner {
         YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
         List<Component> generated = new ArrayList<>();
         List<LoreEntry> sortedEntries = new ArrayList<>(entries.values());
-        sortedEntries.sort(loreEntryComparator(rarityConfig));
+        sortedEntries.sort(loreEntryComparator(plugin));
         for (LoreEntry entry : sortedEntries) {
             generated.add(deserialize(displayNameLine(plugin, player, entry, rarityConfig)));
             for (String description : descriptionLines(plugin, player, entry)) {
@@ -291,6 +303,13 @@ public final class EnchantmentLoreCleaner {
             summarySlot = EnchantmentSlotLore.FALLBACK_SLOT_SUMMARY;
         }
 
+        // 候选列表只由这三个输入决定, 相同语言+相同上限的物品共享缓存结果
+        String cacheKey = emptySlot + ' ' + summarySlot + ' ' + maxSlots;
+        List<Component> cached = SLOT_LORE_CACHE.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
         List<Component> candidates = new ArrayList<>();
         candidates.add(deserialize(emptySlot));
         for (int usedSlots = 0; usedSlots <= maxSlots; usedSlots++) {
@@ -301,7 +320,12 @@ public final class EnchantmentLoreCleaner {
                     emptySlot,
                     summarySlot).getFirst()));
         }
-        return candidates;
+        List<Component> immutable = List.copyOf(candidates);
+        if (SLOT_LORE_CACHE.size() >= SLOT_LORE_CACHE_MAX) {
+            SLOT_LORE_CACHE.clear();
+        }
+        SLOT_LORE_CACHE.put(cacheKey, immutable);
+        return immutable;
     }
 
     public static List<Component> stripPotentialSlotLoreCopies(List<Component> existingLore,
@@ -352,7 +376,7 @@ public final class EnchantmentLoreCleaner {
             return false;
         }
         boolean bracketed = plain.startsWith("[") && plain.endsWith("]");
-        boolean summary = plain.matches(".*\\d+\\s*/\\s*\\d+.*");
+        boolean summary = SLOT_SUMMARY_PATTERN.matcher(plain).find();
         return bracketed || summary;
     }
 
@@ -362,11 +386,10 @@ public final class EnchantmentLoreCleaner {
         return normalizedFirst.equals(normalizedSecond);
     }
 
-    private static Comparator<LoreEntry> loreEntryComparator(YamlConfiguration rarityConfig) {
+    private static Comparator<LoreEntry> loreEntryComparator(FotiaEnchantment plugin) {
         return Comparator
                 .comparingInt((LoreEntry entry) -> entry.custom()
-                        ? EnchantmentRarityOrder.rank(
-                                rarityConfig,
+                        ? plugin.getConfigManager().getRarityRank(
                                 entry.data() == null ? null : entry.data().getRarity())
                         : Integer.MAX_VALUE)
                 .thenComparing(entry -> entry.custom() ? 0 : 1)
@@ -454,7 +477,7 @@ public final class EnchantmentLoreCleaner {
     }
 
     private static Component deserialize(String text) {
-        return MINI_MESSAGE.deserialize(LegacyColorConverter.convert(text));
+        return MiniMessageCache.deserializeLegacyAware(text);
     }
 
     private static String normalizeId(String id) {

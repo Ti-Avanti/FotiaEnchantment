@@ -26,6 +26,8 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,7 +49,8 @@ public final class NaturalOreTracker implements Listener {
     private final Set<BlockKey> recentlyBrokenPlacedBlocks = ConcurrentHashMap.newKeySet();
 
     private volatile boolean enabled;
-    private volatile List<MaterialPattern> trackedMaterials = List.of();
+    /** 按模式预展开的被追踪材质集合, 让热路径判定退化为 O(1) */
+    private volatile Set<Material> trackedMaterialSet = EnumSet.noneOf(Material.class);
 
     public NaturalOreTracker(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -74,7 +77,22 @@ public final class NaturalOreTracker implements Listener {
             patterns.add(MaterialPattern.parse("*_ORE"));
             patterns.add(MaterialPattern.parse("ANCIENT_DEBRIS"));
         }
-        trackedMaterials = List.copyOf(patterns);
+
+        // 预展开全部材质, 运行期判定不再做字符串模式匹配
+        EnumSet<Material> tracked = EnumSet.noneOf(Material.class);
+        for (Material material : Material.values()) {
+            if (!material.isBlock()) {
+                continue;
+            }
+            String name = material.name();
+            for (MaterialPattern pattern : patterns) {
+                if (pattern.matches(name)) {
+                    tracked.add(material);
+                    break;
+                }
+            }
+        }
+        trackedMaterialSet = tracked;
     }
 
     public void shutdown() {
@@ -104,16 +122,7 @@ public final class NaturalOreTracker implements Listener {
     }
 
     public boolean isTrackedMaterial(Material material) {
-        if (material == null || !material.isBlock()) {
-            return false;
-        }
-        String name = material.name();
-        for (MaterialPattern pattern : trackedMaterials) {
-            if (pattern.matches(name)) {
-                return true;
-            }
-        }
-        return false;
+        return material != null && trackedMaterialSet.contains(material);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -126,7 +135,15 @@ public final class NaturalOreTracker implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        Location location = event.getBlock().getLocation();
+        if (!enabled) {
+            return;
+        }
+        Block block = event.getBlock();
+        Location location = block.getLocation();
+        // 非追踪材质且缓存中无该位置标记时直接返回, 避免每次破坏都触达区块 PDC
+        if (!isTrackedMaterial(block.getType()) && !isCachedMarked(location)) {
+            return;
+        }
         if (!unmark(location)) {
             return;
         }
@@ -134,6 +151,14 @@ public final class NaturalOreTracker implements Listener {
         BlockKey blockKey = BlockKey.from(location);
         recentlyBrokenPlacedBlocks.add(blockKey);
         SchedulerUtils.runTaskLater(plugin, () -> recentlyBrokenPlacedBlocks.remove(blockKey), 2L);
+    }
+
+    /**
+     * 仅查询内存缓存, 不触发区块 PDC 读取
+     */
+    private boolean isCachedMarked(Location location) {
+        Set<Integer> positions = placedBlocks.get(ChunkKey.from(location.getChunk()));
+        return positions != null && positions.contains(pack(location));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -182,11 +207,24 @@ public final class NaturalOreTracker implements Listener {
             return;
         }
 
+        // 批量修改后按区块合并持久化, 避免每个方块两次全量序列化
+        Map<ChunkKey, Chunk> touchedChunks = new LinkedHashMap<>();
         for (Location source : markedSources) {
-            unmark(source);
+            Chunk chunk = source.getChunk();
+            if (positions(chunk).remove(pack(source))) {
+                touchedChunks.put(ChunkKey.from(chunk), chunk);
+            }
         }
         for (Location source : markedSources) {
-            mark(source.clone().add(direction.getModX(), direction.getModY(), direction.getModZ()));
+            Location target = source.clone().add(
+                    direction.getModX(), direction.getModY(), direction.getModZ());
+            Chunk chunk = target.getChunk();
+            if (positions(chunk).add(pack(target))) {
+                touchedChunks.put(ChunkKey.from(chunk), chunk);
+            }
+        }
+        for (Chunk chunk : touchedChunks.values()) {
+            persist(chunk, positions(chunk));
         }
     }
 
@@ -229,7 +267,7 @@ public final class NaturalOreTracker implements Listener {
             pdc.remove(placedBlocksKey);
             return;
         }
-        int[] packedPositions = positions.stream().mapToInt(Integer::intValue).sorted().toArray();
+        int[] packedPositions = positions.stream().mapToInt(Integer::intValue).toArray();
         pdc.set(placedBlocksKey, PersistentDataType.INTEGER_ARRAY, packedPositions);
     }
 

@@ -4,6 +4,7 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
+import gg.fotia.enchantment.util.SchedulerUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -13,11 +14,11 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 与实体碰撞触发器
@@ -29,8 +30,9 @@ public class CollideWithEntityTrigger implements Trigger, Listener {
     private static final double COLLIDE_DISTANCE = 1.5;
 
     private EffectPipeline pipeline;
-    private BukkitRunnable task;
-    private final Map<UUID, Long> lastTrigger = new HashMap<>();
+    private Object task;
+    private final Map<UUID, Long> lastTrigger = new ConcurrentHashMap<>();
+    private volatile boolean active;
 
     @Override
     public String getId() {
@@ -40,44 +42,62 @@ public class CollideWithEntityTrigger implements Trigger, Listener {
     @Override
     public void register(EffectPipeline pipeline) {
         this.pipeline = pipeline;
+        this.active = true;
         FotiaEnchantment plugin = FotiaEnchantment.getInstance();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        this.task = new BukkitRunnable() {
-            @Override
-            public void run() {
-                long now = System.currentTimeMillis();
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    Long last = lastTrigger.get(player.getUniqueId());
-                    if (last != null && now - last < 500L) {
-                        continue;
-                    }
-                    if (!CollideWithEntityTrigger.this.pipeline.hasActiveEnchantment(player, getId())) {
-                        continue;
-                    }
-                    for (Entity entity : player.getNearbyEntities(
-                            COLLIDE_DISTANCE, COLLIDE_DISTANCE, COLLIDE_DISTANCE)) {
-                        if (!(entity instanceof LivingEntity living)) {
-                            continue;
-                        }
-                        if (living.equals(player)) {
-                            continue;
-                        }
-                        TriggerContext ctx = TriggerContext.builder()
-                                .player(player)
-                                .target(living)
-                                .item(player.getInventory().getItemInMainHand())
-                                .value(1)
-                                .altValue(0)
-                                .triggerId(getId())
-                                .build();
-                        CollideWithEntityTrigger.this.pipeline.execute(ctx);
-                        lastTrigger.put(player.getUniqueId(), now);
-                        break;
-                    }
+        this.task = SchedulerUtils.runTaskTimer(plugin, this::tick, 5L, 5L);
+    }
+
+    private void tick() {
+        if (!active) {
+            return;
+        }
+        for (Player player : new ArrayList<>(Bukkit.getOnlinePlayers())) {
+            dispatchPlayer(player);
+        }
+    }
+
+    private void dispatchPlayer(Player player) {
+        if (SchedulerUtils.isFolia()) {
+            SchedulerUtils.runEntityTask(FotiaEnchantment.getInstance(), player, () -> {
+                if (active && player.isOnline()) {
+                    handlePlayer(player);
                 }
+            });
+            return;
+        }
+        handlePlayer(player);
+    }
+
+    private void handlePlayer(Player player) {
+        long now = System.currentTimeMillis();
+        Long last = lastTrigger.get(player.getUniqueId());
+        if (last != null && now - last < 500L) {
+            return;
+        }
+        if (!pipeline.hasActiveEnchantment(player, getId())) {
+            return;
+        }
+        for (Entity entity : player.getNearbyEntities(
+                COLLIDE_DISTANCE, COLLIDE_DISTANCE, COLLIDE_DISTANCE)) {
+            if (!(entity instanceof LivingEntity living)) {
+                continue;
             }
-        };
-        task.runTaskTimer(FotiaEnchantment.getInstance(), 5L, 5L);
+            if (living.equals(player)) {
+                continue;
+            }
+            TriggerContext ctx = TriggerContext.builder()
+                    .player(player)
+                    .target(living)
+                    .item(player.getInventory().getItemInMainHand())
+                    .value(1)
+                    .altValue(0)
+                    .triggerId(getId())
+                    .build();
+            pipeline.execute(ctx);
+            lastTrigger.put(player.getUniqueId(), now);
+            break;
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -87,10 +107,9 @@ public class CollideWithEntityTrigger implements Trigger, Listener {
 
     @Override
     public void unregister() {
-        if (task != null && !task.isCancelled()) {
-            task.cancel();
-            task = null;
-        }
+        active = false;
+        SchedulerUtils.cancelTask(task);
+        task = null;
         lastTrigger.clear();
         HandlerList.unregisterAll(this);
     }

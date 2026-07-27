@@ -101,8 +101,23 @@ public class SchedulerUtils {
      * @return 任务句柄
      */
     public static Object runEntityTask(Plugin plugin, Entity entity, Runnable task) {
+        return runEntityTask(plugin, entity, task, null);
+    }
+
+    /**
+     * 在实体所在区域运行任务, 支持实体已被移除时的 retired 回调
+     * Folia: 实体在任务执行前被移除时执行 retired (清理调用方状态)
+     * Paper/Spigot: 任务始终执行, retired 不会被调用
+     *
+     * @param plugin  插件实例
+     * @param entity  目标实体
+     * @param task    任务
+     * @param retired 实体已移除时的回调, 可为 null
+     * @return 任务句柄
+     */
+    public static Object runEntityTask(Plugin plugin, Entity entity, Runnable task, Runnable retired) {
         if (IS_FOLIA) {
-            return entity.getScheduler().run(plugin, scheduledTask -> task.run(), null);
+            return entity.getScheduler().run(plugin, scheduledTask -> task.run(), retired);
         } else {
             return Bukkit.getScheduler().runTask(plugin, task);
         }

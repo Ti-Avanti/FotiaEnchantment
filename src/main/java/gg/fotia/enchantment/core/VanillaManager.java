@@ -58,6 +58,9 @@ public class VanillaManager implements Listener {
     private final Map<UUID, PreparedOffer[]> preparedOffers = new ConcurrentHashMap<>();
     private final Map<UUID, EnchantingFailureMessage> lastEnchantingFailureMessages = new ConcurrentHashMap<>();
 
+    /** 附魔台候选注册表快照 (按 key 排序); 附魔注册表冻结后恒定, 惰性构建一次 */
+    private volatile List<Enchantment> sortedEnchantingCandidates;
+
     public VanillaManager(FotiaEnchantment plugin) {
         this.plugin = plugin;
         this.vanillaConfig = new VanillaConfig(plugin);
@@ -228,7 +231,9 @@ public class VanillaManager implements Listener {
             return;
         }
 
-        boolean useConfiguredWeights = hasConfiguredEnchantingWeights();
+        // 物品在事件期间不变, 一次性解析其附魔状态供全部候选过滤复用
+        EnchantingTableContext ctx = new EnchantingTableContext(item);
+        boolean useConfiguredWeights = vanillaConfig.hasConfiguredEnchantingWeights();
         EnchantmentOffer[] offers = event.getOffers();
         int enchantingSeed = event.getEnchanter().getEnchantmentSeed();
         for (int slot = 0; slot < offers.length; slot++) {
@@ -239,10 +244,10 @@ public class VanillaManager implements Listener {
 
             Enchantment current = offer.getEnchantment();
             boolean invalidOffer = isDisabled(current)
-                    || !canApplyEnchantingTableOffer(item, current);
+                    || !canApplyEnchantingTableOffer(ctx, current);
             if (invalidOffer || useConfiguredWeights) {
                 CandidateOffer replacement = pickEnchantingTableCandidate(
-                        item,
+                        ctx,
                         useConfiguredWeights,
                         enchantingSeed,
                         slot,
@@ -356,8 +361,10 @@ public class VanillaManager implements Listener {
 
         // 处理附魔书
         if (meta instanceof EnchantmentStorageMeta storageMeta) {
-            Map<Enchantment, Integer> stored = new HashMap<>(storageMeta.getStoredEnchants());
-            for (Map.Entry<Enchantment, Integer> entry : stored.entrySet()) {
+            // 先处理禁用与等级夹紧, 再基于当前存活集合实时判冲突,
+            // 与非书分支行为一致: 冲突对只移除后遍历到的那个, 保留另一个
+            for (Map.Entry<Enchantment, Integer> entry
+                    : new HashMap<>(storageMeta.getStoredEnchants()).entrySet()) {
                 Enchantment enchant = entry.getKey();
 
                 // 移除被禁用的附魔
@@ -374,9 +381,12 @@ public class VanillaManager implements Listener {
                     storageMeta.addStoredEnchant(enchant, maxLevel, true);
                     modified = true;
                 }
+            }
 
-                // 检查冲突
-                if (hasConflictWith(enchant, stored)) {
+            // 检查冲突 (基于存活集合)
+            for (Enchantment enchant : new ArrayList<>(storageMeta.getStoredEnchants().keySet())) {
+                if (storageMeta.hasStoredEnchant(enchant)
+                        && hasConflictWith(enchant, storageMeta.getStoredEnchants())) {
                     storageMeta.removeStoredEnchant(enchant);
                     modified = true;
                 }
@@ -624,48 +634,42 @@ public class VanillaManager implements Listener {
         toAdd.keySet().removeIf(enchantment -> !allowed.contains(enchantment));
     }
 
-    private boolean canApplyEnchantingTableOffer(ItemStack item, Enchantment enchantment) {
-        if (item == null || enchantment == null) {
+    private boolean canApplyEnchantingTableOffer(EnchantingTableContext ctx, Enchantment enchantment) {
+        if (ctx == null || enchantment == null) {
             return false;
         }
         if (isFotiaEnchantment(enchantment)) {
-            return customEnchantingTableCandidateData(enchantment, item) != null
-                    && canFitEnchantingTableOfferLimit(item, enchantment);
+            return customEnchantingTableCandidateData(enchantment, ctx) != null
+                    && canFitEnchantingTableOfferLimit(ctx, enchantment);
         }
         if (isDisabled(enchantment)
-                || (!isEnchantingTableBook(item) && !isApplicable(enchantment, item))) {
+                || (!ctx.book && !isApplicable(enchantment, ctx.item))) {
             return false;
         }
 
-        Map<Enchantment, Integer> keptNative = nativeEnchantments(item);
-        for (Enchantment existing : keptNative.keySet()) {
+        for (Enchantment existing : ctx.keptNative.keySet()) {
             if (nativeEnchantmentConflict(enchantment, existing)) {
                 return false;
             }
         }
 
         if (plugin.getEnchantmentManager() != null
-                && candidateConflictsWithKept(enchantment, keptNative, customEnchantIds(item))) {
+                && candidateConflictsWithKept(enchantment, ctx.keptNative, ctx.keptCustomIds)) {
             return false;
         }
 
-        return canFitEnchantingTableOfferLimit(item, enchantment);
+        return canFitEnchantingTableOfferLimit(ctx, enchantment);
     }
 
-    private boolean canFitEnchantingTableOfferLimit(ItemStack item, Enchantment enchantment) {
+    private boolean canFitEnchantingTableOfferLimit(EnchantingTableContext ctx, Enchantment enchantment) {
         if (plugin.getConfigManager() == null || plugin.getEnchantmentManager() == null) {
             return true;
         }
-
-        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
-        if (max < 0) {
+        if (ctx.maxEnchantments < 0) {
             return true;
         }
-
-        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
-        Set<String> keys = limitKeys(item, pdc);
         String key = limitKey(enchantment);
-        return keys.contains(key) || keys.size() < max;
+        return ctx.limitKeys.contains(key) || ctx.limitKeys.size() < ctx.maxEnchantments;
     }
 
     private List<Map.Entry<Enchantment, Integer>> orderedPendingAdds(Map<Enchantment, Integer> toAdd,
@@ -709,7 +713,7 @@ public class VanillaManager implements Listener {
             for (String existingCustomId : keptCustomIds) {
                 EnchantmentData existingData = manager.getEnchantment(existingCustomId);
                 if (existingData != null
-                        && EnchantmentConflictPolicy.referencesBukkit(existingData.getConflicts(), candidate)) {
+                        && EnchantmentConflictPolicy.referencesBukkit(existingData, candidate)) {
                     return true;
                 }
             }
@@ -719,7 +723,7 @@ public class VanillaManager implements Listener {
 
     private boolean conflictsWithAnyNative(EnchantmentData data, Set<Enchantment> nativeEnchantments) {
         for (Enchantment nativeEnchantment : nativeEnchantments) {
-            if (EnchantmentConflictPolicy.referencesBukkit(data.getConflicts(), nativeEnchantment)) {
+            if (EnchantmentConflictPolicy.referencesBukkit(data, nativeEnchantment)) {
                 return true;
             }
         }
@@ -803,6 +807,8 @@ public class VanillaManager implements Listener {
             return false;
         }
 
+        // 剩余容量在循环外求一次, 循环内本地递减, 避免逐附魔克隆物品做全量计数
+        int remainingCapacity = anvilRemainingEnchantmentCapacity(result, resultMeta);
         boolean modified = false;
         for (Map.Entry<Enchantment, Integer> entry : incoming.entrySet()) {
             Enchantment enchant = entry.getKey();
@@ -819,7 +825,7 @@ public class VanillaManager implements Listener {
             }
 
             int resultLevel = resultMeta.getEnchantLevel(enchant);
-            if (resultLevel <= 0 && !canAddAnvilResultEnchantment(result, resultMeta)) {
+            if (resultLevel <= 0 && remainingCapacity <= 0) {
                 continue;
             }
 
@@ -827,10 +833,28 @@ public class VanillaManager implements Listener {
             int mergedLevel = mergeAnvilInputLevel(firstInputLevel, resultLevel, incomingLevel, getMaxLevel(enchant));
             if (mergedLevel > resultLevel) {
                 resultMeta.addEnchant(enchant, mergedLevel, true);
+                if (resultLevel <= 0) {
+                    remainingCapacity--;
+                }
                 modified = true;
             }
         }
         return modified;
+    }
+
+    /**
+     * 铁砧结果还能再新增多少个附魔; 无限制时返回 Integer.MAX_VALUE
+     */
+    private int anvilRemainingEnchantmentCapacity(ItemStack result, ItemMeta resultMeta) {
+        if (plugin.getConfigManager() == null || plugin.getEnchantmentManager() == null) {
+            return Integer.MAX_VALUE;
+        }
+        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(result.getType());
+        if (max < 0) {
+            return Integer.MAX_VALUE;
+        }
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        return Math.max(0, max - EnchantmentLimitPolicy.countEnchantments(resultMeta, pdc));
     }
 
     private ItemStack anvilMergeTarget(ItemStack first, ItemStack second) {
@@ -874,22 +898,6 @@ public class VanillaManager implements Listener {
     private int vanillaEnchantLevel(ItemStack item, Enchantment enchant) {
         ItemMeta meta = item.getItemMeta();
         return meta == null ? 0 : meta.getEnchantLevel(enchant);
-    }
-
-    private boolean canAddAnvilResultEnchantment(ItemStack result, ItemMeta resultMeta) {
-        if (plugin.getConfigManager() == null || plugin.getEnchantmentManager() == null) {
-            return true;
-        }
-
-        int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(result.getType());
-        if (max < 0) {
-            return true;
-        }
-
-        ItemStack probe = result.clone();
-        probe.setItemMeta(resultMeta);
-        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
-        return EnchantmentLimitPolicy.canAddNewEnchantment(EnchantmentLimitPolicy.countEnchantments(probe, pdc), max);
     }
 
     private boolean isAnvilResultOverLimit(PrepareAnvilEvent event, ItemStack result) {
@@ -979,20 +987,7 @@ public class VanillaManager implements Listener {
         if (!isMinecraftEnchantment(enchant)) {
             return null;
         }
-        String key = enchant.getKey().getKey().toLowerCase(Locale.ROOT);
-        return vanillaConfig.getOverride(key);
-    }
-
-    /**
-     * 是否启用了任意原版附魔台权重覆盖。
-     */
-    private boolean hasConfiguredEnchantingWeights() {
-        for (VanillaOverride override : vanillaConfig.getAllOverrides().values()) {
-            if (override.getEnchantingTableWeight() != -1) {
-                return true;
-            }
-        }
-        return false;
+        return vanillaConfig.getOverride(enchant.getKey().getKey());
     }
 
     private boolean hasExistingFotiaEnchantments(ItemStack item) {
@@ -1015,7 +1010,7 @@ public class VanillaManager implements Listener {
     /**
      * 按配置挑选一个可用于附魔台的原版候选。
      */
-    private CandidateOffer pickEnchantingTableCandidate(ItemStack item,
+    private CandidateOffer pickEnchantingTableCandidate(EnchantingTableContext ctx,
                                                         boolean useConfiguredWeights,
                                                         int enchantingSeed,
                                                         int offerSlot,
@@ -1026,24 +1021,17 @@ public class VanillaManager implements Listener {
         List<WeightedEnchantment> candidates = new ArrayList<>();
         int totalWeight = 0;
 
-        for (Enchantment enchantment : Registry.ENCHANTMENT) {
-            if (enchantment == null || enchantment.getKey() == null
-                    || !isEnchantingTablePreviewCandidateNamespace(enchantment.getKey().getNamespace())) {
-                continue;
-            }
-            if (!canApplyEnchantingTableOffer(item, enchantment)) {
+        // 遍历预排序的注册表快照, 结果天然有序, 无需事件内再排序
+        for (Enchantment enchantment : sortedEnchantingCandidates()) {
+            if (!canApplyEnchantingTableOffer(ctx, enchantment)) {
                 continue;
             }
 
             int weight;
             if (isMinecraftEnchantment(enchantment)) {
-                if (isDisabled(enchantment)
-                        || (!isEnchantingTableBook(item) && !isApplicable(enchantment, item))) {
-                    continue;
-                }
                 weight = useConfiguredWeights ? configuredWeightOrDefault(enchantment) : 10;
             } else {
-                EnchantmentData data = customEnchantingTableCandidateData(enchantment, item);
+                EnchantmentData data = customEnchantingTableCandidateData(enchantment, ctx);
                 if (data == null) {
                     continue;
                 }
@@ -1056,7 +1044,6 @@ public class VanillaManager implements Listener {
             candidates.add(new WeightedEnchantment(enchantment, weight));
             totalWeight += weight;
         }
-        candidates.sort(Comparator.comparing(candidate -> candidate.enchantment().getKey().asString()));
 
         if (candidates.isEmpty() || totalWeight <= 0) {
             return null;
@@ -1065,7 +1052,7 @@ public class VanillaManager implements Listener {
         int roll = stableEnchantingPreviewRoll(
                 totalWeight,
                 enchantingSeed,
-                item.getType(),
+                ctx.item.getType(),
                 offerSlot,
                 offerCost,
                 enchantmentBonus,
@@ -1082,6 +1069,28 @@ public class VanillaManager implements Listener {
                 enchantingSeed,
                 offerSlot,
                 offerCost);
+    }
+
+    /**
+     * 附魔台候选注册表快照 (minecraft + fotia 命名空间, 按 key 排序)。
+     * 注册表启动后冻结, 惰性构建一次后复用。
+     */
+    private List<Enchantment> sortedEnchantingCandidates() {
+        List<Enchantment> cached = sortedEnchantingCandidates;
+        if (cached != null) {
+            return cached;
+        }
+        List<Enchantment> candidates = new ArrayList<>();
+        for (Enchantment enchantment : Registry.ENCHANTMENT) {
+            if (enchantment != null && enchantment.getKey() != null
+                    && isEnchantingTablePreviewCandidateNamespace(enchantment.getKey().getNamespace())) {
+                candidates.add(enchantment);
+            }
+        }
+        candidates.sort(Comparator.comparing(enchantment -> enchantment.getKey().asString()));
+        cached = List.copyOf(candidates);
+        sortedEnchantingCandidates = cached;
+        return cached;
     }
 
     private CandidateOffer createCandidateOffer(Enchantment enchantment,
@@ -1151,7 +1160,7 @@ public class VanillaManager implements Listener {
         return configured >= 0 ? configured : 10;
     }
 
-    private EnchantmentData customEnchantingTableCandidateData(Enchantment enchantment, ItemStack item) {
+    private EnchantmentData customEnchantingTableCandidateData(Enchantment enchantment, EnchantingTableContext ctx) {
         if (!isFotiaEnchantment(enchantment)
                 || plugin.getConfigManager() == null
                 || plugin.getEnchantmentManager() == null
@@ -1173,13 +1182,19 @@ public class VanillaManager implements Listener {
         if (pdc == null) {
             return null;
         }
-        if (!isEnchantingTableBook(item) && !pdc.isApplicable(item, data)) {
+        if (!ctx.book && !pdc.isApplicable(ctx.item, data)) {
             return null;
         }
-        if (pdc.hasConflict(item, data, manager::getEnchantment)) {
+        // 同组附魔数量上限 (groups.yml max-per-item)
+        if (!EnchantmentGroupPolicy.canAddToGroup(
+                plugin.getConfigManager(), manager, ctx.keptCustomIds, data)) {
             return null;
         }
-        return conflictsWithAnyNative(data, nativeEnchantments(item).keySet()) ? null : data;
+        // 使用事件级上下文中的预解析附魔集合判冲突, 避免每候选重复读物品
+        if (EnchantmentConflictPolicy.hasCustomConflict(id, data, ctx.keptCustomIds, manager::getEnchantment)) {
+            return null;
+        }
+        return conflictsWithAnyNative(data, ctx.keptNative.keySet()) ? null : data;
     }
 
     /**
@@ -1255,7 +1270,7 @@ public class VanillaManager implements Listener {
             return null;
         }
         CandidateOffer candidate = pickEnchantingTableCandidate(
-                item,
+                new EnchantingTableContext(item),
                 true,
                 event.getEnchanter().getEnchantmentSeed(),
                 event.whichButton(),
@@ -1407,8 +1422,54 @@ public class VanillaManager implements Listener {
         if (first.conflictsWith(second) || second.conflictsWith(first)) {
             return true;
         }
-        return EnchantmentConflictPolicy.referencesBukkit(getConflicts(first), second)
-                || EnchantmentConflictPolicy.referencesBukkit(getConflicts(second), first);
+        return overrideConflictsWith(first, second) || overrideConflictsWith(second, first);
+    }
+
+    /**
+     * 基于覆盖配置预归一化冲突集合的 O(1) 判定
+     */
+    private boolean overrideConflictsWith(Enchantment owner, Enchantment target) {
+        VanillaOverride override = getOverrideFor(owner);
+        if (override == null || target == null || target.getKey() == null) {
+            return false;
+        }
+        NamespacedKey key = target.getKey();
+        return override.conflictsWithBukkitKey(
+                key.toString().toLowerCase(Locale.ROOT),
+                key.getKey().toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * 附魔台事件级上下文: 物品的附魔状态在事件期间不变,
+     * 一次性解析后供全部候选过滤复用, 消除每候选重复的 meta 克隆与 JSON 解析。
+     */
+    private final class EnchantingTableContext {
+        private final ItemStack item;
+        private final boolean book;
+        private final Map<Enchantment, Integer> keptNative;
+        private final Set<String> keptCustomIds;
+        private final Set<String> limitKeys;
+        private final int maxEnchantments;
+
+        private EnchantingTableContext(ItemStack item) {
+            this.item = item;
+            this.book = isEnchantingTableBook(item);
+            this.keptNative = nativeEnchantments(item);
+            PDCManager pdc = plugin.getEnchantmentManager() != null
+                    ? plugin.getEnchantmentManager().getPdcManager()
+                    : null;
+            Set<String> customIds = new HashSet<>();
+            if (pdc != null) {
+                for (String id : pdc.getEnchantments(item).keySet()) {
+                    customIds.add(EnchantmentConflictPolicy.normalizeCustomId(id));
+                }
+            }
+            this.keptCustomIds = customIds;
+            this.limitKeys = limitKeys(item, pdc);
+            this.maxEnchantments = plugin.getConfigManager() != null
+                    ? plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType())
+                    : -1;
+        }
     }
 
     private record WeightedEnchantment(Enchantment enchantment, int weight) {

@@ -12,10 +12,12 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.StringJoiner;
 
 /**
@@ -26,8 +28,12 @@ import java.util.StringJoiner;
 public class VanillaConfig {
 
     private final FotiaEnchantment plugin;
-    /** 附魔名(小写) → 覆盖配置 */
-    private final Map<String, VanillaOverride> overrides = new HashMap<>();
+    /**
+     * 附魔名(小写) → 覆盖配置。不可变快照整体替换, 供数据包线程安全并发读取。
+     */
+    private volatile Map<String, VanillaOverride> overrides = Map.of();
+    /** 是否有任一原版附魔配置了附魔台权重 (加载时预计算) */
+    private volatile boolean anyEnchantingWeightConfigured;
     private static final Map<String, VanillaText> DEFAULT_TEXTS = createDefaultTexts();
     private static final String GENERIC_VANILLA_DESCRIPTION = "原版附魔，具体效果遵循服务器当前 Minecraft 版本。";
 
@@ -39,24 +45,46 @@ public class VanillaConfig {
      * 加载 vanilla/ 目录下所有 yml 文件
      */
     public void loadAll() {
-        overrides.clear();
+        Map<String, VanillaOverride> loaded = new HashMap<>();
         File vanillaDir = new File(plugin.getDataFolder(), "vanilla");
         ensureVanillaDirectory(vanillaDir);
         ensureAllVanillaFiles(vanillaDir);
         if (!vanillaDir.exists() || !vanillaDir.isDirectory()) {
+            publishOverrides(loaded);
             return;
         }
 
         File[] files = vanillaDir.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) {
+            publishOverrides(loaded);
             return;
         }
 
         for (File file : files) {
-            loadFile(file);
+            loadFile(file, loaded);
         }
+        publishOverrides(loaded);
 
         plugin.getLogger().info("已加载 " + overrides.size() + " 个原版附魔覆盖配置");
+    }
+
+    private void publishOverrides(Map<String, VanillaOverride> loaded) {
+        boolean weightConfigured = false;
+        for (VanillaOverride override : loaded.values()) {
+            if (override.getEnchantingTableWeight() >= 0) {
+                weightConfigured = true;
+                break;
+            }
+        }
+        this.anyEnchantingWeightConfigured = weightConfigured;
+        this.overrides = Collections.unmodifiableMap(loaded);
+    }
+
+    /**
+     * 是否有任一原版附魔配置了附魔台权重 (预计算, O(1))
+     */
+    public boolean hasConfiguredEnchantingWeights() {
+        return anyEnchantingWeightConfigured;
     }
 
     /**
@@ -103,7 +131,7 @@ public class VanillaConfig {
     /**
      * 加载单个覆盖配置文件
      */
-    private void loadFile(File file) {
+    private void loadFile(File file, Map<String, VanillaOverride> target) {
         String enchantName = file.getName().replace(".yml", "").toLowerCase(Locale.ROOT);
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
 
@@ -141,7 +169,7 @@ public class VanillaConfig {
             saveMigratedFile(file, config);
         }
 
-        overrides.put(enchantName, override);
+        target.put(enchantName, override);
     }
 
     private void saveMigratedFile(File file, YamlConfiguration config) {
@@ -166,10 +194,10 @@ public class VanillaConfig {
     }
 
     /**
-     * 获取所有覆盖配置（不可修改视图）
+     * 获取所有覆盖配置（不可变快照）
      */
     public Map<String, VanillaOverride> getAllOverrides() {
-        return Collections.unmodifiableMap(overrides);
+        return overrides;
     }
 
     /**
@@ -246,6 +274,10 @@ public class VanillaConfig {
         private int maxLevel;
         private int enchantingTableMaxLevel;
         private List<String> conflicts;
+        /** 冲突引用中带命名空间的完整 key (小写, 预归一化) */
+        private Set<String> conflictNamespacedKeys = Set.of();
+        /** 冲突引用中不带命名空间的简单 key (小写, 预归一化) */
+        private Set<String> conflictSimpleKeys = Set.of();
         private List<String> applicableItems;
         private int enchantingTableWeight;
         private String displayName;
@@ -297,6 +329,32 @@ public class VanillaConfig {
 
         public void setConflicts(List<String> conflicts) {
             this.conflicts = conflicts != null ? conflicts : new ArrayList<>();
+            Set<String> namespaced = new HashSet<>();
+            Set<String> simple = new HashSet<>();
+            for (String reference : this.conflicts) {
+                if (reference == null) {
+                    continue;
+                }
+                String raw = reference.trim().toLowerCase(Locale.ROOT);
+                if (raw.isEmpty()) {
+                    continue;
+                }
+                if (raw.indexOf(':') >= 0) {
+                    namespaced.add(raw);
+                } else {
+                    simple.add(raw);
+                }
+            }
+            this.conflictNamespacedKeys = namespaced.isEmpty() ? Set.of() : Set.copyOf(namespaced);
+            this.conflictSimpleKeys = simple.isEmpty() ? Set.of() : Set.copyOf(simple);
+        }
+
+        /**
+         * O(1) 判断是否与指定原版附魔 key 冲突 (入参须为小写)
+         */
+        public boolean conflictsWithBukkitKey(String fullKey, String simpleKey) {
+            return (fullKey != null && conflictNamespacedKeys.contains(fullKey))
+                    || (simpleKey != null && conflictSimpleKeys.contains(simpleKey));
         }
 
         public List<String> getApplicableItems() {

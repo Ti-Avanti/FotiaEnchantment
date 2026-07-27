@@ -3,8 +3,8 @@ package gg.fotia.enchantment.config;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantingTableLevelPolicy;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
-import gg.fotia.enchantment.item.CodexCraftRarity;
 import gg.fotia.enchantment.item.CodexRarityWeights;
+import gg.fotia.enchantment.lore.item.EnchantmentRarityOrder;
 import gg.fotia.enchantment.lore.item.EnchantmentSlotLore;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -23,7 +23,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -75,15 +77,38 @@ public class ConfigManager {
             "      - \"ANCIENT_DEBRIS\"");
 
     private final FotiaEnchantment plugin;
-    private YamlConfiguration mainConfig;
-    private YamlConfiguration rarityConfig;
-    private YamlConfiguration groupsConfig;
-    private YamlConfiguration itemsConfig;
-    private YamlConfiguration enchantmentBooksConfig;
-    private YamlConfiguration limitsConfig;
-    private Map<String, YamlConfiguration> guiConfigs = new HashMap<>();
+    private volatile YamlConfiguration mainConfig;
+    private volatile YamlConfiguration rarityConfig;
+    private volatile YamlConfiguration groupsConfig;
+    private volatile YamlConfiguration itemsConfig;
+    private volatile YamlConfiguration enchantmentBooksConfig;
+    private volatile YamlConfiguration limitsConfig;
+    private volatile Map<String, YamlConfiguration> guiConfigs = new HashMap<>();
     private List<EnchantmentConfig.ConfigIssue> configIssues = Collections.emptyList();
     private boolean bundledDefaultEnchantmentsInstalled;
+
+    // ==================== 派生缓存 (加载/重载时重建, 供热路径 O(1) 读取) ====================
+
+    /** 材质 → 附魔数量上限 惰性缓存, 避免每次查询遍历 limits.yml */
+    private final Map<Material, Integer> materialLimitCache = new ConcurrentHashMap<>();
+
+    /** 稀有度 → 排序名次 预计算表 */
+    private volatile Map<String, Integer> rarityRankCache = Map.of();
+
+    /** 未预载 GUI id 的动态加载缓存, 避免重复磁盘读取 */
+    private final Map<String, YamlConfiguration> dynamicGuiConfigs = new ConcurrentHashMap<>();
+
+    /** 单件装备默认附魔上限缓存 */
+    private volatile int maxEnchantmentsPerItem = 8;
+
+    /** 附魔槽位显示模式缓存 */
+    private volatile String enchantSlotDisplayMode = EnchantmentSlotLore.MODE_LINES;
+
+    /** 附魔组 → max-per-item 上限 预解析表 (groups.yml) */
+    private volatile Map<String, Integer> groupMaxPerItem = Map.of();
+
+    /** 配置代数, 每次加载/重载递增; 供监听器判断自身派生缓存是否过期 */
+    private volatile int configGeneration;
 
     private static final List<String> GUI_CONFIG_IDS = List.of(
             "admin", "fragment-craft", "codex", "enchantment-guide", "disenchant", "anvil-breakthrough");
@@ -137,6 +162,7 @@ public class ConfigManager {
         itemsConfig = loadConfig("items/custom-items.yml", issues);
         refreshAndSaveCustomItemsConfig(itemsConfig);
         enchantmentBooksConfig = loadConfig("items/enchantment-books.yml", issues);
+        rebuildDerivedCaches();
         configIssues = List.copyOf(issues);
     }
 
@@ -168,7 +194,54 @@ public class ConfigManager {
         itemsConfig = loadConfig("items/custom-items.yml", issues);
         refreshAndSaveCustomItemsConfig(itemsConfig);
         enchantmentBooksConfig = loadConfig("items/enchantment-books.yml", issues);
+        rebuildDerivedCaches();
         configIssues = List.copyOf(issues);
+    }
+
+    /**
+     * 重建配置派生缓存, 必须在全部配置加载完成后调用
+     */
+    private void rebuildDerivedCaches() {
+        materialLimitCache.clear();
+        dynamicGuiConfigs.clear();
+        rarityRankCache = EnchantmentRarityOrder.rankMap(rarityConfig);
+        maxEnchantmentsPerItem = mainConfig.getInt("max-enchantments-per-item", 8);
+        enchantSlotDisplayMode = EnchantmentSlotLore.normalizeDisplayMode(
+                mainConfig.getString("item-lore.enchant-slots.display-mode", EnchantmentSlotLore.MODE_LINES));
+        groupMaxPerItem = buildGroupLimits(groupsConfig);
+        configGeneration++;
+    }
+
+    private static Map<String, Integer> buildGroupLimits(YamlConfiguration config) {
+        if (config == null) {
+            return Map.of();
+        }
+        Map<String, Integer> limits = new HashMap<>();
+        for (String key : config.getKeys(false)) {
+            int max = config.getInt(key + ".max-per-item", -1);
+            if (max >= 0) {
+                limits.put(key.toLowerCase(Locale.ROOT), max);
+            }
+        }
+        return limits.isEmpty() ? Map.of() : Map.copyOf(limits);
+    }
+
+    /**
+     * 获取附魔组在单件物品上的数量上限; 未配置返回 -1 (不限制)
+     */
+    public int getGroupMaxPerItem(String group) {
+        if (group == null || group.isBlank()) {
+            return -1;
+        }
+        Integer limit = groupMaxPerItem.get(group.toLowerCase(Locale.ROOT));
+        return limit != null ? limit : -1;
+    }
+
+    /**
+     * 当前配置代数, 每次加载/重载递增
+     */
+    public int getConfigGeneration() {
+        return configGeneration;
     }
 
     /**
@@ -601,12 +674,16 @@ public class ConfigManager {
     }
 
     /**
-     * 获取 GUI 配置
+     * 获取 GUI 配置 (未预载的 id 首次从磁盘加载后缓存)
      */
     public YamlConfiguration getGuiConfig(String id) {
         YamlConfiguration config = guiConfigs.get(id);
         if (config != null) {
             return config;
+        }
+        YamlConfiguration dynamic = dynamicGuiConfigs.get(id);
+        if (dynamic != null) {
+            return dynamic;
         }
         List<EnchantmentConfig.ConfigIssue> issues = new ArrayList<>();
         YamlConfiguration loaded = loadConfig("gui/" + id + ".yml", issues);
@@ -615,6 +692,7 @@ public class ConfigManager {
             combined.addAll(issues);
             configIssues = List.copyOf(combined);
         }
+        dynamicGuiConfigs.put(id, loaded);
         return loaded;
     }
 
@@ -639,22 +717,37 @@ public class ConfigManager {
      * 获取单件装备最大附魔数量
      */
     public int getMaxEnchantmentsPerItem() {
-        return mainConfig.getInt("max-enchantments-per-item", 8);
+        return maxEnchantmentsPerItem;
     }
 
     /**
-     * 获取指定材料的单件物品附魔数量上限。
+     * 获取指定材料的单件物品附魔数量上限 (按材质缓存, O(1))。
      */
     public int getMaxEnchantmentsForMaterial(Material material) {
-        return EnchantmentLimitPolicy.resolveLimit(limitsConfig, material, getMaxEnchantmentsPerItem());
+        if (material == null) {
+            return maxEnchantmentsPerItem;
+        }
+        Integer cached = materialLimitCache.get(material);
+        if (cached != null) {
+            return cached;
+        }
+        int resolved = EnchantmentLimitPolicy.resolveLimit(limitsConfig, material, maxEnchantmentsPerItem);
+        materialLimitCache.put(material, resolved);
+        return resolved;
+    }
+
+    /**
+     * 获取稀有度的排序名次 (预计算, 数值越小稀有度越靠前)。未知稀有度返回一个较大的名次。
+     */
+    public int getRarityRank(String rarity) {
+        return EnchantmentRarityOrder.rank(rarityRankCache, rarity);
     }
 
     /**
      * 获取物品 lore 中附魔槽位的显示模式。
      */
     public String getEnchantSlotDisplayMode() {
-        return EnchantmentSlotLore.normalizeDisplayMode(
-                mainConfig.getString("item-lore.enchant-slots.display-mode", EnchantmentSlotLore.MODE_LINES));
+        return enchantSlotDisplayMode;
     }
 
     /**
@@ -793,17 +886,10 @@ public class ConfigManager {
     }
 
     /**
-     * 获取效果检查间隔（tick）
+     * 获取持续类触发器 (如 ELYTRA_GLIDE) 的检查间隔（tick）
      */
     public int getEffectCheckInterval() {
         return mainConfig.getInt("performance.effect-check-interval", 1);
-    }
-
-    /**
-     * 获取每tick最大效果执行数
-     */
-    public int getMaxEffectsPerTick() {
-        return mainConfig.getInt("performance.max-effects-per-tick", 50);
     }
 
     public long getItemValidityCheckInterval() {
@@ -819,13 +905,6 @@ public class ConfigManager {
      */
     public int getStellarisCodexFragmentCost() {
         return mainConfig.getInt("stellaris-codex.fragment-cost", 5);
-    }
-
-    /**
-     * 碎片合成星芒魔典始终随机品质。保留入口用于兼容旧配置，但不再读取固定品质。
-     */
-    public String getStellarisCodexCraftRarity() {
-        return CodexCraftRarity.RANDOM;
     }
 
     /**

@@ -20,6 +20,7 @@ public class EffectContext {
     private final Map<String, Double> variables;
     private final FotiaEnchantment plugin;
     private boolean stopChain;
+    private Map<String, Double> variablesView;
 
     public EffectContext(TriggerContext triggerContext,
                          EnchantmentData.ActionConfig config,
@@ -37,9 +38,8 @@ public class EffectContext {
         this.triggerContext = triggerContext;
         this.config = config;
         this.enchantLevel = enchantLevel;
-        this.variables = variables == null
-                ? new HashMap<>()
-                : new HashMap<>(variables);
+        // 管道内部约定变量 Map 只读共享, 不做防御性拷贝 (一次执行可创建数十个上下文)
+        this.variables = variables == null ? new HashMap<>() : variables;
     }
 
     public FotiaEnchantment getPlugin() {
@@ -67,7 +67,10 @@ public class EffectContext {
     }
 
     public Map<String, Double> getVariables() {
-        return Collections.unmodifiableMap(variables);
+        if (variablesView == null) {
+            variablesView = Collections.unmodifiableMap(variables);
+        }
+        return variablesView;
     }
 
     /**

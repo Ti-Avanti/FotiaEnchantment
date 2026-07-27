@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class EnchantmentLimitPolicy {
 
@@ -172,6 +173,13 @@ public final class EnchantmentLimitPolicy {
         return collectEnchantmentKeys(item, pdc).size();
     }
 
+    /**
+     * 基于已持有的 ItemMeta 计数, 避免调用方为计数而克隆物品
+     */
+    public static int countEnchantments(ItemMeta meta, PDCManager pdc) {
+        return collectEnchantmentKeys(meta, pdc).size();
+    }
+
     public static int countEnchantments(ItemStack item,
                                         PDCManager pdc,
                                         Map<Enchantment, Integer> nativeAdds) {
@@ -192,11 +200,18 @@ public final class EnchantmentLimitPolicy {
     }
 
     private static Set<String> collectEnchantmentKeys(ItemStack item, PDCManager pdc) {
-        Set<String> result = new HashSet<>();
         if (item == null || !item.hasItemMeta()) {
-            return result;
+            return new HashSet<>();
         }
         ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return new HashSet<>();
+        }
+        return collectEnchantmentKeys(meta, pdc);
+    }
+
+    private static Set<String> collectEnchantmentKeys(ItemMeta meta, PDCManager pdc) {
+        Set<String> result = new HashSet<>();
         if (meta == null) {
             return result;
         }
@@ -213,25 +228,33 @@ public final class EnchantmentLimitPolicy {
             }
         }
         if (pdc != null) {
-            for (String id : pdc.getLegacyEnchantments(item).keySet()) {
+            for (String id : pdc.getLegacyEnchantments(meta).keySet()) {
                 result.add(normalizeCustomKey(id));
             }
         }
         return result;
     }
 
+    /** 无命名空间 id → 限制键 的解析缓存; 附魔注册表冻结后结果恒定 */
+    private static final Map<String, String> CUSTOM_KEY_CACHE = new ConcurrentHashMap<>();
+
     private static String normalizeCustomKey(String enchantId) {
         String id = enchantId.toLowerCase(Locale.ROOT);
         if (id.contains(":")) {
             return id;
         }
-        Enchantment trueEnchantment = Registry.ENCHANTMENT.get(new NamespacedKey(
-                EnchantmentRegistry.getNamespace(),
-                id));
-        if (trueEnchantment != null) {
-            return toKey(trueEnchantment);
-        }
-        return EnchantmentRegistry.getNamespace() + ":" + id;
+        return CUSTOM_KEY_CACHE.computeIfAbsent(id, key -> {
+            try {
+                Enchantment trueEnchantment = Registry.ENCHANTMENT.get(new NamespacedKey(
+                        EnchantmentRegistry.getNamespace(), key));
+                if (trueEnchantment != null) {
+                    return toKey(trueEnchantment);
+                }
+            } catch (IllegalArgumentException ignored) {
+                // id 含非法字符, 无法构成 NamespacedKey, 直接拼接兜底
+            }
+            return EnchantmentRegistry.getNamespace() + ":" + key;
+        });
     }
 
     private static String toKey(Enchantment enchantment) {

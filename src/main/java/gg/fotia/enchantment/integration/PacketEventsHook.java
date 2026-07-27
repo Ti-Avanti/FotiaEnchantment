@@ -26,12 +26,10 @@ import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import gg.fotia.enchantment.lore.item.EnchantmentGeneratedLoreStripper;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreFormatter;
-import gg.fotia.enchantment.lore.item.EnchantmentRarityOrder;
 import gg.fotia.enchantment.lore.item.EnchantmentSlotLore;
-import gg.fotia.enchantment.util.LegacyColorConverter;
+import gg.fotia.enchantment.util.MiniMessageCache;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
@@ -62,7 +60,6 @@ public class PacketEventsHook {
 
     private final FotiaEnchantment plugin;
     private boolean available;
-    private final MiniMessage miniMessage = MiniMessage.miniMessage();
     private final NamespacedKey guiGlowKey;
     private PacketListenerAbstract listener;
 
@@ -240,6 +237,8 @@ public class PacketEventsHook {
 
         List<LoreEntry> entries = collectLoreEntries(item, sourceMeta, enchantManager, pdc, false);
         List<LoreEntry> sourceEntries = collectLoreEntries(item, sourceMeta, enchantManager, pdc, true);
+        // 无任何相关附魔的物品(绝大多数)在克隆与 lore 计算之前直接返回
+        if (entries.isEmpty() && sourceEntries.isEmpty()) return null;
 
         ItemStack copy = item.clone();
         ItemMeta meta = copy.getItemMeta();
@@ -267,7 +266,7 @@ public class PacketEventsHook {
                                                boolean includeDisabledVanilla) {
         Map<String, LoreEntry> entries = new LinkedHashMap<>();
 
-        for (Map.Entry<String, Integer> entry : pdc.getEnchantments(item).entrySet()) {
+        for (Map.Entry<String, Integer> entry : pdc.getEnchantments(meta).entrySet()) {
             String id = normalizeId(entry.getKey());
             int level = entry.getValue();
             if (id.isEmpty() || level <= 0) {
@@ -305,7 +304,7 @@ public class PacketEventsHook {
         }
 
         YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
-        entries.sort(loreEntryComparator(rarityConfig));
+        entries.sort(loreEntryComparator());
         for (LoreEntry entry : entries) {
             generatedLore.add(deserializeLoreLine(displayNameLine(player, entry, rarityConfig)));
             for (String description : descriptionLines(player, entry)) {
@@ -320,11 +319,10 @@ public class PacketEventsHook {
         return generatedLore;
     }
 
-    private Comparator<LoreEntry> loreEntryComparator(YamlConfiguration rarityConfig) {
+    private Comparator<LoreEntry> loreEntryComparator() {
         return Comparator
                 .comparingInt((LoreEntry entry) -> entry.custom()
-                        ? EnchantmentRarityOrder.rank(
-                                rarityConfig,
+                        ? plugin.getConfigManager().getRarityRank(
                                 entry.data() == null ? null : entry.data().getRarity())
                         : Integer.MAX_VALUE)
                 .thenComparing(entry -> entry.custom() ? 0 : 1)
@@ -445,7 +443,7 @@ public class PacketEventsHook {
     }
 
     private Component deserializeLoreLine(String text) {
-        return miniMessage.deserialize(LegacyColorConverter.convert(text));
+        return MiniMessageCache.deserializeLegacyAware(text);
     }
 
     static List<Component> stripGeneratedLoreCopies(List<Component> existingLore, List<Component> generatedLore) {
@@ -464,16 +462,6 @@ public class PacketEventsHook {
         UUID uuid = user.getUUID();
         if (uuid == null) return null;
         return Bukkit.getPlayer(uuid);
-    }
-
-    /**
-     * 数字转罗马数字
-     */
-    private String toRoman(int num) {
-        if (num <= 0) return String.valueOf(num);
-        String[] ones = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
-        if (num <= 10) return ones[num];
-        return String.valueOf(num);
     }
 
     private record LoreEntry(String id,

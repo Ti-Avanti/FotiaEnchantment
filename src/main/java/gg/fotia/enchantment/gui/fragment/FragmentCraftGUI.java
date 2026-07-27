@@ -60,6 +60,7 @@ public class FragmentCraftGUI extends BaseGUI {
 
         int fragmentSlot = menu.roleSlot("fragment", DEFAULT_FRAGMENT_SLOT);
         if (isValidSlot(fragmentSlot)) {
+            // 物品栈数量下限为 1, 实际持有数以 arrow 槽位的 {current}/{cost} 为准
             inventory.setItem(fragmentSlot, fragment.create(player, Math.max(1, Math.min(64, held))));
         }
 

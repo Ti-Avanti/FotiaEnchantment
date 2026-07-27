@@ -34,9 +34,10 @@ public class UpdateChecker {
             return thread;
         };
         this.executor = Executors.newSingleThreadExecutor(factory);
+        // HttpClient 使用自身默认线程池; 若与 supplyAsync 共用上面的单线程,
+        // 阻塞的 send() 会占住唯一线程导致响应处理无法调度(自饿死), 直到超时才失败
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(8))
-                .executor(executor)
                 .build();
     }
 

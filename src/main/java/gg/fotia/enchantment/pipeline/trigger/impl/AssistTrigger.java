@@ -66,6 +66,10 @@ public class AssistTrigger implements Trigger, Listener {
         if (attacker.getUniqueId().equals(victim.getUniqueId())) {
             return;
         }
+        // 攻击者身上没有任何 ASSIST 绑定的附魔时不记账, 避免全服无谓的伤害记录
+        if (!pipeline.hasActiveEnchantment(attacker, getId())) {
+            return;
+        }
 
         damageMap.computeIfAbsent(victim.getUniqueId(), k -> new ConcurrentHashMap<>())
                 .merge(attacker.getUniqueId(), event.getFinalDamage(), Double::sum);

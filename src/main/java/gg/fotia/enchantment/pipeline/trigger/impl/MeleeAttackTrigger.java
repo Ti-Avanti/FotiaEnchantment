@@ -37,7 +37,8 @@ public class MeleeAttackTrigger implements Trigger, Listener {
         HandlerList.unregisterAll(this);
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    // HIGHEST 而非 MONITOR: 下游效果会修改/取消伤害事件, MONITOR 阶段只允许观察
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMeleeAttack(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
         if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK) return;

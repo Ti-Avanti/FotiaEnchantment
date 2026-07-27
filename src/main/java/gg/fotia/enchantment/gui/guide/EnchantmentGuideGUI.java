@@ -376,60 +376,6 @@ public class EnchantmentGuideGUI extends BaseGUI {
         return adminKey.equals(localized) ? category : localized;
     }
 
-    private String localizeTrigger(String trigger) {
-        if (trigger == null || trigger.isBlank()) {
-            return "";
-        }
-
-        String normalized = trigger.toUpperCase(Locale.ROOT);
-        String guideKey = "guide-gui.trigger-" + normalized;
-        String localized = lang(guideKey);
-        if (!guideKey.equals(localized)) {
-            return localized;
-        }
-
-        String adminKey = "admin-gui.trigger-" + normalized;
-        localized = lang(adminKey);
-        if (!adminKey.equals(localized)) {
-            return localized;
-        }
-        return normalized.toLowerCase(Locale.ROOT).replace('_', ' ');
-    }
-
-    private String localizeCondition(String condition) {
-        if (condition == null || condition.isBlank()) {
-            return "";
-        }
-
-        String normalized = condition.toLowerCase(Locale.ROOT);
-        String guideKey = "guide-gui.condition-" + normalized;
-        String localized = lang(guideKey);
-        return guideKey.equals(localized) ? humanizeId(normalized) : localized;
-    }
-
-    private String localizeAction(String action) {
-        if (action == null || action.isBlank()) {
-            return "";
-        }
-
-        String normalized = action.toUpperCase(Locale.ROOT);
-        String guideKey = "guide-gui.action-" + normalized;
-        String localized = lang(guideKey);
-        return guideKey.equals(localized) ? humanizeId(normalized) : localized;
-    }
-
-    private String humanizeId(String id) {
-        String[] parts = id.toLowerCase(Locale.ROOT).split("_+");
-        List<String> words = new ArrayList<>();
-        for (String part : parts) {
-            if (part.isBlank()) {
-                continue;
-            }
-            words.add(part.substring(0, 1).toUpperCase(Locale.ROOT) + part.substring(1));
-        }
-        return String.join(" ", words);
-    }
-
     private String rarityName(String rarity) {
         if ("unknown".equals(rarity)) {
             return lang("guide-gui.rarity-unknown");

@@ -1,18 +1,21 @@
 package gg.fotia.enchantment.pipeline.condition.impl;
 
+import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.core.EnchantmentConflictPolicy;
+import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.pipeline.condition.Condition;
 import gg.fotia.enchantment.pipeline.condition.ConditionContext;
-import gg.fotia.enchantment.util.ItemUtils;
-import gg.fotia.enchantment.core.EnchantmentData;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 目标拥有指定附魔条件
- * <p>检查目标装备物品 PDC 中是否存在 enchant_&lt;id&gt; 标签。
+ * <p>检查目标 6 个装备槽位上是否存在任一指定的自定义附魔 (走 PDCManager 真实附魔存储)。
  */
 public class TargetHasEnchantCondition implements Condition {
 
@@ -33,11 +36,18 @@ public class TargetHasEnchantCondition implements Condition {
         }
         List<String> enchants = cfg.getStringList("value");
         if (enchants.isEmpty()) {
-            String single = cfg.getString("value");
-            if (single == null || single.isEmpty()) {
-                return false;
-            }
-            enchants = List.of(single);
+            return false;
+        }
+
+        FotiaEnchantment plugin = context.getPlugin() != null
+                ? context.getPlugin()
+                : FotiaEnchantment.getInstance();
+        if (plugin == null || plugin.getEnchantmentManager() == null) {
+            return false;
+        }
+        PDCManager pdc = plugin.getEnchantmentManager().getPdcManager();
+        if (pdc == null) {
+            return false;
         }
 
         EntityEquipment eq = target.getEquipment();
@@ -48,11 +58,19 @@ public class TargetHasEnchantCondition implements Condition {
                 eq.getHelmet(), eq.getChestplate(), eq.getLeggings(), eq.getBoots(),
                 eq.getItemInMainHand(), eq.getItemInOffHand()
         };
-        for (String id : enchants) {
-            if (id == null || id.isEmpty()) continue;
-            String tag = "enchant_" + id.toLowerCase();
-            for (ItemStack it : toCheck) {
-                if (it != null && ItemUtils.hasCustomTag(it, tag)) {
+        for (ItemStack item : toCheck) {
+            if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
+                continue;
+            }
+            Map<String, Integer> onItem = pdc.getEnchantments(item.getItemMeta());
+            if (onItem.isEmpty()) {
+                continue;
+            }
+            for (String id : enchants) {
+                if (id == null || id.isEmpty()) {
+                    continue;
+                }
+                if (onItem.containsKey(EnchantmentConflictPolicy.normalizeCustomId(id))) {
                     return true;
                 }
             }

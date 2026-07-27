@@ -8,6 +8,7 @@ import gg.fotia.enchantment.gui.fragment.FragmentCraftGUI;
 import gg.fotia.enchantment.item.CustomItemManager;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -32,6 +33,11 @@ public class ItemUseListener implements Listener {
             return;
         }
         if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+        // 保护插件(领地等)否决了物品使用时不再处理; 不能用 ignoreCancelled,
+        // 因为 RIGHT_CLICK_AIR 的事件默认即为"取消"状态
+        if (event.useItemInHand() == Event.Result.DENY) {
             return;
         }
 

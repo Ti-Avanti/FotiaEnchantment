@@ -136,12 +136,13 @@ public class PlaceholderAPIHook {
             }
 
             if (lower.startsWith("enchant_has_")) {
-                String id = params.substring("enchant_has_".length());
+                // PDC 中附魔 id 均为小写, 截取后统一小写避免大小写不一致恒 false
+                String id = lower.substring("enchant_has_".length());
                 return enchants.containsKey(id) ? "yes" : "no";
             }
 
             if (lower.startsWith("enchant_level_")) {
-                String id = params.substring("enchant_level_".length());
+                String id = lower.substring("enchant_level_".length());
                 return String.valueOf(enchants.getOrDefault(id, 0));
             }
 

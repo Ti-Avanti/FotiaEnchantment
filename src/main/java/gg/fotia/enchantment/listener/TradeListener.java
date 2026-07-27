@@ -26,8 +26,8 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class TradeListener implements Listener {
 
-    /** 加入自定义交易的总概率 */
-    private static final double TRADE_INJECT_CHANCE = 0.25;
+    /** 加入自定义交易的默认概率 (可被 config.yml 的 obtain.villager-trade-inject-chance 覆盖) */
+    private static final double DEFAULT_TRADE_INJECT_CHANCE = 0.25;
 
     private final FotiaEnchantment plugin;
 
@@ -48,7 +48,9 @@ public class TradeListener implements Listener {
             return;
         }
 
-        if (ThreadLocalRandom.current().nextDouble() >= TRADE_INJECT_CHANCE) {
+        double injectChance = plugin.getConfigManager().getMainConfig()
+                .getDouble("obtain.villager-trade-inject-chance", DEFAULT_TRADE_INJECT_CHANCE);
+        if (ThreadLocalRandom.current().nextDouble() >= injectChance) {
             return;
         }
 

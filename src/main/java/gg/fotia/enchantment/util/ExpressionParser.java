@@ -24,11 +24,9 @@ public class ExpressionParser {
         // 替换变量
         String expr = replaceVariables(expression.trim(), variables);
 
-        // 尝试直接解析为数字
-        try {
+        // 纯数字快速路径 (无异常控制流; 支持科学计数法, 变量替换可能产出 1.0E-7 类字符串)
+        if (isPlainNumber(expr)) {
             return Double.parseDouble(expr);
-        } catch (NumberFormatException ignored) {
-            // 非纯数字，继续解析表达式
         }
 
         // 使用递归下降解析器计算
@@ -41,6 +39,45 @@ public class ExpressionParser {
         }
 
         return result;
+    }
+
+    /**
+     * 无异常地判断字符串是否为纯数字 (含正负号、小数点与科学计数法)
+     */
+    private static boolean isPlainNumber(String s) {
+        int length = s.length();
+        if (length == 0) {
+            return false;
+        }
+        int i = 0;
+        char c = s.charAt(0);
+        if (c == '+' || c == '-') {
+            i++;
+        }
+        boolean digitSeen = false;
+        boolean dotSeen = false;
+        boolean expSeen = false;
+        for (; i < length; i++) {
+            c = s.charAt(i);
+            if (c >= '0' && c <= '9') {
+                digitSeen = true;
+                continue;
+            }
+            if (c == '.' && !dotSeen && !expSeen) {
+                dotSeen = true;
+                continue;
+            }
+            if ((c == 'e' || c == 'E') && digitSeen && !expSeen) {
+                expSeen = true;
+                if (i + 1 < length && (s.charAt(i + 1) == '+' || s.charAt(i + 1) == '-')) {
+                    i++;
+                }
+                digitSeen = false;
+                continue;
+            }
+            return false;
+        }
+        return digitSeen;
     }
 
     /**
@@ -173,13 +210,28 @@ public class ExpressionParser {
         }
 
         /**
-         * 解析数字（整数或浮点数）
+         * 解析数字（整数、浮点数或科学计数法）
          */
         double parseNumber() {
             skipWhitespace();
             int start = pos;
             while (pos < input.length() && (Character.isDigit(input.charAt(pos)) || input.charAt(pos) == '.')) {
                 pos++;
+            }
+            // 科学计数法后缀: 1.0E-7 / 2e3 (变量替换可能产出此类字符串)
+            if (pos > start && pos < input.length()
+                    && (input.charAt(pos) == 'e' || input.charAt(pos) == 'E')) {
+                int probe = pos + 1;
+                if (probe < input.length() && (input.charAt(probe) == '+' || input.charAt(probe) == '-')) {
+                    probe++;
+                }
+                int digits = probe;
+                while (digits < input.length() && Character.isDigit(input.charAt(digits))) {
+                    digits++;
+                }
+                if (digits > probe) {
+                    pos = digits;
+                }
             }
             if (start == pos) {
                 throw new IllegalArgumentException("表达式解析错误，预期数字在位置 " + pos);

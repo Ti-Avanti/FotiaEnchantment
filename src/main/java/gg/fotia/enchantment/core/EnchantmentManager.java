@@ -3,6 +3,7 @@ package gg.fotia.enchantment.core;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.config.EnchantmentConfig;
 import gg.fotia.enchantment.config.EnchantmentConfig.ConfigIssue;
+import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,8 +34,16 @@ public class EnchantmentManager {
     private final PDCManager pdcManager;
     private final EnchantmentRegistry registry;
 
-    /** 附魔ID → EnchantmentData 缓存（启用与禁用都包含） */
-    private final Map<String, EnchantmentData> enchantments = new LinkedHashMap<>();
+    /**
+     * 附魔ID → EnchantmentData 快照（启用与禁用都包含）。
+     * 不可变 Map 整体原子替换, 供主线程与数据包线程安全并发读取;
+     * 重载期间读到的是旧快照而非半填充状态。
+     */
+    private volatile Map<String, EnchantmentData> enchantments = Collections.emptyMap();
+
+    /** 材质 → 适用附魔列表 惰性缓存, 重载/启停附魔时清空 */
+    private final Map<Material, List<EnchantmentData>> applicableCache = new ConcurrentHashMap<>();
+
     private List<UndefinedConflict> undefinedConflicts = Collections.emptyList();
 
     public EnchantmentManager(FotiaEnchantment plugin) {
@@ -57,7 +67,8 @@ public class EnchantmentManager {
      */
     public void shutdown() {
         registry.unregisterAll();
-        enchantments.clear();
+        enchantments = Collections.emptyMap();
+        applicableCache.clear();
     }
 
     /**
@@ -65,7 +76,6 @@ public class EnchantmentManager {
      */
     public void reload() {
         registry.unregisterAll();
-        enchantments.clear();
         enchantmentConfig.reload();
         rebuildCache();
         plugin.getLogger().info("附魔管理器已重载，共注册 " + registry.size() + " 个附魔");
@@ -85,27 +95,34 @@ public class EnchantmentManager {
     }
 
     /**
-     * 获取所有附魔（不可修改视图）
+     * 获取所有附魔（不可变快照视图）
      */
     public Collection<EnchantmentData> getAllEnchantments() {
-        return Collections.unmodifiableCollection(enchantments.values());
+        return enchantments.values();
     }
 
     /**
-     * 按附魔组获取附魔列表
+     * 按目录分类获取附魔列表 (melee/ranged/armor/tools/universal)。
+     * 同时兼容按附魔组名(group)筛选, 与图鉴 GUI 的筛选行为一致。
      *
-     * @param group 组名
-     * @return 属于该组的附魔列表
+     * @param category 分类或组名
+     * @return 属于该分类/组的附魔列表
      */
-    public List<EnchantmentData> getByCategory(String group) {
-        if (group == null) {
+    public List<EnchantmentData> getByCategory(String category) {
+        if (category == null) {
             return Collections.emptyList();
         }
-        String lowerGroup = group.toLowerCase(Locale.ROOT);
-        return enchantments.values().stream()
-                .filter(d -> lowerGroup.equals(
-                        d.getGroup() != null ? d.getGroup().toLowerCase(Locale.ROOT) : ""))
-                .collect(Collectors.toList());
+        String lower = category.toLowerCase(Locale.ROOT);
+        List<EnchantmentData> result = new ArrayList<>();
+        for (EnchantmentData d : enchantments.values()) {
+            String cat = d.getCategory();
+            String group = d.getGroup();
+            if ((cat != null && cat.toLowerCase(Locale.ROOT).equals(lower))
+                    || (group != null && group.toLowerCase(Locale.ROOT).equals(lower))) {
+                result.add(d);
+            }
+        }
+        return result;
     }
 
     /**
@@ -149,6 +166,7 @@ public class EnchantmentManager {
         if (!persisted) {
             data.setEnabled(enabled);
         }
+        applicableCache.clear();
         if (plugin.getEffectPipeline() != null) {
             plugin.getEffectPipeline().rebuildTriggerIndex();
         }
@@ -165,16 +183,34 @@ public class EnchantmentManager {
         if (item == null) {
             return Collections.emptyList();
         }
+        return getApplicable(item.getType());
+    }
+
+    /**
+     * 获取适用于指定材质的所有已启用附魔 (按材质惰性缓存, 结果不可修改)
+     */
+    public List<EnchantmentData> getApplicable(Material type) {
+        if (type == null) {
+            return Collections.emptyList();
+        }
+        List<EnchantmentData> cached = applicableCache.get(type);
+        if (cached != null) {
+            return cached;
+        }
         List<EnchantmentData> result = new ArrayList<>();
         for (EnchantmentData data : enchantments.values()) {
             if (!data.isEnabled()) {
                 continue;
             }
-            if (pdcManager.isApplicable(item, data)) {
+            if (data.getApplicableItems().isEmpty() || data.isApplicableTo(type)) {
                 result.add(data);
             }
         }
-        return result;
+        List<EnchantmentData> immutable = result.isEmpty()
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(result);
+        applicableCache.put(type, immutable);
+        return immutable;
     }
 
     /**
@@ -196,11 +232,9 @@ public class EnchantmentManager {
                 continue;
             }
             Map<String, Integer> codexPools = data.getCodexPools();
-            if (codexPools != null && codexPools.containsKey(lowerRarity)) {
-                int weight = codexPools.get(lowerRarity);
-                if (weight > 0) {
-                    pool.put(data.getId(), weight);
-                }
+            Integer weight = codexPools != null ? codexPools.get(lowerRarity) : null;
+            if (weight != null && weight > 0) {
+                pool.put(data.getId(), weight);
             }
         }
         return pool;
@@ -272,15 +306,18 @@ public class EnchantmentManager {
     // ==================== 内部方法 ====================
 
     /**
-     * 重建内部缓存：从 EnchantmentConfig 加载数据到缓存和注册表
+     * 重建内部缓存：从 EnchantmentConfig 加载数据构建新快照后整体替换
      */
     private void rebuildCache() {
         Collection<EnchantmentData> loaded = enchantmentConfig.getEnchantments();
+        Map<String, EnchantmentData> snapshot = new LinkedHashMap<>();
         for (EnchantmentData data : loaded) {
-            enchantments.put(data.getId(), data);
+            snapshot.put(data.getId(), data);
         }
+        enchantments = Collections.unmodifiableMap(snapshot);
+        applicableCache.clear();
         registry.registerAll(loaded);
-        undefinedConflicts = findUndefinedConflicts(enchantments.values(), id -> {
+        undefinedConflicts = findUndefinedConflicts(snapshot.values(), id -> {
             File file = enchantmentConfig.getSourceFile(id);
             return file != null ? file.getAbsolutePath() : "未知文件";
         });

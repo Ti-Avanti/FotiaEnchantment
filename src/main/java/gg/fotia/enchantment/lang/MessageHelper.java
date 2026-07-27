@@ -1,28 +1,31 @@
 package gg.fotia.enchantment.lang;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.entity.Player;
 import gg.fotia.enchantment.FotiaEnchantment;
-import gg.fotia.enchantment.util.LegacyColorConverter;
+import gg.fotia.enchantment.util.MiniMessageCache;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 消息辅助工具
- * 负责消息发送、占位符替换和文本解析
+ * 负责消息发送、占位符替换和文本解析。
+ * 最终文本解析走 MiniMessageCache, 相同消息内容不重复反序列化。
  */
 public class MessageHelper {
 
     private final FotiaEnchantment plugin;
     private final LanguageManager languageManager;
-    private final MiniMessage miniMessage;
+
+    /** 已告警过的缺失消息键, 每个键只提示一次 */
+    private final Set<String> warnedMissingKeys = ConcurrentHashMap.newKeySet();
 
     public MessageHelper(FotiaEnchantment plugin, LanguageManager languageManager) {
         this.plugin = plugin;
         this.languageManager = languageManager;
-        this.miniMessage = MiniMessage.miniMessage();
     }
 
     /**
@@ -35,6 +38,10 @@ public class MessageHelper {
     public void sendMessage(Player player, String key, Map<String, String> placeholders) {
         String message = languageManager.getMessage(player, key);
         if (message == null || message.equals(key)) {
+            // 缺键静默会让排查困难, 向控制台提示一次
+            if (key != null && warnedMissingKeys.add(key)) {
+                plugin.getLogger().warning("缺少消息键: " + key + " (请检查各语言的 messages.yml)");
+            }
             return;
         }
         Component component = parseText(player, message, placeholders);
@@ -82,11 +89,8 @@ public class MessageHelper {
             }
         }
 
-        // 先转换旧颜色码为 MiniMessage 格式
-        text = LegacyColorConverter.convert(text);
-
-        // 使用 MiniMessage 解析
-        return miniMessage.deserialize(text);
+        // 解析 (兼容旧颜色码, 内容级缓存)
+        return MiniMessageCache.deserializeLegacyAware(text);
     }
 
     /**
@@ -99,11 +103,6 @@ public class MessageHelper {
         if (text == null || text.isEmpty()) {
             return Component.empty();
         }
-
-        // 转换旧颜色码
-        text = LegacyColorConverter.convert(text);
-
-        // 使用 MiniMessage 解析
-        return miniMessage.deserialize(text);
+        return MiniMessageCache.deserializeLegacyAware(text);
     }
 }

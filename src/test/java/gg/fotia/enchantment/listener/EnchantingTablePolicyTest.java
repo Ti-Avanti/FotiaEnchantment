@@ -31,7 +31,8 @@ class EnchantingTablePolicyTest {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/listener/EnchantListener.java"));
 
-        assertTrue(source.contains("!pdc.getEnchantments(item).isEmpty()"),
+        assertTrue(source.contains("Map<String, Integer> existingCustom = pdc.getEnchantments(item);")
+                        && source.contains("!existingCustom.isEmpty()"),
                 "Custom enchanting table rolls must not run on items that already have Fotia enchantments");
     }
 

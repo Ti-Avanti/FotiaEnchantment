@@ -52,11 +52,13 @@ public class EffectPipeline {
     private final CooldownManager cooldownManager;
     private final ConditionStateListener conditionStateListener;
 
-    private int maxEffectsPerTick;
+    private volatile int maxEffectsPerTick;
+    private final Object effectBudgetLock = new Object();
     private int currentTickEffects = 0;
-    private Object tickResetTask;
+    /** 上次计数所在的服务器 tick, 用于惰性重置计数器 (替代每 tick 常驻重置任务) */
+    private int currentTickStamp = Integer.MIN_VALUE;
     private Object cooldownPurgeTask;
-    private final ThreadLocal<List<String>> executionStack = ThreadLocal.withInitial(ArrayList::new);
+    private final ThreadLocal<List<ExecutionKey>> executionStack = ThreadLocal.withInitial(ArrayList::new);
     private Map<String, List<TriggerBinding>> triggerIndex = Collections.emptyMap();
 
     public EffectPipeline(FotiaEnchantment plugin) {
@@ -101,17 +103,32 @@ public class EffectPipeline {
         triggerRegistry.deactivateAll();
         maxEffectsPerTick = plugin.getConfigManager().getMainConfig()
                 .getInt("performance.max-effects-per-tick", 50);
-        currentTickEffects = 0;
+        resetTickCounter();
         rebuildTriggerIndex();
         triggerRegistry.activateOnly(this, triggerIndex.keySet());
     }
 
     /**
-     * 触发器调用此方法来执行效果管道
+     * 触发器调用此方法来执行效果管道 (扫描全部 6 个装备槽位)
      *
      * @param context 触发上下文
      */
     public void execute(TriggerContext context) {
+        executeInternal(context, null);
+    }
+
+    /**
+     * 槽位限定执行: 只处理指定物品上的附魔。
+     * 供 WEAR/HOLD 等按槽位触发的场景使用, 避免每件装备都触发全装备扫描。
+     */
+    public void executeForItem(TriggerContext context, ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return;
+        }
+        executeInternal(context, item);
+    }
+
+    private void executeInternal(TriggerContext context, ItemStack onlyItem) {
         if (context == null) {
             return;
         }
@@ -125,13 +142,21 @@ public class EffectPipeline {
             return;
         }
 
-        String executionKey = player.getUniqueId() + ":" + triggerId;
-        List<String> stack = executionStack.get();
+        ExecutionKey executionKey = new ExecutionKey(player.getUniqueId(), triggerId);
+        List<ExecutionKey> stack = executionStack.get();
         if (stack.contains(executionKey)) {
             return;
         }
         stack.add(executionKey);
         try {
+            // 先做廉价的附魔收集, 无附魔的事件不再支付 WorldGuard 区域查询成本
+            List<ActiveEnchantment> activeEnchantments = onlyItem != null
+                    ? getActiveEnchantments(onlyItem, triggerId)
+                    : getActiveEnchantments(player, triggerId);
+            if (activeEnchantments.isEmpty()) {
+                return;
+            }
+
             WorldGuardHook worldGuardHook = plugin.getIntegrationManager() != null
                     ? plugin.getIntegrationManager().getWorldGuardHook()
                     : null;
@@ -140,15 +165,9 @@ public class EffectPipeline {
                 return;
             }
 
-            // 获取玩家所有装备上匹配该触发器的活跃附魔
-            List<ActiveEnchantment> activeEnchantments = getActiveEnchantments(player, triggerId);
-            if (activeEnchantments.isEmpty()) {
-                return;
-            }
-
             for (int idx = 0; idx < activeEnchantments.size(); idx++) {
                 // 性能限制检查
-                if (currentTickEffects >= maxEffectsPerTick) {
+                if (effectsThisTick() >= maxEffectsPerTick) {
                     break;
                 }
 
@@ -167,6 +186,7 @@ public class EffectPipeline {
 
                 // 检查所有条件
                 boolean allConditionsMet = true;
+                List<ConditionCommit> postCommits = null;
                 if (effectBlock.getConditions() != null) {
                     for (EnchantmentData.ConditionConfig condConfig : effectBlock.getConditions()) {
                         if (condConfig == null) {
@@ -177,7 +197,7 @@ public class EffectPipeline {
                             continue;
                         }
                         ConditionContext condContext = new ConditionContext(
-                                plugin, context, condConfig, level, variables
+                                plugin, context, condConfig, level, variables, active.getData().getId()
                         );
                         boolean passed;
                         try {
@@ -191,6 +211,13 @@ public class EffectPipeline {
                             allConditionsMet = false;
                             break;
                         }
+                        // 带副作用的条件推迟到动作执行后提交
+                        if (condition.requiresPostCommit()) {
+                            if (postCommits == null) {
+                                postCommits = new ArrayList<>(2);
+                            }
+                            postCommits.add(new ConditionCommit(condition, condContext));
+                        }
                     }
                 }
 
@@ -199,7 +226,7 @@ public class EffectPipeline {
                 }
 
                 // 检查冷却
-                String cooldownKey = active.getData().getId() + ":" + active.getEffectIndex();
+                String cooldownKey = active.getCooldownKey();
                 long cooldownTicks = LevelCooldownPolicy.resolveCooldownTicks(effectBlock, level, variables);
                 if (cooldownTicks > 0
                         && cooldownManager.isOnCooldown(player.getUniqueId(), cooldownKey)) {
@@ -207,6 +234,7 @@ public class EffectPipeline {
                 }
 
                 // 执行所有动作
+                boolean actionExecuted = false;
                 if (effectBlock.getActions() != null) {
                     for (EnchantmentData.ActionConfig actionConfig : effectBlock.getActions()) {
                         if (actionConfig == null) {
@@ -216,18 +244,37 @@ public class EffectPipeline {
                         if (effect == null) {
                             continue;
                         }
+                        if (!tryAcquireEffectBudget()) {
+                            break;
+                        }
                         EffectContext effectContext = new EffectContext(
                                 plugin, context, actionConfig, level, variables
                         );
                         try {
                             effect.execute(effectContext);
+                            actionExecuted = true;
                         } catch (Exception ex) {
                             plugin.getLogger().warning("执行效果 "
                                     + actionConfig.getType() + " 时出错: " + ex.getMessage());
                         }
-                        currentTickEffects++;
                         if (effectContext.isStopChain()) {
                             break;
+                        }
+                    }
+                }
+
+                if (!actionExecuted) {
+                    continue;
+                }
+
+                // 动作阶段完成, 提交带副作用的条件 (如冷却记录)
+                if (postCommits != null) {
+                    for (ConditionCommit commit : postCommits) {
+                        try {
+                            commit.condition().onEffectsExecuted(commit.context());
+                        } catch (Exception ex) {
+                            plugin.getLogger().warning("提交条件 "
+                                    + commit.condition().getId() + " 副作用时出错: " + ex.getMessage());
                         }
                     }
                 }
@@ -268,26 +315,55 @@ public class EffectPipeline {
     }
 
     public boolean hasActiveEnchantment(ItemStack item, String triggerId) {
-        if (!isRuntimeEffectSource(item)) {
+        if (!isRuntimeEffectSource(item) || !item.hasItemMeta()) {
             return false;
         }
         List<TriggerBinding> bindings = triggerIndex.get(normalizeTriggerId(triggerId));
         if (bindings == null || bindings.isEmpty()) {
             return false;
         }
+        PDCManager pdcManager = getPdcManager();
+        if (pdcManager == null) {
+            return false;
+        }
+        // 一次 meta 解析服务该物品的全部绑定, 避免逐绑定重复读取 PDC
+        Map<String, Integer> enchants = pdcManager.getEnchantments(item.getItemMeta());
+        if (enchants.isEmpty()) {
+            return false;
+        }
         for (TriggerBinding binding : bindings) {
-            if (getEnchantLevel(item, binding.getData()) > 0) {
+            if (bindingLevel(binding, enchants, item, pdcManager) > 0) {
                 return true;
             }
         }
         return false;
     }
 
-    private List<ActiveEnchantment> getActiveEnchantments(Player player, String triggerId) {
-        List<ActiveEnchantment> result = new ArrayList<>();
+    /**
+     * 单物品版本: 只收集指定物品上匹配该触发器的活跃附魔
+     */
+    private List<ActiveEnchantment> getActiveEnchantments(ItemStack item, String triggerId) {
         List<TriggerBinding> bindings = triggerIndex.get(normalizeTriggerId(triggerId));
         if (bindings == null || bindings.isEmpty()) {
-            return result;
+            return Collections.emptyList();
+        }
+        PDCManager pdcManager = getPdcManager();
+        if (pdcManager == null) {
+            return Collections.emptyList();
+        }
+        List<ActiveEnchantment> result = new ArrayList<>();
+        collectActiveEnchantments(item, bindings, pdcManager, result);
+        return result;
+    }
+
+    private List<ActiveEnchantment> getActiveEnchantments(Player player, String triggerId) {
+        List<TriggerBinding> bindings = triggerIndex.get(normalizeTriggerId(triggerId));
+        if (bindings == null || bindings.isEmpty()) {
+            return Collections.emptyList();
+        }
+        PDCManager pdcManager = getPdcManager();
+        if (pdcManager == null) {
+            return Collections.emptyList();
         }
 
         PlayerInventory inv = player.getInventory();
@@ -300,41 +376,56 @@ public class EffectPipeline {
                 inv.getBoots()
         };
 
+        List<ActiveEnchantment> result = new ArrayList<>();
         for (ItemStack item : itemsToCheck) {
-            if (!isRuntimeEffectSource(item)) {
-                continue;
-            }
-
-            for (TriggerBinding binding : bindings) {
-                EnchantmentData data = binding.getData();
-                int level = getEnchantLevel(item, data);
-                if (level <= 0) {
-                    continue;
-                }
-                result.add(new ActiveEnchantment(
-                        data, level, item, binding.getEffectBlock(), binding.getEffectIndex()));
-            }
+            collectActiveEnchantments(item, bindings, pdcManager, result);
         }
-
         return result;
     }
 
     /**
-     * 获取物品上某附魔的等级。
+     * 收集单件物品上匹配绑定的活跃附魔。
+     * 每件物品只做一次 meta 深拷贝与 PDC 解析, 服务该触发器的全部绑定。
      */
-    private int getEnchantLevel(ItemStack item, EnchantmentData data) {
-        if (!isRuntimeEffectSource(item) || data == null || data.getId() == null) {
+    private void collectActiveEnchantments(ItemStack item,
+                                           List<TriggerBinding> bindings,
+                                           PDCManager pdcManager,
+                                           List<ActiveEnchantment> out) {
+        if (!isRuntimeEffectSource(item) || !item.hasItemMeta()) {
+            return;
+        }
+        Map<String, Integer> enchants = pdcManager.getEnchantments(item.getItemMeta());
+        if (enchants.isEmpty()) {
+            return;
+        }
+        for (TriggerBinding binding : bindings) {
+            int level = bindingLevel(binding, enchants, item, pdcManager);
+            if (level > 0) {
+                out.add(new ActiveEnchantment(
+                        binding.getData(), level, item, binding.getEffectBlock(),
+                        binding.getEffectIndex(), binding.getCooldownKey()));
+            }
+        }
+    }
+
+    private static int bindingLevel(TriggerBinding binding,
+                                    Map<String, Integer> enchants,
+                                    ItemStack item,
+                                    PDCManager pdcManager) {
+        EnchantmentData data = binding.getData();
+        if (data == null || data.getId() == null) {
             return 0;
         }
+        Integer level = enchants.get(data.getId());
+        if (level == null || level <= 0) {
+            return 0;
+        }
+        return pdcManager.isApplicable(item, data) ? level : 0;
+    }
+
+    private PDCManager getPdcManager() {
         EnchantmentManager enchantmentManager = plugin.getEnchantmentManager();
-        if (enchantmentManager == null) {
-            return 0;
-        }
-        PDCManager pdcManager = enchantmentManager.getPdcManager();
-        if (!pdcManager.isApplicable(item, data)) {
-            return 0;
-        }
-        return pdcManager.getEnchantmentLevel(item, data.getId());
+        return enchantmentManager != null ? enchantmentManager.getPdcManager() : null;
     }
 
     private static boolean isRuntimeEffectSource(ItemStack item) {
@@ -411,14 +502,11 @@ public class EffectPipeline {
 
     private void startMaintenanceTasks() {
         stopMaintenanceTasks();
-        tickResetTask = SchedulerUtils.runTaskTimer(plugin, this::resetTickCounter, 1L, 1L);
         cooldownPurgeTask = SchedulerUtils.runTaskTimer(plugin, cooldownManager::purgeExpired, 20L * 60L, 20L * 60L);
     }
 
     private void stopMaintenanceTasks() {
-        SchedulerUtils.cancelTask(tickResetTask);
         SchedulerUtils.cancelTask(cooldownPurgeTask);
-        tickResetTask = null;
         cooldownPurgeTask = null;
     }
 
@@ -789,20 +877,54 @@ public class EffectPipeline {
     }
 
     public int getCurrentTickEffects() {
-        return currentTickEffects;
+        return effectsThisTick();
     }
 
     /**
-     * 每tick重置计数器（由定时器调用）
+     * 惰性按 tick 重置的计数读取: 进入新 tick 时清零, 无需常驻重置任务
+     */
+    private int effectsThisTick() {
+        synchronized (effectBudgetLock) {
+            resetTickCounterIfNeeded();
+            return currentTickEffects;
+        }
+    }
+
+    private boolean tryAcquireEffectBudget() {
+        synchronized (effectBudgetLock) {
+            resetTickCounterIfNeeded();
+            if (currentTickEffects >= maxEffectsPerTick) {
+                return false;
+            }
+            currentTickEffects++;
+            return true;
+        }
+    }
+
+    private void resetTickCounterIfNeeded() {
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        if (tick != currentTickStamp) {
+            currentTickStamp = tick;
+            currentTickEffects = 0;
+        }
+    }
+
+    /**
+     * 重置计数器 (惰性重置后仅供外部手动清零使用)
      */
     public void resetTickCounter() {
-        currentTickEffects = 0;
+        synchronized (effectBudgetLock) {
+            currentTickEffects = 0;
+            currentTickStamp = org.bukkit.Bukkit.getCurrentTick();
+        }
     }
 
     static class TriggerBinding {
         private final EnchantmentData data;
         private final EnchantmentData.EffectBlock effectBlock;
         private final int effectIndex;
+        /** 冷却键在构建索引时预计算, 避免热路径字符串拼接 */
+        private final String cooldownKey;
 
         TriggerBinding(EnchantmentData data,
                        EnchantmentData.EffectBlock effectBlock,
@@ -810,6 +932,8 @@ public class EffectPipeline {
             this.data = data;
             this.effectBlock = effectBlock;
             this.effectIndex = effectIndex;
+            this.cooldownKey = (data != null && data.getId() != null ? data.getId() : "?")
+                    + ":" + effectIndex;
         }
 
         public EnchantmentData getData() {
@@ -823,6 +947,22 @@ public class EffectPipeline {
         public int getEffectIndex() {
             return effectIndex;
         }
+
+        public String getCooldownKey() {
+            return cooldownKey;
+        }
+    }
+
+    /**
+     * 重入守卫键 (避免每次执行做 UUID/字符串拼接)
+     */
+    private record ExecutionKey(java.util.UUID playerId, String triggerId) {
+    }
+
+    /**
+     * 条件通过后待提交的副作用 (动作执行完成后统一提交)
+     */
+    private record ConditionCommit(Condition condition, ConditionContext context) {
     }
 
     /**
@@ -834,17 +974,29 @@ public class EffectPipeline {
         private final ItemStack item;
         private final EnchantmentData.EffectBlock effectBlock;
         private final int effectIndex;
+        private final String cooldownKey;
 
         public ActiveEnchantment(EnchantmentData data,
                                  int level,
                                  ItemStack item,
                                  EnchantmentData.EffectBlock effectBlock,
                                  int effectIndex) {
+            this(data, level, item, effectBlock, effectIndex,
+                    (data != null && data.getId() != null ? data.getId() : "?") + ":" + effectIndex);
+        }
+
+        public ActiveEnchantment(EnchantmentData data,
+                                 int level,
+                                 ItemStack item,
+                                 EnchantmentData.EffectBlock effectBlock,
+                                 int effectIndex,
+                                 String cooldownKey) {
             this.data = data;
             this.level = level;
             this.item = item;
             this.effectBlock = effectBlock;
             this.effectIndex = effectIndex;
+            this.cooldownKey = cooldownKey;
         }
 
         public EnchantmentData getData() {
@@ -865,6 +1017,10 @@ public class EffectPipeline {
 
         public int getEffectIndex() {
             return effectIndex;
+        }
+
+        public String getCooldownKey() {
+            return cooldownKey;
         }
     }
 }

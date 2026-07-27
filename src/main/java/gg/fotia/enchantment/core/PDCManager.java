@@ -8,7 +8,6 @@ import gg.fotia.enchantment.compat.BukkitItemFlags;
 import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import gg.fotia.enchantment.util.ItemUtils;
-import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
@@ -20,25 +19,49 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.logging.Logger;
 
 /**
  * PDC管理器 - 通过 PersistentDataContainer 在物品上存储和读取自定义附魔数据。
  *
  * <p>存储格式: key=fotia:enchantments, value=JSON字符串 {"enchant_id":level, ...}
+ *
+ * <p>读取路径带解析缓存, 可被 Netty 数据包线程并发调用。
  */
 public class PDCManager {
 
     private static final Gson GSON = new Gson();
 
+    /** JSON字符串 → 解析结果缓存上限, 超过后整体清空防止无界增长 */
+    private static final int PARSE_CACHE_MAX = 4096;
+
     /** 存储附魔数据的 NamespacedKey */
     private final NamespacedKey enchantmentsKey;
 
+    private final Logger logger;
+
+    /**
+     * JSON字符串 → 不可变附魔Map 的解析缓存。
+     * 相同附魔组合序列化出的 JSON 串完全一致, 命中率高; 值不可变, 供多线程安全共享。
+     */
+    private final Map<String, Map<String, Integer>> parseCache = new ConcurrentHashMap<>();
+
+    /**
+     * 附魔ID → 真附魔解析结果缓存。附魔注册表在服务器启动后冻结, 结果恒定。
+     */
+    private final Map<String, Optional<Enchantment>> trueEnchantmentCache = new ConcurrentHashMap<>();
+
+    /** JSON 解析失败只告警一次, 避免损坏物品在背包巡检中反复刷屏 */
+    private volatile boolean parseFailureLogged;
+
     public PDCManager(Plugin plugin) {
         this.enchantmentsKey = new NamespacedKey(plugin, "enchantments");
+        this.logger = plugin.getLogger();
     }
 
     /**
@@ -68,23 +91,19 @@ public class PDCManager {
 
             String normalized = normalizeId(enchantId);
             Map<String, Integer> legacy = readEnchantments(meta);
-            boolean removedLegacy = legacy.remove(normalized) != null;
-            removedLegacy |= legacy.remove(EnchantmentRegistry.getNamespace() + ":" + normalized) != null;
-            if (removedLegacy) {
+            if (legacy.remove(normalized) != null) {
                 writeEnchantments(meta, legacy);
             }
-            hideNativeEnchantDisplay(meta);
+            hideNativeEnchantDisplay(meta, !legacy.isEmpty());
             item.setItemMeta(meta);
             return item;
         }
 
         Map<String, Integer> enchants = readEnchantments(meta);
-        String normalized = normalizeId(enchantId);
-        enchants.remove(EnchantmentRegistry.getNamespace() + ":" + normalized);
-        enchants.put(normalized, level);
+        enchants.put(normalizeId(enchantId), level);
         writeEnchantments(meta, enchants);
         setLegacyCustomGlint(meta, true);
-        hideNativeEnchantDisplay(meta);
+        hideNativeEnchantDisplay(meta, true);
         item.setItemMeta(meta);
         return item;
     }
@@ -127,9 +146,72 @@ public class PDCManager {
             modified = true;
         }
         if (modified) {
-            hideNativeEnchantDisplay(meta);
+            hideNativeEnchantDisplay(meta, !enchants.isEmpty());
             item.setItemMeta(meta);
         }
+        return item;
+    }
+
+    /**
+     * 批量覆写物品上的全部自定义附魔, 单次 meta 往返完成。
+     *
+     * <p>会先清除物品上现有的 fotia 命名空间真附魔与旧版 PDC 数据,
+     * 再按传入映射逐个写入(已注册真附魔的走原生存储, 其余走 PDC JSON)。
+     * 供物品有效性巡检等需要一次性修正多个附魔的调用方使用,
+     * 避免逐条 remove/add 造成的重复 meta 克隆与 JSON 解析。
+     *
+     * @param item     目标物品
+     * @param enchants 附魔ID→等级映射; null 或空表示清空全部自定义附魔
+     * @return 修改后的物品
+     */
+    public ItemStack setEnchantments(ItemStack item, Map<String, Integer> enchants) {
+        if (item == null) {
+            return item;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return item;
+        }
+
+        // 清除现有 fotia 命名空间真附魔
+        for (Enchantment existing : meta.getEnchants().keySet().toArray(new Enchantment[0])) {
+            if (isCustomTrueEnchantment(existing)) {
+                meta.removeEnchant(existing);
+            }
+        }
+        if (meta instanceof EnchantmentStorageMeta storageMeta) {
+            for (Enchantment existing : storageMeta.getStoredEnchants().keySet().toArray(new Enchantment[0])) {
+                if (isCustomTrueEnchantment(existing)) {
+                    storageMeta.removeStoredEnchant(existing);
+                }
+            }
+        }
+
+        Map<String, Integer> legacy = new HashMap<>();
+        if (enchants != null) {
+            for (Map.Entry<String, Integer> entry : enchants.entrySet()) {
+                String id = entry.getKey();
+                Integer level = entry.getValue();
+                if (id == null || id.isEmpty() || level == null || level < 1) {
+                    continue;
+                }
+                String normalized = normalizeId(id);
+                Enchantment trueEnchantment = resolveTrueEnchantment(normalized);
+                if (trueEnchantment != null) {
+                    if (meta instanceof EnchantmentStorageMeta storageMeta) {
+                        storageMeta.addStoredEnchant(trueEnchantment, level, true);
+                    } else {
+                        meta.addEnchant(trueEnchantment, level, true);
+                    }
+                } else {
+                    legacy.put(normalized, level);
+                }
+            }
+        }
+        writeEnchantments(meta, legacy);
+        setLegacyCustomGlint(meta, !legacy.isEmpty());
+        hideNativeEnchantDisplay(meta, !legacy.isEmpty());
+        item.setItemMeta(meta);
         return item;
     }
 
@@ -143,13 +225,27 @@ public class PDCManager {
         if (item == null || !item.hasItemMeta()) {
             return Collections.emptyMap();
         }
-        ItemMeta meta = item.getItemMeta();
+        return getEnchantments(item.getItemMeta());
+    }
+
+    /**
+     * 获取物品上所有自定义附魔 (供已持有 ItemMeta 的调用方使用, 避免重复的 meta 深拷贝)
+     */
+    public Map<String, Integer> getEnchantments(ItemMeta meta) {
         if (meta == null) {
             return Collections.emptyMap();
         }
-        Map<String, Integer> enchants = readEnchantments(meta);
-        enchants.putAll(readTrueEnchantments(meta));
-        return Collections.unmodifiableMap(enchants);
+        Map<String, Integer> legacy = readEnchantmentsShared(meta);
+        Map<String, Integer> trueEnchants = readTrueEnchantments(meta);
+        if (trueEnchants.isEmpty()) {
+            return legacy;
+        }
+        if (legacy.isEmpty()) {
+            return Collections.unmodifiableMap(trueEnchants);
+        }
+        Map<String, Integer> merged = new HashMap<>(legacy);
+        merged.putAll(trueEnchants);
+        return Collections.unmodifiableMap(merged);
     }
 
     /**
@@ -163,7 +259,17 @@ public class PDCManager {
         if (meta == null) {
             return Collections.emptyMap();
         }
-        return Collections.unmodifiableMap(readEnchantments(meta));
+        return readEnchantmentsShared(meta);
+    }
+
+    /**
+     * 只读取旧版 PDC 附魔数据 (供已持有 ItemMeta 的调用方使用)
+     */
+    public Map<String, Integer> getLegacyEnchantments(ItemMeta meta) {
+        if (meta == null) {
+            return Collections.emptyMap();
+        }
+        return readEnchantmentsShared(meta);
     }
 
     /**
@@ -185,8 +291,7 @@ public class PDCManager {
         if (trueEnchantment != null && hasTrueEnchantment(meta, trueEnchantment)) {
             return true;
         }
-        Map<String, Integer> enchants = readEnchantments(meta);
-        return enchants.containsKey(normalizeId(enchantId));
+        return readEnchantmentsShared(meta).containsKey(normalizeId(enchantId));
     }
 
     /**
@@ -200,8 +305,14 @@ public class PDCManager {
         if (item == null || enchantId == null || !item.hasItemMeta()) {
             return 0;
         }
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
+        return getEnchantmentLevel(item.getItemMeta(), enchantId);
+    }
+
+    /**
+     * 获取指定附魔等级 (供已持有 ItemMeta 的调用方使用, 避免重复的 meta 深拷贝)
+     */
+    public int getEnchantmentLevel(ItemMeta meta, String enchantId) {
+        if (meta == null || enchantId == null) {
             return 0;
         }
         Enchantment trueEnchantment = resolveTrueEnchantment(enchantId);
@@ -211,8 +322,7 @@ public class PDCManager {
                 return level;
             }
         }
-        Map<String, Integer> enchants = readEnchantments(meta);
-        return enchants.getOrDefault(normalizeId(enchantId), 0);
+        return readEnchantmentsShared(meta).getOrDefault(normalizeId(enchantId), 0);
     }
 
     public boolean isTrueEnchantmentRegistered(String enchantId) {
@@ -230,12 +340,11 @@ public class PDCManager {
         if (item == null || data == null) {
             return false;
         }
-        List<Material> applicable = data.getApplicableItems();
         // 如果未配置适用物品列表，则默认适用所有
-        if (applicable == null || applicable.isEmpty()) {
+        if (data.getApplicableItems().isEmpty()) {
             return true;
         }
-        return applicable.contains(item.getType());
+        return data.isApplicableTo(item.getType());
     }
 
     /**
@@ -255,9 +364,21 @@ public class PDCManager {
         if (item == null || data == null) {
             return false;
         }
-        Map<String, Integer> existing = getEnchantments(item);
+        return hasConflict(item.hasItemMeta() ? item.getItemMeta() : null, data, dataResolver);
+    }
+
+    /**
+     * 冲突检查 (供已持有 ItemMeta 的调用方使用, 避免重复的 meta 深拷贝)
+     */
+    public boolean hasConflict(ItemMeta meta,
+                               EnchantmentData data,
+                               Function<String, EnchantmentData> dataResolver) {
+        if (data == null) {
+            return false;
+        }
+        Map<String, Integer> existing = meta != null ? getEnchantments(meta) : Collections.emptyMap();
         return EnchantmentConflictPolicy.hasCustomConflict(data.getId(), data, existing, dataResolver)
-                || findNativeConflict(item, data) != null;
+                || (meta != null && findNativeConflict(meta, data) != null);
     }
 
     /**
@@ -271,7 +392,16 @@ public class PDCManager {
         if (meta == null) {
             return null;
         }
+        return findNativeConflict(meta, data);
+    }
 
+    /**
+     * 查找与 Fotia 附魔配置冲突的原版附魔 (ItemMeta 版本)
+     */
+    public Enchantment findNativeConflict(ItemMeta meta, EnchantmentData data) {
+        if (meta == null || data == null) {
+            return null;
+        }
         Enchantment conflict = findNativeConflict(data, meta.getEnchants().keySet());
         if (conflict != null || !(meta instanceof EnchantmentStorageMeta storageMeta)) {
             return conflict;
@@ -281,7 +411,7 @@ public class PDCManager {
 
     private Enchantment findNativeConflict(EnchantmentData data, Iterable<Enchantment> enchantments) {
         for (Enchantment enchantment : enchantments) {
-            if (EnchantmentConflictPolicy.referencesBukkit(data.getConflicts(), enchantment)) {
+            if (EnchantmentConflictPolicy.referencesBukkit(data, enchantment)) {
                 return enchantment;
             }
         }
@@ -298,18 +428,39 @@ public class PDCManager {
     // ==================== 内部方法 ====================
 
     /**
-     * 从 ItemMeta 的 PDC 中读取附魔数据
+     * 从 ItemMeta 的 PDC 中读取附魔数据 (可变副本, 供需要修改后回写的调用方)
      */
     private Map<String, Integer> readEnchantments(ItemMeta meta) {
+        return new HashMap<>(readEnchantmentsShared(meta));
+    }
+
+    /**
+     * 从 ItemMeta 的 PDC 中读取附魔数据 (不可变共享实例, 走解析缓存, 禁止修改)
+     */
+    private Map<String, Integer> readEnchantmentsShared(ItemMeta meta) {
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         String json = pdc.get(enchantmentsKey, PersistentDataType.STRING);
         if (json == null || json.isEmpty()) {
-            return new HashMap<>();
+            return Collections.emptyMap();
         }
+        Map<String, Integer> cached = parseCache.get(json);
+        if (cached != null) {
+            return cached;
+        }
+        Map<String, Integer> parsed = parseEnchantments(json);
+        if (parseCache.size() >= PARSE_CACHE_MAX) {
+            parseCache.clear();
+        }
+        parseCache.put(json, parsed);
+        return parsed;
+    }
+
+    private Map<String, Integer> parseEnchantments(String json) {
         try {
             JsonElement root = JsonParser.parseString(json);
             if (!root.isJsonObject()) {
-                return new HashMap<>();
+                logParseFailure(json, null);
+                return Collections.emptyMap();
             }
             Map<String, Integer> enchants = new HashMap<>();
             JsonObject object = root.getAsJsonObject();
@@ -324,11 +475,20 @@ public class PDCManager {
                     enchants.merge(id, level, Math::max);
                 }
             }
-            return enchants;
+            return enchants.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(enchants);
         } catch (RuntimeException e) {
-            // JSON解析失败，返回空Map
-            return new HashMap<>();
+            logParseFailure(json, e);
+            return Collections.emptyMap();
         }
+    }
+
+    private void logParseFailure(String json, RuntimeException e) {
+        if (parseFailureLogged) {
+            return;
+        }
+        parseFailureLogged = true;
+        logger.warning("物品 PDC 附魔数据损坏, 无法解析 JSON (后续同类错误不再提示): "
+                + json + (e != null ? " (" + e.getMessage() + ")" : ""));
     }
 
     /**
@@ -344,11 +504,18 @@ public class PDCManager {
     }
 
     private Map<String, Integer> readTrueEnchantments(ItemMeta meta) {
-        Map<String, Integer> result = new HashMap<>();
-        for (Map.Entry<Enchantment, Integer> entry : meta.getEnchants().entrySet()) {
-            addCustomTrueEnchantment(result, entry.getKey(), entry.getValue());
+        boolean hasNative = meta.hasEnchants();
+        boolean hasStored = hasStoredEnchantments(meta);
+        if (!hasNative && !hasStored) {
+            return Collections.emptyMap();
         }
-        if (meta instanceof EnchantmentStorageMeta storageMeta) {
+        Map<String, Integer> result = new HashMap<>();
+        if (hasNative) {
+            for (Map.Entry<Enchantment, Integer> entry : meta.getEnchants().entrySet()) {
+                addCustomTrueEnchantment(result, entry.getKey(), entry.getValue());
+            }
+        }
+        if (hasStored && meta instanceof EnchantmentStorageMeta storageMeta) {
             for (Map.Entry<Enchantment, Integer> entry : storageMeta.getStoredEnchants().entrySet()) {
                 addCustomTrueEnchantment(result, entry.getKey(), entry.getValue());
             }
@@ -356,12 +523,10 @@ public class PDCManager {
         return result;
     }
 
-    private void hideNativeEnchantDisplay(ItemMeta meta) {
-        boolean hasStoredEnchants = hasStoredEnchantments(meta);
-        boolean hasLegacyCustomEnchants = !readEnchantments(meta).isEmpty();
+    private void hideNativeEnchantDisplay(ItemMeta meta, boolean hasLegacyCustomEnchants) {
         if (EnchantmentDisplayPolicy.shouldHideNativeEnchantments(
                 meta.hasEnchants(),
-                hasStoredEnchants,
+                hasStoredEnchantments(meta),
                 hasLegacyCustomEnchants)) {
             BukkitItemFlags.hideEnchantments(meta);
         }
@@ -392,13 +557,28 @@ public class PDCManager {
         }
     }
 
+    private boolean isCustomTrueEnchantment(Enchantment enchantment) {
+        if (enchantment == null) {
+            return false;
+        }
+        NamespacedKey key = enchantment.getKey();
+        return key != null && EnchantmentRegistry.getNamespace().equals(key.getNamespace());
+    }
+
     private Enchantment resolveTrueEnchantment(String enchantId) {
         if (enchantId == null || enchantId.isBlank()) {
             return null;
         }
-        return BukkitRegistryCompat.enchantment(new NamespacedKey(
-                EnchantmentRegistry.getNamespace(),
-                normalizeId(enchantId)));
+        // 附魔注册表启动后冻结, 解析结果恒定, 缓存避免每次的 NamespacedKey 分配与注册表查找
+        return trueEnchantmentCache.computeIfAbsent(normalizeId(enchantId), id -> {
+            try {
+                return Optional.ofNullable(BukkitRegistryCompat.enchantment(new NamespacedKey(
+                        EnchantmentRegistry.getNamespace(), id)));
+            } catch (IllegalArgumentException e) {
+                // id 含非法字符, 无法构成 NamespacedKey
+                return Optional.empty();
+            }
+        }).orElse(null);
     }
 
     private boolean hasTrueEnchantment(ItemMeta meta, Enchantment enchantment) {

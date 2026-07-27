@@ -394,7 +394,8 @@ public class CatalogEffect implements Effect {
                 continue;
             }
             switch (parts.operation()) {
-                case "BREAK" -> block.breakNaturally(player.getInventory().getItemInMainHand());
+                // 以玩家身份破坏: 触发 BlockBreakEvent 供保护插件否决, 并正确处理掉落与耐久
+                case "BREAK" -> player.breakBlock(block);
                 case "PLACE", "REPLACE" -> block.setType(material(context, "material", "block", Material.STONE));
                 case "AGE_CROP" -> ageCrop(block);
                 case "REPLANT" -> replant(block, context);
@@ -433,7 +434,11 @@ public class CatalogEffect implements Effect {
             blocks.add(base);
             return blocks;
         }
-        Location location = base.getLocation();
+        World world = base.getWorld();
+        int baseX = base.getX();
+        int baseY = base.getY();
+        int baseZ = base.getZ();
+        // 整数坐标直取方块, 避免半径立方体内的 Location 克隆分配
         for (int x = -radius; x <= radius; x++) {
             for (int y = -radius; y <= radius; y++) {
                 for (int z = -radius; z <= radius; z++) {
@@ -443,7 +448,7 @@ public class CatalogEffect implements Effect {
                     if ("SPHERE".equals(target) && x * x + y * y + z * z > radius * radius) {
                         continue;
                     }
-                    blocks.add(location.clone().add(x, y, z).getBlock());
+                    blocks.add(world.getBlockAt(baseX + x, baseY + y, baseZ + z));
                 }
             }
         }

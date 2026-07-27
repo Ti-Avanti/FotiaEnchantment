@@ -4,6 +4,7 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantingTableLevelPolicy;
 import gg.fotia.enchantment.core.EnchantmentConflictPolicy;
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.EnchantmentGroupPolicy;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
@@ -52,7 +53,8 @@ public class EnchantListener implements Listener {
 
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
         PDCManager pdc = enchantManager.getPdcManager();
-        if (!pdc.getEnchantments(item).isEmpty()) {
+        Map<String, Integer> existingCustom = pdc.getEnchantments(item);
+        if (!existingCustom.isEmpty()) {
             return;
         }
 
@@ -94,7 +96,7 @@ public class EnchantListener implements Listener {
                 existingCount,
                 max,
                 event.getEnchantmentHint());
-        Set<String> selectedIds = selectedCustomIds(event.getEnchantsToAdd(), pdc.getEnchantments(item));
+        Set<String> selectedIds = selectedCustomIds(event.getEnchantsToAdd(), existingCustom);
         int currentCount = EnchantmentLimitPolicy.countEnchantments(item, pdc, event.getEnchantsToAdd());
         if (!EnchantmentLimitPolicy.canAddNewEnchantment(currentCount, max)) {
             return;
@@ -184,7 +186,9 @@ public class EnchantListener implements Listener {
                 data -> pdc.isApplicable(mergeTarget, data),
                 mergeTarget.getType() == Material.ENCHANTED_BOOK,
                 EnchantmentLimitPolicy.countEnchantments(mergeTarget, pdc),
-                max
+                max,
+                (data, currentIds) -> EnchantmentGroupPolicy.canAddToGroup(
+                        plugin.getConfigManager(), enchantManager, currentIds, data)
         );
         if (merge.modified()) {
             for (Map.Entry<String, Integer> entry : merge.enchantments().entrySet()) {
@@ -282,6 +286,11 @@ public class EnchantListener implements Listener {
                                     PDCManager pdc,
                                     ItemStack item) {
         if (selectedIds.contains(data.getId())) {
+            return false;
+        }
+        // 同组附魔数量上限 (groups.yml max-per-item)
+        if (!EnchantmentGroupPolicy.canAddToGroup(
+                plugin.getConfigManager(), enchantManager, selectedIds, data)) {
             return false;
         }
         if (pdc.hasConflict(item, data, enchantManager::getEnchantment)) {

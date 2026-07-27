@@ -63,8 +63,10 @@ public class AnvilBreakthroughGUI extends BaseGUI {
                 "lang:anvil-breakthrough-gui.place-book");
         renderInput("catalyst", InputTarget.CATALYST, catalyst, Material.ECHO_SHARD,
                 "lang:anvil-breakthrough-gui.place-catalyst");
-        renderPreview();
-        renderControls();
+        // preview 计算较重 (克隆+合并+lore 重建), 每次刷新只算一次供两个渲染方法复用
+        AnvilBreakthroughService.Preview preview = service.preview(player, target, book);
+        renderPreview(preview);
+        renderControls(preview);
         fillMenuBackground(menu);
     }
 
@@ -87,13 +89,12 @@ public class AnvilBreakthroughGUI extends BaseGUI {
                 menuLore(itemConfig, Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap())));
     }
 
-    private void renderPreview() {
+    private void renderPreview(AnvilBreakthroughService.Preview preview) {
         int slot = menu.roleSlot("preview", 24);
         if (!isValidSlot(slot)) {
             return;
         }
 
-        AnvilBreakthroughService.Preview preview = service.preview(player, target, book);
         if (preview.success()) {
             inventory.setItem(slot, preview.result().clone());
             return;
@@ -106,8 +107,8 @@ public class AnvilBreakthroughGUI extends BaseGUI {
                 menuLore(itemConfig, List.of("{status_lines}"), Collections.emptyMap(), listPlaceholders)));
     }
 
-    private void renderControls() {
-        Map<String, List<String>> lists = Map.of("status_lines", statusLines(service.preview(player, target, book)));
+    private void renderControls(AnvilBreakthroughService.Preview preview) {
+        Map<String, List<String>> lists = Map.of("status_lines", statusLines(preview));
 
         renderAction("cancel", "cancel", Material.RED_STAINED_GLASS_PANE,
                 menu.roleSlot("cancel", 29),

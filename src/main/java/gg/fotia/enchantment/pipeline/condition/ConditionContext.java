@@ -19,6 +19,8 @@ public class ConditionContext {
     private final int enchantLevel;
     private final Map<String, Double> variables;
     private final FotiaEnchantment plugin;
+    private final String enchantId;
+    private Map<String, Double> variablesView;
 
     public ConditionContext(TriggerContext triggerContext,
                             EnchantmentData.ConditionConfig config,
@@ -32,17 +34,33 @@ public class ConditionContext {
                             EnchantmentData.ConditionConfig config,
                             int enchantLevel,
                             Map<String, Double> variables) {
+        this(plugin, triggerContext, config, enchantLevel, variables, null);
+    }
+
+    public ConditionContext(FotiaEnchantment plugin,
+                            TriggerContext triggerContext,
+                            EnchantmentData.ConditionConfig config,
+                            int enchantLevel,
+                            Map<String, Double> variables,
+                            String enchantId) {
         this.plugin = plugin;
         this.triggerContext = triggerContext;
         this.config = config;
         this.enchantLevel = enchantLevel;
-        this.variables = variables == null
-                ? new HashMap<>()
-                : new HashMap<>(variables);
+        // 管道内部约定变量 Map 只读共享, 不做防御性拷贝 (一次执行可创建数十个上下文)
+        this.variables = variables == null ? new HashMap<>() : variables;
+        this.enchantId = enchantId;
     }
 
     public FotiaEnchantment getPlugin() {
         return plugin;
+    }
+
+    /**
+     * 当前条件所属的附魔ID (可能为 null, 供需要按附魔隔离状态的条件使用)
+     */
+    public String getEnchantId() {
+        return enchantId;
     }
 
     public TriggerContext getTriggerContext() {
@@ -58,7 +76,10 @@ public class ConditionContext {
     }
 
     public Map<String, Double> getVariables() {
-        return Collections.unmodifiableMap(variables);
+        if (variablesView == null) {
+            variablesView = Collections.unmodifiableMap(variables);
+        }
+        return variablesView;
     }
 
     /**

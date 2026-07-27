@@ -4,6 +4,7 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.command.SubCommand;
 import gg.fotia.enchantment.core.EnchantmentConflictPolicy;
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.EnchantmentGroupPolicy;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
@@ -69,6 +70,10 @@ public class EnchantCommand implements SubCommand {
             messageHelper.sendMessage(player, "enchant-not-found", Map.of("enchant_id", enchantId));
             return;
         }
+        if (!data.isEnabled()) {
+            messageHelper.sendMessage(player, "enchant-disabled", Map.of("enchant_id", enchantId));
+            return;
+        }
 
         // 解析等级
         int level;
@@ -108,6 +113,14 @@ public class EnchantCommand implements SubCommand {
         int max = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
         if (!EnchantmentLimitPolicy.canAddEnchantment(item, pdcManager, enchantId, max)) {
             messageHelper.sendMessage(player, "max-enchants-reached", Map.of("max", String.valueOf(max)));
+            return;
+        }
+
+        // 同组附魔数量上限 (groups.yml max-per-item)
+        if (!EnchantmentGroupPolicy.canAddToGroup(plugin.getConfigManager(), enchantmentManager,
+                pdcManager.getEnchantments(item).keySet(), data)) {
+            messageHelper.sendMessage(player, "group-limit-reached",
+                    Map.of("group", String.valueOf(data.getGroup())));
             return;
         }
 
@@ -154,11 +167,11 @@ public class EnchantCommand implements SubCommand {
     @Override
     public List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            // 补全附魔ID
+            // 补全附魔ID (跳过已禁用附魔)
             String input = args[0].toLowerCase();
             List<String> completions = new ArrayList<>();
             for (EnchantmentData data : plugin.getEnchantmentManager().getAllEnchantments()) {
-                if (data.getId().startsWith(input)) {
+                if (data.isEnabled() && data.getId().startsWith(input)) {
                     completions.add(data.getId());
                 }
             }

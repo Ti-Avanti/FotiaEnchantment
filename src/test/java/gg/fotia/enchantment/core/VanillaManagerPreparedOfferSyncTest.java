@@ -272,9 +272,9 @@ class VanillaManagerPreparedOfferSyncTest {
         String source = Files.readString(Path.of(
                 "src/main/java/gg/fotia/enchantment/core/VanillaManager.java"));
 
-        assertTrue(source.contains("canApplyEnchantingTableOffer(item, current)"),
+        assertTrue(source.contains("canApplyEnchantingTableOffer(ctx, current)"),
                 "Existing preview offers must be checked with the same conflict and slot-limit rules used during apply");
-        assertTrue(source.contains("canApplyEnchantingTableOffer(item, enchantment)"),
+        assertTrue(source.contains("canApplyEnchantingTableOffer(ctx, enchantment)"),
                 "Replacement candidates must be skipped if they would be removed during EnchantItemEvent");
         assertTrue(source.contains("offers[slot] = null"),
                 "Preview offers with no valid replacement must be removed before players can click them");
@@ -316,7 +316,7 @@ class VanillaManagerPreparedOfferSyncTest {
                 "Enchanting table logic must treat a plain book as an enchantment-book carrier");
         assertTrue(source.contains("!isEnchantingTableBook(item) && !isApplicable(enchantment, item)"),
                 "Vanilla book candidates must not be removed because the enchantment is not applicable to BOOK itself");
-        assertTrue(source.contains("!isEnchantingTableBook(item) && !pdc.isApplicable(item, data)"),
+        assertTrue(source.contains("!ctx.book && !pdc.isApplicable(ctx.item, data)"),
                 "Fotia book candidates must not be removed because the custom enchantment is not applicable to BOOK itself");
     }
 

@@ -2,6 +2,7 @@ package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantmentData;
+import gg.fotia.enchantment.core.EnchantmentGroupPolicy;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
@@ -58,24 +59,25 @@ public final class AnvilBreakthroughService {
 
         Map<String, Integer> existing = pdc.getEnchantments(result);
         boolean targetIsBook = result.getType() == Material.ENCHANTED_BOOK;
-        Result customMerge = mergeCustomEnchantments(
+        AnvilCustomEnchantMerge.Result merge = AnvilCustomEnchantMerge.merge(
                 existing,
                 incomingCustom,
                 enchantmentManager::getEnchantment,
                 data -> pdc.isApplicable(result, data),
                 targetIsBook,
                 EnchantmentLimitPolicy.countEnchantments(result, pdc),
-                max
+                max,
+                (data, currentIds) -> EnchantmentGroupPolicy.canAddToGroup(
+                        plugin.getConfigManager(), enchantmentManager, currentIds, data)
         );
+        Result customMerge = new Result(merge.enchantments(), merge.modified());
 
         if (!vanillaMerge.modified() && !customMerge.modified()) {
             return Preview.failure(FailureReason.NO_VALID_ENCHANTMENT);
         }
 
+        // 原版附魔在上方已应用到 result, stripGeneratedLore 只改 lore 不清附魔, 无需二次应用
         EnchantmentLoreCleaner.stripGeneratedLore(plugin, player, result);
-        if (vanillaMerge.modified()) {
-            applyVanillaEnchantments(result, vanillaMerge.enchantments());
-        }
         for (Map.Entry<String, Integer> entry : customMerge.enchantments().entrySet()) {
             pdc.addEnchantment(result, entry.getKey(), entry.getValue());
         }
@@ -111,7 +113,7 @@ public final class AnvilBreakthroughService {
                                                                 int maxEnchantments) {
         Map<T, Integer> result = existing == null ? new HashMap<>() : new HashMap<>(existing);
         if (incoming == null || incoming.isEmpty()) {
-            return new VanillaResult(result, false);
+            return new VanillaResult<>(result, false);
         }
 
         boolean modified = false;
@@ -141,7 +143,7 @@ public final class AnvilBreakthroughService {
                 }
             }
         }
-        return new VanillaResult(result, modified);
+        return new VanillaResult<>(result, modified);
     }
 
     private VanillaResult<Enchantment> mergeVanillaPreview(ItemStack result,
@@ -149,7 +151,7 @@ public final class AnvilBreakthroughService {
                                                            PDCManager pdc,
                                                            int maxEnchantments) {
         if (incoming.isEmpty()) {
-            return new VanillaResult(vanillaEnchantments(result), false);
+            return new VanillaResult<>(vanillaEnchantments(result), false);
         }
 
         VanillaManager vanillaManager = plugin.getVanillaManager();

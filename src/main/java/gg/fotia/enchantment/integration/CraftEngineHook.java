@@ -66,8 +66,13 @@ public class CraftEngineHook {
             ItemStack item = player != null ? definition.buildBukkitItem(player) : definition.buildBukkitItem();
             item.setAmount(Math.max(1, amount));
             return item;
-        } catch (LinkageError | RuntimeException e) {
+        } catch (LinkageError e) {
+            // API 不兼容, 后续调用不可能成功, 永久停用集成
             available = false;
+            logger.log(Level.WARNING, "CraftEngine API 不兼容, 已停用集成: " + craftEngineId, e);
+            return null;
+        } catch (RuntimeException e) {
+            // 单个物品 id 的运行期异常只影响本次调用, 不停用整个集成
             logger.log(Level.WARNING, "通过 CraftEngine 创建物品失败: " + craftEngineId, e);
             return null;
         }

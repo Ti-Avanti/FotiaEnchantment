@@ -13,18 +13,30 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class GiveItemCommand implements SubCommand {
-
-    private static final List<String> RARITIES = Arrays.asList(
-            "dustlight", "moonlit", "radiant", "aureate", "divine"
-    );
 
     private final FotiaEnchantment plugin;
 
     public GiveItemCommand(FotiaEnchantment plugin) {
         this.plugin = plugin;
+    }
+
+    /**
+     * 稀有度键来自 rarity.yml, 支持服主自定义稀有度
+     */
+    private List<String> rarityKeys() {
+        var rarityConfig = plugin.getConfigManager().getRarityConfig();
+        if (rarityConfig == null) {
+            return Collections.emptyList();
+        }
+        List<String> keys = new ArrayList<>();
+        for (String key : rarityConfig.getKeys(false)) {
+            keys.add(key.toLowerCase(Locale.ROOT));
+        }
+        return keys;
     }
 
     @Override
@@ -89,8 +101,14 @@ public class GiveItemCommand implements SubCommand {
         String rarity = null;
         if (args.length >= 4) {
             rarity = args[3].toLowerCase();
-            if (!RARITIES.contains(rarity)) {
-                rarity = "dustlight";
+            if (!rarityKeys().contains(rarity)) {
+                // 非法稀有度给出明确提示, 不再静默回退
+                if (sender instanceof Player player) {
+                    messageHelper.sendMessage(player, "rarity-not-found", Map.of("rarity", rarity));
+                } else {
+                    sender.sendMessage("Unknown rarity: " + rarity);
+                }
+                return;
             }
         }
 
@@ -210,7 +228,7 @@ public class GiveItemCommand implements SubCommand {
         if (args.length == 4 && "codex".equals(args[1].toLowerCase())) {
             String input = args[3].toLowerCase();
             List<String> completions = new ArrayList<>();
-            for (String r : RARITIES) {
+            for (String r : rarityKeys()) {
                 if (r.startsWith(input)) {
                     completions.add(r);
                 }

@@ -5,13 +5,17 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -59,6 +63,29 @@ public class GUIManager implements Listener {
         openGUIs.remove(player.getUniqueId());
     }
 
+    /**
+     * 插件禁用/重载时强制关闭所有追踪中的 GUI。
+     * 先触发各 GUI 的关闭逻辑归还暂存物品(祛魔石、装备、魔典等), 再关闭客户端界面,
+     * 避免监听器注销后玩家关闭界面时物品永久丢失。
+     */
+    public void shutdown() {
+        if (openGUIs.isEmpty()) return;
+        List<BaseGUI> guis = new ArrayList<>(openGUIs.values());
+        // 先清空追踪, 避免 closeInventory 触发的 InventoryCloseEvent 二次处理
+        openGUIs.clear();
+        for (BaseGUI gui : guis) {
+            try {
+                gui.handleClose(null);
+            } catch (Throwable t) {
+                plugin.getLogger().warning("插件禁用时归还 GUI 物品出错: " + t.getMessage());
+            }
+            Player player = gui.getPlayer();
+            if (player != null && player.isOnline()) {
+                player.closeInventory();
+            }
+        }
+    }
+
     // ============================================
     // 事件处理
     // ============================================
@@ -72,8 +99,12 @@ public class GUIManager implements Listener {
         Inventory clicked = event.getClickedInventory();
         Inventory top = event.getView().getTopInventory();
 
-        // 防止跨容器 shift 点击导致物品移入 GUI
-        if (clicked != null && clicked.equals(top)) {
+        // 双击收集(COLLECT_TO_CURSOR)会跨容器吸取与光标匹配的可堆叠物品,
+        // 包括 GUI 顶层展示槽中的真实物品, 必须无条件取消以防刷物品
+        if (event.getClick() == ClickType.DOUBLE_CLICK
+                || event.getAction() == InventoryAction.COLLECT_TO_CURSOR) {
+            event.setCancelled(true);
+        } else if (clicked != null && clicked.equals(top)) {
             // 默认禁止从 GUI 中拿出物品
             event.setCancelled(true);
         } else {
