@@ -1,6 +1,7 @@
 package gg.fotia.enchantment.listener;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.util.SchedulerUtils;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -63,7 +64,7 @@ public class GrindstoneDisableListener implements Listener {
 
         event.setCancelled(true);
         if (event.getWhoClicked() instanceof Player player) {
-            plugin.getServer().getScheduler().runTask(plugin, (Runnable) player::closeInventory);
+            SchedulerUtils.runEntityTask(plugin, player, player::closeInventory);
             sendDisabledMessage(player);
         }
     }

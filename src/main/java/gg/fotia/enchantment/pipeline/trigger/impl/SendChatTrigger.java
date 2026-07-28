@@ -4,8 +4,8 @@ import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.pipeline.trigger.Trigger;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
+import gg.fotia.enchantment.util.SchedulerUtils;
 import io.papermc.paper.event.player.AsyncChatEvent;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -45,8 +45,8 @@ public class SendChatTrigger implements Trigger, Listener {
             return;
         }
         FotiaEnchantment plugin = FotiaEnchantment.getInstance();
-        // 异步事件 -> 切回主线程
-        Bukkit.getScheduler().runTask(plugin, () -> {
+        // 异步事件 -> 切回玩家所在区域线程
+        SchedulerUtils.runEntityTask(plugin, player, () -> {
             if (!player.isOnline()) {
                 return;
             }

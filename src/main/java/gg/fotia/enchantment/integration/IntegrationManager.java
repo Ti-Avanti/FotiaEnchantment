@@ -1,8 +1,8 @@
 package gg.fotia.enchantment.integration;
 
 import gg.fotia.enchantment.FotiaEnchantment;
+import gg.fotia.enchantment.util.SchedulerUtils;
 import org.bukkit.Bukkit;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.util.logging.Logger;
 
@@ -24,7 +24,7 @@ public class IntegrationManager {
     private MythicMobsHook mythicMobsHook;
     private PacketEventsHook packetEventsHook;
     private PlaceholderAPIHook placeholderAPIHook;
-    private BukkitTask packetEventsRetryTask;
+    private Object packetEventsRetryTask;
     private int packetEventsRetryAttempts;
 
     public IntegrationManager(FotiaEnchantment plugin) {
@@ -84,7 +84,7 @@ public class IntegrationManager {
      */
     public void shutdown() {
         if (packetEventsRetryTask != null) {
-            packetEventsRetryTask.cancel();
+            SchedulerUtils.cancelTask(packetEventsRetryTask);
             packetEventsRetryTask = null;
         }
         if (packetEventsHook != null) {
@@ -124,7 +124,7 @@ public class IntegrationManager {
         }
 
         packetEventsRetryAttempts = 0;
-        packetEventsRetryTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+        packetEventsRetryTask = SchedulerUtils.runTaskTimer(plugin, () -> {
             packetEventsRetryAttempts++;
             if (tryInitPacketEventsHook()) {
                 cancelPacketEventsRetry();
@@ -161,7 +161,7 @@ public class IntegrationManager {
 
     private void cancelPacketEventsRetry() {
         if (packetEventsRetryTask != null) {
-            packetEventsRetryTask.cancel();
+            SchedulerUtils.cancelTask(packetEventsRetryTask);
             packetEventsRetryTask = null;
         }
     }
