@@ -58,15 +58,11 @@ public class CollideWithEntityTrigger implements Trigger, Listener {
     }
 
     private void dispatchPlayer(Player player) {
-        if (SchedulerUtils.isFolia()) {
-            SchedulerUtils.runEntityTask(FotiaEnchantment.getInstance(), player, () -> {
-                if (active && player.isOnline()) {
-                    handlePlayer(player);
-                }
-            });
-            return;
-        }
-        handlePlayer(player);
+        SchedulerUtils.runEntityTask(FotiaEnchantment.getInstance(), player, () -> {
+            if (active && player.isOnline()) {
+                handlePlayer(player);
+            }
+        });
     }
 
     private void handlePlayer(Player player) {

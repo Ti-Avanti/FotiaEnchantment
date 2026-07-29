@@ -915,7 +915,7 @@ public class EffectPipeline {
     public void resetTickCounter() {
         synchronized (effectBudgetLock) {
             currentTickEffects = 0;
-            currentTickStamp = org.bukkit.Bukkit.getCurrentTick();
+            currentTickStamp = Integer.MIN_VALUE;
         }
     }
 

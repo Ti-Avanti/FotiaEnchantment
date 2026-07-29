@@ -90,29 +90,19 @@ public class ElytraGlideTrigger implements Trigger, Listener {
     }
 
     private void registerGlidingPlayer(Player player) {
-        if (SchedulerUtils.isFolia()) {
-            SchedulerUtils.runEntityTask(FotiaEnchantment.getInstance(), player, () -> {
-                if (active && player.isOnline() && player.isGliding()) {
-                    glidingPlayers.add(player.getUniqueId());
-                }
-            });
-            return;
-        }
-        if (player.isGliding()) {
-            glidingPlayers.add(player.getUniqueId());
-        }
+        SchedulerUtils.runEntityTask(FotiaEnchantment.getInstance(), player, () -> {
+            if (active && player.isOnline() && player.isGliding()) {
+                glidingPlayers.add(player.getUniqueId());
+            }
+        });
     }
 
     private void dispatchGlidingPlayer(Player player, UUID playerId) {
-        if (SchedulerUtils.isFolia()) {
-            SchedulerUtils.runEntityTask(FotiaEnchantment.getInstance(), player, () -> {
-                if (active) {
-                    handleGlidingPlayer(player, playerId);
-                }
-            });
-            return;
-        }
-        handleGlidingPlayer(player, playerId);
+        SchedulerUtils.runEntityTask(FotiaEnchantment.getInstance(), player, () -> {
+            if (active) {
+                handleGlidingPlayer(player, playerId);
+            }
+        });
     }
 
     private void handleGlidingPlayer(Player player, UUID playerId) {
