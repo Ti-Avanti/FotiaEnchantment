@@ -26,6 +26,7 @@ import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerLocaleChangeEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.server.ServerCommandEvent;
@@ -46,6 +47,7 @@ public class EnchantmentDisplayListener implements Listener {
 
     private final FotiaEnchantment plugin;
     private final Set<UUID> pendingNormalizations = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> pendingClientRefreshes = ConcurrentHashMap.newKeySet();
     private final Queue<UUID> validityScanQueue = new ConcurrentLinkedQueue<>();
     private volatile EnchantmentItemSanitizer.ValidityRules cachedValidityRules;
     private Object validityScanTask;
@@ -57,6 +59,7 @@ public class EnchantmentDisplayListener implements Listener {
     }
 
     public void reload() {
+        EnchantmentLoreCleaner.clearCaches();
         refreshValidityRules();
         validityScanQueue.clear();
         restartValidityScan();
@@ -67,6 +70,7 @@ public class EnchantmentDisplayListener implements Listener {
         validityScanTask = null;
         validityScanQueue.clear();
         pendingNormalizations.clear();
+        pendingClientRefreshes.clear();
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -82,6 +86,11 @@ public class EnchantmentDisplayListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChangedWorld(PlayerChangedWorldEvent event) {
         scheduleNormalize(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onLocaleChange(PlayerLocaleChangeEvent event) {
+        scheduleClientRefresh(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -184,6 +193,28 @@ public class EnchantmentDisplayListener implements Listener {
         }, () -> pendingNormalizations.remove(playerId));
         if (task == null) {
             pendingNormalizations.remove(playerId);
+        }
+    }
+
+    private void scheduleClientRefresh(Player player) {
+        if (player == null) {
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        if (!pendingClientRefreshes.add(playerId)) {
+            return;
+        }
+        Object task = SchedulerUtils.runEntityTask(plugin, player, () -> {
+            try {
+                if (player.isOnline()) {
+                    player.updateInventory();
+                }
+            } finally {
+                pendingClientRefreshes.remove(playerId);
+            }
+        }, () -> pendingClientRefreshes.remove(playerId));
+        if (task == null) {
+            pendingClientRefreshes.remove(playerId);
         }
     }
 

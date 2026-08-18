@@ -2,6 +2,7 @@ package gg.fotia.enchantment.lang;
 
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.config.ConfigManager;
+import gg.fotia.enchantment.util.SchedulerUtils;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
@@ -19,7 +20,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Level;
@@ -31,6 +35,7 @@ public class LanguageManager {
     private final FotiaEnchantment plugin;
     private final Map<String, Map<String, YamlConfiguration>> loadedLanguages = new ConcurrentHashMap<>();
     private final Map<String, Map<String, YamlConfiguration>> bundledLanguages = new ConcurrentHashMap<>();
+    private final AtomicLong preloadGeneration = new AtomicLong();
     private String defaultLanguage;
 
     public LanguageManager(FotiaEnchantment plugin) {
@@ -42,6 +47,7 @@ public class LanguageManager {
         ensureBundledLanguageFiles();
         loadLanguage(defaultLanguage);
         loadBundledLanguage(defaultLanguage);
+        preloadAvailableLanguagesAsync();
         plugin.getLogger().info("Language system initialized, default language: " + defaultLanguage);
     }
 
@@ -61,12 +67,18 @@ public class LanguageManager {
     }
 
     public String getEnchantName(Player player, String enchantId) {
-        String locale = getPlayerLocale(player);
+        return getEnchantName(getPlayerLocale(player), enchantId);
+    }
+
+    public String getEnchantName(String locale, String enchantId) {
         return getString(locale, "enchantments", enchantId + ".name", enchantId);
     }
 
     public List<String> getEnchantDescription(Player player, String enchantId) {
-        String locale = getPlayerLocale(player);
+        return getEnchantDescription(getPlayerLocale(player), enchantId);
+    }
+
+    public List<String> getEnchantDescription(String locale, String enchantId) {
         return getStringList(locale, "enchantments", enchantId + ".description");
     }
 
@@ -81,7 +93,10 @@ public class LanguageManager {
     }
 
     public String getGUIText(Player player, String key) {
-        String locale = getPlayerLocale(player);
+        return getGUIText(getPlayerLocale(player), key);
+    }
+
+    public String getGUIText(String locale, String key) {
         return getString(locale, "gui", key, key);
     }
 
@@ -92,7 +107,38 @@ public class LanguageManager {
         ensureBundledLanguageFiles();
         loadLanguage(defaultLanguage);
         loadBundledLanguage(defaultLanguage);
+        preloadAvailableLanguagesAsync();
         plugin.getLogger().info("Language system reloaded.");
+    }
+
+    public Set<String> getAvailableLocales() {
+        Set<String> locales = new TreeSet<>();
+        locales.add(defaultLanguage);
+        locales.addAll(loadedLanguages.keySet());
+        locales.addAll(bundledLanguages.keySet());
+
+        File langDirectory = new File(plugin.getDataFolder(), "lang");
+        File[] directories = langDirectory.listFiles(File::isDirectory);
+        if (directories != null) {
+            for (File directory : directories) {
+                locales.add(normalizeLocale(directory.getName()));
+            }
+        }
+        return Collections.unmodifiableSet(locales);
+    }
+
+    private void preloadAvailableLanguagesAsync() {
+        long generation = preloadGeneration.incrementAndGet();
+        List<String> locales = List.copyOf(getAvailableLocales());
+        SchedulerUtils.runAsyncTask(plugin, () -> {
+            for (String locale : locales) {
+                if (preloadGeneration.get() != generation || !plugin.isEnabled()) {
+                    return;
+                }
+                loadLanguage(locale);
+                loadBundledLanguage(locale);
+            }
+        });
     }
 
     private void ensureBundledLanguageFiles() {

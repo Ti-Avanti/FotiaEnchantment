@@ -13,6 +13,13 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 public class SchedulerUtils {
 
     /**
+     * 在 Paper/Folia 异步调度器运行不接触世界与实体状态的计算任务。
+     */
+    public static Object runAsyncTask(Plugin plugin, Runnable task) {
+        return Bukkit.getAsyncScheduler().runNow(plugin, scheduledTask -> task.run());
+    }
+
+    /**
      * 在全局区域运行任务。
      *
      * @param plugin 插件实例

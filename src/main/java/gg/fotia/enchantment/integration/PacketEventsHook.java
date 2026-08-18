@@ -12,28 +12,20 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSe
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import gg.fotia.enchantment.FotiaEnchantment;
-import gg.fotia.enchantment.config.VanillaConfig.VanillaOverride;
 import gg.fotia.enchantment.compat.BukkitItemFlags;
 import gg.fotia.enchantment.compat.BukkitRegistryCompat;
 import gg.fotia.enchantment.core.EnchantmentData;
 import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
-import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
 import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
-import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
-import gg.fotia.enchantment.lore.item.EnchantmentDisplayPolicy;
 import gg.fotia.enchantment.lore.item.EnchantmentGeneratedLoreStripper;
 import gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner;
-import gg.fotia.enchantment.lore.item.EnchantmentLoreFormatter;
-import gg.fotia.enchantment.lore.item.EnchantmentSlotLore;
-import gg.fotia.enchantment.util.MiniMessageCache;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -42,7 +34,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -244,11 +235,23 @@ public class PacketEventsHook {
         ItemMeta meta = copy.getItemMeta();
         if (meta == null) return null;
 
-        List<Component> existingLore = EnchantmentLoreCleaner.stripPotentialSlotLoreCopies(
-                meta.lore(),
-                EnchantmentLoreCleaner.potentialSlotLore(plugin, player, item));
-        List<Component> generatedLore = generatedLore(player, item, entries);
-        List<Component> sourceGeneratedLore = generatedLore(player, item, sourceEntries);
+        List<Component> existingLore = EnchantmentLoreCleaner.stripAllGeneratedLore(
+                plugin,
+                item,
+                meta,
+                meta.lore());
+        List<Component> generatedLore = EnchantmentLoreCleaner.localizedGeneratedLore(
+                plugin,
+                player,
+                item,
+                false,
+                false);
+        List<Component> sourceGeneratedLore = EnchantmentLoreCleaner.localizedGeneratedLore(
+                plugin,
+                player,
+                item,
+                true,
+                true);
         if (generatedLore.isEmpty() && sourceGeneratedLore.isEmpty()) return null;
 
         BukkitItemFlags.hideEnchantments(meta);
@@ -297,69 +300,6 @@ public class PacketEventsHook {
         return new ArrayList<>(entries.values());
     }
 
-    private List<Component> generatedLore(Player player, ItemStack item, List<LoreEntry> entries) {
-        List<Component> generatedLore = new ArrayList<>();
-        if (entries == null || entries.isEmpty()) {
-            return generatedLore;
-        }
-
-        YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
-        entries.sort(loreEntryComparator());
-        for (LoreEntry entry : entries) {
-            generatedLore.add(deserializeLoreLine(displayNameLine(player, entry, rarityConfig)));
-            for (String description : descriptionLines(player, entry)) {
-                generatedLore.add(deserializeLoreLine(EnchantmentLoreFormatter.descriptionLine(description)));
-            }
-        }
-        if (EnchantmentDisplayPolicy.shouldDecoratePacketOnlyEnchantSlotLore(entries.size())) {
-            for (String slotLine : slotLines(player, item, entries.size())) {
-                generatedLore.add(deserializeLoreLine(slotLine));
-            }
-        }
-        return generatedLore;
-    }
-
-    private Comparator<LoreEntry> loreEntryComparator() {
-        return Comparator
-                .comparingInt((LoreEntry entry) -> entry.custom()
-                        ? plugin.getConfigManager().getRarityRank(
-                                entry.data() == null ? null : entry.data().getRarity())
-                        : Integer.MAX_VALUE)
-                .thenComparing(entry -> entry.custom() ? 0 : 1)
-                .thenComparing(LoreEntry::id);
-    }
-
-    private List<String> slotLines(Player player, ItemStack item, int usedSlots) {
-        if (plugin.getConfigManager() == null
-                || plugin.getLanguageManager() == null
-                || plugin.getEnchantmentManager() == null) {
-            return List.of();
-        }
-        boolean eligibleForEmptySlots = EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
-                || !plugin.getEnchantmentManager().getApplicable(item).isEmpty();
-        if (!EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(
-                usedSlots,
-                eligibleForEmptySlots,
-                item.getMaxStackSize())) {
-            return List.of();
-        }
-        int maxSlots = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
-        String emptySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-empty");
-        if ("enchant-slot-empty".equals(emptySlot)) {
-            emptySlot = EnchantmentSlotLore.FALLBACK_EMPTY_SLOT;
-        }
-        String summarySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-summary");
-        if ("enchant-slot-summary".equals(summarySlot)) {
-            summarySlot = EnchantmentSlotLore.FALLBACK_SLOT_SUMMARY;
-        }
-        return EnchantmentSlotLore.slotLines(
-                maxSlots,
-                usedSlots,
-                plugin.getConfigManager().getEnchantSlotDisplayMode(),
-                emptySlot,
-                summarySlot);
-    }
-
     private boolean isSyntheticGuiGlow(ItemMeta meta, Enchantment enchantment) {
         Enchantment unbreaking = BukkitRegistryCompat.unbreakingEnchantment();
         return enchantment != null
@@ -397,53 +337,6 @@ public class PacketEventsHook {
             return false;
         }
         return plugin.getVanillaManager().isDisabled(enchantment);
-    }
-
-    private String displayNameLine(Player player, LoreEntry entry, YamlConfiguration rarityConfig) {
-        if (entry.custom()) {
-            String name = plugin.getLanguageManager().getEnchantName(player, entry.id());
-            String rarityColor = "<white>";
-            if (entry.data() != null && entry.data().getRarity() != null) {
-                rarityColor = rarityConfig.getString(entry.data().getRarity() + ".color", "<white>");
-            }
-            boolean curse = entry.data() != null && entry.data().isCurse();
-            return EnchantmentLoreFormatter.customDisplayLine(name, entry.level(), rarityColor, curse);
-        }
-
-        VanillaOverride override = vanillaOverride(entry.id());
-        String name = override != null ? override.getDisplayName() : entry.id();
-        boolean curse = entry.enchantment() != null && entry.enchantment().isCursed();
-        return EnchantmentLoreFormatter.vanillaDisplayLine(name, entry.level(), curse);
-    }
-
-    private List<String> descriptionLines(Player player, LoreEntry entry) {
-        if (entry.custom()) {
-            List<String> description = plugin.getLanguageManager().getEnchantDescription(player, entry.id());
-            return EnchantmentDescriptionLines.customDescriptionOrGenerated(
-                    description,
-                    entry.data(),
-                    entry.level(),
-                    key -> plugin.getLanguageManager().getGUIText(player, key),
-                    "未配置附魔描述。"
-            );
-        }
-
-        VanillaOverride override = vanillaOverride(entry.id());
-        if (override != null && override.getDescription() != null && !override.getDescription().isEmpty()) {
-            return override.getDescription();
-        }
-        return List.of("原版附魔，具体效果遵循服务器当前 Minecraft 版本。");
-    }
-
-    private VanillaOverride vanillaOverride(String id) {
-        if (plugin.getVanillaManager() == null || plugin.getVanillaManager().getVanillaConfig() == null) {
-            return null;
-        }
-        return plugin.getVanillaManager().getVanillaConfig().getOverride(id);
-    }
-
-    private Component deserializeLoreLine(String text) {
-        return MiniMessageCache.deserializeLegacyAware(text);
     }
 
     static List<Component> stripGeneratedLoreCopies(List<Component> existingLore, List<Component> generatedLore) {

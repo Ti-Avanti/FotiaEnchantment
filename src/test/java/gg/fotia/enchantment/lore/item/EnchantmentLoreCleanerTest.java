@@ -67,6 +67,39 @@ class EnchantmentLoreCleanerTest {
     }
 
     @Test
+    void stripsRepeatedGeneratedLoreAcrossDifferentLocales() {
+        List<Component> chinese = List.of(
+                Component.text("韧性 V"),
+                Component.text("  受到伤害时有概率恢复生命。")
+        );
+        List<Component> english = List.of(
+                Component.text("Resilience V"),
+                Component.text("  Has a chance to restore health when damaged.")
+        );
+        Component playerLore = Component.text("玩家自定义 Lore");
+        List<Component> polluted = List.of(
+                chinese.get(0),
+                chinese.get(1),
+                Component.empty(),
+                english.get(0),
+                english.get(1),
+                Component.empty(),
+                chinese.get(0),
+                chinese.get(1),
+                Component.empty(),
+                playerLore
+        );
+
+        assertEquals(
+                List.of(playerLore),
+                EnchantmentGeneratedLoreStripper.stripGeneratedLoreVariants(
+                        polluted,
+                        List.of(chinese, english)
+                )
+        );
+    }
+
+    @Test
     void stripsStaleGeneratedLoreStoredAsJsonTextLines() {
         List<Component> generated = List.of(
                 Component.text("韧性 V"),

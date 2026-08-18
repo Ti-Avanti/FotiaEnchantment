@@ -59,6 +59,21 @@ public final class EnchantmentGeneratedLoreStripper {
         return new ArrayList<>(existingLore.subList(cursor, existingLore.size()));
     }
 
+    public static List<Component> stripGeneratedLoreVariants(List<Component> existingLore,
+                                                             List<List<Component>> generatedLoreVariants) {
+        if (generatedLoreVariants == null || generatedLoreVariants.isEmpty()) {
+            return existingLore == null ? List.of() : new ArrayList<>(existingLore);
+        }
+
+        List<Component> combined = new ArrayList<>();
+        for (List<Component> variant : generatedLoreVariants) {
+            if (variant != null && !variant.isEmpty()) {
+                combined.addAll(variant);
+            }
+        }
+        return stripGeneratedLoreCopies(existingLore, combined);
+    }
+
     private static Set<String> generatedDisplayBases(List<Component> generatedLore) {
         Set<String> bases = new HashSet<>();
         for (Component component : generatedLore) {

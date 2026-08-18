@@ -1,74 +1,43 @@
 package gg.fotia.enchantment.lore.item;
 
 import gg.fotia.enchantment.FotiaEnchantment;
-import gg.fotia.enchantment.config.VanillaConfig.VanillaOverride;
-import gg.fotia.enchantment.core.EnchantmentData;
-import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
-import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
-import gg.fotia.enchantment.core.EnchantmentManager;
-import gg.fotia.enchantment.core.EnchantmentRegistry;
-import gg.fotia.enchantment.core.PDCManager;
-import gg.fotia.enchantment.core.VanillaManager;
-import gg.fotia.enchantment.lore.description.EnchantmentDescriptionLines;
-import gg.fotia.enchantment.util.MiniMessageCache;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.bukkit.NamespacedKey;
-import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
+/**
+ * 管理真实物品中的规范化 Lore，并为数据包显示提供清理入口。
+ */
 public final class EnchantmentLoreCleaner {
 
     private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
-
-    /** "已用/总数" 摘要行匹配, 预编译避免热路径每行编译正则 */
     private static final Pattern SLOT_SUMMARY_PATTERN = Pattern.compile("\\d+\\s*/\\s*\\d+");
-
-    /**
-     * 槽位候选行缓存: key = 空槽文本 + 摘要文本 + 上限。
-     * 以内容为键, 语言/配置重载后自然产生新条目; 超上限整体清空。
-     */
-    private static final int SLOT_LORE_CACHE_MAX = 256;
-    private static final Map<String, List<Component>> SLOT_LORE_CACHE = new ConcurrentHashMap<>();
 
     private EnchantmentLoreCleaner() {
     }
 
     public static boolean stripGeneratedLore(FotiaEnchantment plugin, Player player, ItemStack item) {
-        if (plugin == null || player == null || item == null || item.getType().isAir() || !item.hasItemMeta()) {
+        if (plugin == null || item == null || item.getType().isAir() || !item.hasItemMeta()) {
             return false;
         }
-
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {
             return false;
         }
 
-        List<Component> existingLore = meta.lore();
-        if (existingLore == null || existingLore.isEmpty()) {
-            return false;
-        }
-
-        List<Component> generatedLore = generatedLore(plugin, player, item, meta, true, true);
-        if (generatedLore.isEmpty()) {
-            return false;
-        }
-
-        List<Component> retainedLore = stripGeneratedLoreCopies(existingLore, generatedLore);
-        if (retainedLore.equals(existingLore)) {
+        List<Component> originalLore = meta.lore();
+        GeneratedLoreMarker.StripResult marked = GeneratedLoreMarker.strip(plugin, meta, originalLore);
+        List<Component> retainedLore = stripLegacyGeneratedLore(plugin, item, marked.lore(), true, true);
+        boolean markerChanged = GeneratedLoreMarker.clear(plugin, meta);
+        boolean changed = markerChanged || !sameLore(originalLore, retainedLore);
+        if (!changed) {
             return false;
         }
 
@@ -77,22 +46,23 @@ public final class EnchantmentLoreCleaner {
         return true;
     }
 
-    public static List<Component> stripGeneratedLoreCopies(List<Component> existingLore, List<Component> generatedLore) {
+    public static List<Component> stripGeneratedLoreCopies(List<Component> existingLore,
+                                                           List<Component> generatedLore) {
         return EnchantmentGeneratedLoreStripper.stripGeneratedLoreCopies(existingLore, generatedLore);
     }
 
-    public static List<Component> mergeGeneratedLore(List<Component> existingLore, List<Component> generatedLore) {
+    public static List<Component> mergeGeneratedLore(List<Component> existingLore,
+                                                     List<Component> generatedLore) {
         if (generatedLore == null || generatedLore.isEmpty()) {
-            return existingLore == null ? List.of() : new ArrayList<>(existingLore);
+            return copy(existingLore);
         }
-
         return mergeGeneratedLore(existingLore, generatedLore, List.of());
     }
 
     public static List<Component> mergeGeneratedLore(List<Component> existingLore,
                                                      List<Component> generatedLore,
                                                      List<Component> sourceGeneratedLore) {
-        List<Component> retainedLore = existingLore == null ? List.of() : new ArrayList<>(existingLore);
+        List<Component> retainedLore = copy(existingLore);
         if (sourceGeneratedLore != null && !sourceGeneratedLore.isEmpty()) {
             retainedLore = stripLikelyLeadingSlotLoreCopies(retainedLore);
             retainedLore = stripGeneratedLoreCopies(retainedLore, sourceGeneratedLore);
@@ -104,228 +74,61 @@ public final class EnchantmentLoreCleaner {
 
         retainedLore = stripLikelyLeadingSlotLoreCopies(
                 stripGeneratedLoreCopies(retainedLore, generatedLore));
-        List<Component> mergedLore = new ArrayList<>(generatedLore);
-        if (!retainedLore.isEmpty()) {
-            mergedLore.add(Component.empty());
-            mergedLore.addAll(retainedLore);
-        }
-        return mergedLore;
+        return prependGeneratedLore(retainedLore, generatedLore);
     }
 
+    /**
+     * 真实物品始终使用服务端默认语言，避免持有者语言变化污染持久化数据。
+     */
     public static boolean applyGeneratedLore(FotiaEnchantment plugin, Player player, ItemStack item) {
-        if (plugin == null || item == null || item.getType().isAir()) {
-            return false;
-        }
-
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
-            return false;
-        }
-
-        // meta.lore() 每次调用都会深拷贝组件列表, 只取一次
-        List<Component> originalLore = meta.lore();
-        List<Component> generatedLore = generatedLore(plugin, player, item, meta, false);
-        if (generatedLore.isEmpty()) {
-            List<Component> strippedLore = stripPotentialSlotLoreCopies(
-                    originalLore,
-                    potentialSlotLore(plugin, player, item));
-            if (sameLore(originalLore, strippedLore)) {
-                return false;
-            }
-            meta.lore(strippedLore.isEmpty() ? null : strippedLore);
-            item.setItemMeta(meta);
-            return true;
-        }
-
-        List<Component> existingLore = stripPotentialSlotLoreCopies(originalLore, potentialSlotLore(plugin, player, item));
-        List<Component> mergedLore = mergeGeneratedLore(existingLore, generatedLore);
-        if (sameLore(originalLore, mergedLore)) {
-            return false;
-        }
-
-        meta.lore(mergedLore.isEmpty() ? null : mergedLore);
-        item.setItemMeta(meta);
-        return true;
+        return applyCanonicalLore(plugin, item, null);
     }
 
     public static boolean applyGeneratedLoreFromSource(FotiaEnchantment plugin,
                                                        Player player,
                                                        ItemStack item,
                                                        ItemStack source) {
-        if (plugin == null || item == null || item.getType().isAir()) {
-            return false;
-        }
-
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
-            return false;
-        }
-
-        List<Component> originalLore = meta.lore();
-        List<Component> generatedLore = generatedLore(plugin, player, item, meta, false);
-        List<Component> sourceGeneratedLore = generatedLore(plugin, player, source, true, true);
-        List<Component> existingLore = stripPotentialSlotLoreCopies(originalLore, potentialSlotLore(plugin, player, item));
-        List<Component> mergedLore = mergeGeneratedLore(existingLore, generatedLore, sourceGeneratedLore);
-        if (sameLore(originalLore, mergedLore)) {
-            return false;
-        }
-
-        meta.lore(mergedLore.isEmpty() ? null : mergedLore);
-        item.setItemMeta(meta);
-        return true;
+        return applyCanonicalLore(plugin, item, source);
     }
 
-    private static List<Component> generatedLore(FotiaEnchantment plugin,
-                                                 Player player,
-                                                 ItemStack item,
-                                                 ItemMeta meta,
-                                                 boolean includeInvalidCustom) {
-        return generatedLore(plugin, player, item, meta, includeInvalidCustom, false);
+    /**
+     * 数据包层调用：只清理传出副本，不改变服务端原物品。
+     */
+    public static List<Component> stripAllGeneratedLore(FotiaEnchantment plugin,
+                                                        ItemStack item,
+                                                        ItemMeta meta,
+                                                        List<Component> existingLore) {
+        if (plugin == null || item == null || meta == null) {
+            return copy(existingLore);
+        }
+        GeneratedLoreMarker.StripResult marked = GeneratedLoreMarker.strip(plugin, meta, existingLore);
+        return stripLegacyGeneratedLore(plugin, item, marked.lore(), true, true);
     }
 
-    private static List<Component> generatedLore(FotiaEnchantment plugin,
-                                                 Player player,
-                                                 ItemStack item,
-                                                 ItemMeta meta,
-                                                 boolean includeInvalidCustom,
-                                                 boolean includeDisabledVanilla) {
-        EnchantmentManager enchantManager = plugin.getEnchantmentManager();
-        if (enchantManager == null) {
+    public static List<Component> localizedGeneratedLore(FotiaEnchantment plugin,
+                                                         Player player,
+                                                         ItemStack item,
+                                                         boolean includeInvalidCustom,
+                                                         boolean includeDisabledVanilla) {
+        if (plugin == null || plugin.getLanguageManager() == null) {
             return List.of();
         }
-
-        PDCManager pdc = enchantManager.getPdcManager();
-        Map<String, LoreEntry> entries = new LinkedHashMap<>();
-        for (Map.Entry<String, Integer> entry : pdc.getEnchantments(meta).entrySet()) {
-            String id = normalizeId(entry.getKey());
-            int level = entry.getValue();
-            EnchantmentData data = enchantManager.getEnchantment(id);
-            if (!id.isEmpty() && level > 0
-                    && (includeInvalidCustom || EnchantmentItemSanitizer.isValid(data, item.getType(), level))) {
-                entries.put("custom:" + id, new LoreEntry(id, level, true, null, data));
-            }
-        }
-
-        for (Map.Entry<Enchantment, Integer> entry : meta.getEnchants().entrySet()) {
-            addVanillaEntry(plugin, entries, entry.getKey(), entry.getValue(), includeDisabledVanilla);
-        }
-        if (meta instanceof EnchantmentStorageMeta storageMeta) {
-            for (Map.Entry<Enchantment, Integer> entry : storageMeta.getStoredEnchants().entrySet()) {
-                addVanillaEntry(plugin, entries, entry.getKey(), entry.getValue(), includeDisabledVanilla);
-            }
-        }
-
-        YamlConfiguration rarityConfig = plugin.getConfigManager().getRarityConfig();
-        List<Component> generated = new ArrayList<>();
-        List<LoreEntry> sortedEntries = new ArrayList<>(entries.values());
-        sortedEntries.sort(loreEntryComparator(plugin));
-        for (LoreEntry entry : sortedEntries) {
-            generated.add(deserialize(displayNameLine(plugin, player, entry, rarityConfig)));
-            for (String description : descriptionLines(plugin, player, entry)) {
-                generated.add(deserialize(EnchantmentLoreFormatter.descriptionLine(description)));
-            }
-        }
-        for (String slotLine : slotLines(plugin, player, item, sortedEntries.size())) {
-            generated.add(deserialize(slotLine));
-        }
-        return generated;
-    }
-
-    private static List<Component> generatedLore(FotiaEnchantment plugin,
-                                                 Player player,
-                                                 ItemStack item,
-                                                 boolean includeInvalidCustom) {
-        return generatedLore(plugin, player, item, includeInvalidCustom, false);
-    }
-
-    private static List<Component> generatedLore(FotiaEnchantment plugin,
-                                                 Player player,
-                                                 ItemStack item,
-                                                 boolean includeInvalidCustom,
-                                                 boolean includeDisabledVanilla) {
-        if (item == null || item.getType().isAir()) {
-            return List.of();
-        }
-
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
-            return List.of();
-        }
-        return generatedLore(plugin, player, item, meta, includeInvalidCustom, includeDisabledVanilla);
-    }
-
-    private static List<String> slotLines(FotiaEnchantment plugin, Player player, ItemStack item, int usedSlots) {
-        if (plugin.getConfigManager() == null
-                || plugin.getLanguageManager() == null
-                || plugin.getEnchantmentManager() == null) {
-            return List.of();
-        }
-        boolean eligibleForEmptySlots = EnchantmentLimitPolicy.hasKnownItemGroup(item.getType())
-                || !plugin.getEnchantmentManager().getApplicable(item).isEmpty();
-        if (!EnchantmentDisplayPolicy.shouldDisplayEnchantSlotLore(
-                usedSlots,
-                eligibleForEmptySlots,
-                item.getMaxStackSize())) {
-            return List.of();
-        }
-        int maxSlots = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
-        String emptySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-empty");
-        if ("enchant-slot-empty".equals(emptySlot)) {
-            emptySlot = EnchantmentSlotLore.FALLBACK_EMPTY_SLOT;
-        }
-        String summarySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-summary");
-        if ("enchant-slot-summary".equals(summarySlot)) {
-            summarySlot = EnchantmentSlotLore.FALLBACK_SLOT_SUMMARY;
-        }
-        return EnchantmentSlotLore.slotLines(
-                maxSlots,
-                usedSlots,
-                plugin.getConfigManager().getEnchantSlotDisplayMode(),
-                emptySlot,
-                summarySlot);
+        return LocalizedEnchantmentLoreRenderer.render(
+                plugin,
+                plugin.getLanguageManager().getPlayerLocale(player),
+                item,
+                includeInvalidCustom,
+                includeDisabledVanilla);
     }
 
     public static List<Component> potentialSlotLore(FotiaEnchantment plugin, Player player, ItemStack item) {
-        if (plugin.getConfigManager() == null || plugin.getLanguageManager() == null) {
+        if (plugin == null || plugin.getLanguageManager() == null) {
             return List.of();
         }
-        int maxSlots = plugin.getConfigManager().getMaxEnchantmentsForMaterial(item.getType());
-        if (maxSlots < 0) {
-            return List.of();
-        }
-
-        String emptySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-empty");
-        if ("enchant-slot-empty".equals(emptySlot)) {
-            emptySlot = EnchantmentSlotLore.FALLBACK_EMPTY_SLOT;
-        }
-        String summarySlot = plugin.getLanguageManager().getMessage(player, "enchant-slot-summary");
-        if ("enchant-slot-summary".equals(summarySlot)) {
-            summarySlot = EnchantmentSlotLore.FALLBACK_SLOT_SUMMARY;
-        }
-
-        // 候选列表只由这三个输入决定, 相同语言+相同上限的物品共享缓存结果
-        String cacheKey = emptySlot + ' ' + summarySlot + ' ' + maxSlots;
-        List<Component> cached = SLOT_LORE_CACHE.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-
-        List<Component> candidates = new ArrayList<>();
-        candidates.add(deserialize(emptySlot));
-        for (int usedSlots = 0; usedSlots <= maxSlots; usedSlots++) {
-            candidates.add(deserialize(EnchantmentSlotLore.slotLines(
-                    maxSlots,
-                    usedSlots,
-                    EnchantmentSlotLore.MODE_SUMMARY,
-                    emptySlot,
-                    summarySlot).getFirst()));
-        }
-        List<Component> immutable = List.copyOf(candidates);
-        if (SLOT_LORE_CACHE.size() >= SLOT_LORE_CACHE_MAX) {
-            SLOT_LORE_CACHE.clear();
-        }
-        SLOT_LORE_CACHE.put(cacheKey, immutable);
-        return immutable;
+        return LocalizedEnchantmentLoreRenderer.potentialSlotLore(
+                plugin,
+                plugin.getLanguageManager().getPlayerLocale(player),
+                item);
     }
 
     public static List<Component> stripPotentialSlotLoreCopies(List<Component> existingLore,
@@ -347,11 +150,89 @@ public final class EnchantmentLoreCleaner {
         return new ArrayList<>(existingLore.subList(cursor, existingLore.size()));
     }
 
+    public static void clearCaches() {
+        LocalizedEnchantmentLoreRenderer.clearCaches();
+    }
+
+    private static boolean applyCanonicalLore(FotiaEnchantment plugin,
+                                              ItemStack item,
+                                              ItemStack source) {
+        if (plugin == null || plugin.getLanguageManager() == null
+                || item == null || item.getType().isAir()) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+
+        List<Component> originalLore = meta.lore();
+        GeneratedLoreMarker.StripResult marked = GeneratedLoreMarker.strip(plugin, meta, originalLore);
+        List<Component> retainedLore = stripLegacyGeneratedLore(plugin, item, marked.lore(), true, true);
+        if (source != null && !source.getType().isAir()) {
+            retainedLore = stripVariants(
+                    retainedLore,
+                    LocalizedEnchantmentLoreRenderer.renderAllLocales(plugin, source, true, true));
+        }
+
+        List<Component> generatedLore = LocalizedEnchantmentLoreRenderer.render(
+                plugin,
+                plugin.getLanguageManager().getDefaultLanguage(),
+                item,
+                false,
+                false);
+        List<Component> mergedLore = prependGeneratedLore(retainedLore, generatedLore);
+        boolean markerChanged = GeneratedLoreMarker.write(plugin, meta, generatedLore);
+        boolean changed = markerChanged || !sameLore(originalLore, mergedLore);
+        if (!changed) {
+            return false;
+        }
+
+        meta.lore(mergedLore.isEmpty() ? null : mergedLore);
+        item.setItemMeta(meta);
+        return true;
+    }
+
+    private static List<Component> stripLegacyGeneratedLore(FotiaEnchantment plugin,
+                                                            ItemStack item,
+                                                            List<Component> existingLore,
+                                                            boolean includeInvalidCustom,
+                                                            boolean includeDisabledVanilla) {
+        List<Component> retainedLore = stripPotentialSlotLoreCopies(
+                existingLore,
+                LocalizedEnchantmentLoreRenderer.potentialSlotLoreAllLocales(plugin, item));
+        retainedLore = stripVariants(
+                retainedLore,
+                LocalizedEnchantmentLoreRenderer.renderAllLocales(
+                        plugin,
+                        item,
+                        includeInvalidCustom,
+                        includeDisabledVanilla));
+        return stripLikelyLeadingSlotLoreCopies(retainedLore);
+    }
+
+    private static List<Component> stripVariants(List<Component> existingLore,
+                                                 List<List<Component>> variants) {
+        return EnchantmentGeneratedLoreStripper.stripGeneratedLoreVariants(existingLore, variants);
+    }
+
+    private static List<Component> prependGeneratedLore(List<Component> retainedLore,
+                                                        List<Component> generatedLore) {
+        if (generatedLore == null || generatedLore.isEmpty()) {
+            return copy(retainedLore);
+        }
+        List<Component> result = new ArrayList<>(generatedLore);
+        if (retainedLore != null && !retainedLore.isEmpty()) {
+            result.add(Component.empty());
+            result.addAll(retainedLore);
+        }
+        return result;
+    }
+
     private static List<Component> stripLikelyLeadingSlotLoreCopies(List<Component> existingLore) {
         if (existingLore == null || existingLore.isEmpty()) {
             return List.of();
         }
-
         int cursor = 0;
         while (cursor < existingLore.size() && isLikelySlotLore(existingLore.get(cursor))) {
             cursor++;
@@ -375,119 +256,15 @@ public final class EnchantmentLoreCleaner {
         if (!namesSlot) {
             return false;
         }
-        boolean bracketed = plain.startsWith("[") && plain.endsWith("]");
-        boolean summary = SLOT_SUMMARY_PATTERN.matcher(plain).find();
-        return bracketed || summary;
+        return (plain.startsWith("[") && plain.endsWith("]"))
+                || SLOT_SUMMARY_PATTERN.matcher(plain).find();
     }
 
     private static boolean sameLore(List<Component> first, List<Component> second) {
-        List<Component> normalizedFirst = first == null ? List.of() : first;
-        List<Component> normalizedSecond = second == null ? List.of() : second;
-        return normalizedFirst.equals(normalizedSecond);
+        return (first == null ? List.of() : first).equals(second == null ? List.of() : second);
     }
 
-    private static Comparator<LoreEntry> loreEntryComparator(FotiaEnchantment plugin) {
-        return Comparator
-                .comparingInt((LoreEntry entry) -> entry.custom()
-                        ? plugin.getConfigManager().getRarityRank(
-                                entry.data() == null ? null : entry.data().getRarity())
-                        : Integer.MAX_VALUE)
-                .thenComparing(entry -> entry.custom() ? 0 : 1)
-                .thenComparing(LoreEntry::id);
-    }
-
-    private static void addVanillaEntry(FotiaEnchantment plugin,
-                                        Map<String, LoreEntry> entries,
-                                        Enchantment enchantment,
-                                        int level,
-                                        boolean includeDisabledVanilla) {
-        if (enchantment == null || level <= 0) {
-            return;
-        }
-        NamespacedKey key = enchantment.getKey();
-        if (key == null || EnchantmentRegistry.getNamespace().equals(key.getNamespace())) {
-            return;
-        }
-        if (!"minecraft".equals(key.getNamespace())) {
-            return;
-        }
-        if (!includeDisabledVanilla && isDisabledVanilla(plugin, enchantment)) {
-            return;
-        }
-        String id = normalizeId(key.getKey());
-        entries.putIfAbsent("vanilla:" + id, new LoreEntry(id, level, false, enchantment, null));
-    }
-
-    private static boolean isDisabledVanilla(FotiaEnchantment plugin, Enchantment enchantment) {
-        if (plugin == null || plugin.getVanillaManager() == null || enchantment == null || enchantment.getKey() == null) {
-            return false;
-        }
-        NamespacedKey key = enchantment.getKey();
-        if (!"minecraft".equals(key.getNamespace())) {
-            return false;
-        }
-        VanillaManager vanillaManager = plugin.getVanillaManager();
-        return vanillaManager.isDisabled(enchantment);
-    }
-
-    private static String displayNameLine(FotiaEnchantment plugin,
-                                          Player player,
-                                          LoreEntry entry,
-                                          YamlConfiguration rarityConfig) {
-        if (entry.custom()) {
-            String name = plugin.getLanguageManager().getEnchantName(player, entry.id());
-            String rarityColor = "<white>";
-            if (entry.data() != null && entry.data().getRarity() != null) {
-                rarityColor = rarityConfig.getString(entry.data().getRarity() + ".color", "<white>");
-            }
-            boolean curse = entry.data() != null && entry.data().isCurse();
-            return EnchantmentLoreFormatter.customDisplayLine(name, entry.level(), rarityColor, curse);
-        }
-
-        VanillaOverride override = vanillaOverride(plugin, entry.id());
-        String name = override != null ? override.getDisplayName() : entry.id();
-        boolean curse = entry.enchantment() != null && entry.enchantment().isCursed();
-        return EnchantmentLoreFormatter.vanillaDisplayLine(name, entry.level(), curse);
-    }
-
-    private static List<String> descriptionLines(FotiaEnchantment plugin, Player player, LoreEntry entry) {
-        if (entry.custom()) {
-            List<String> description = plugin.getLanguageManager().getEnchantDescription(player, entry.id());
-            return EnchantmentDescriptionLines.customDescriptionOrGenerated(
-                    description,
-                    entry.data(),
-                    entry.level(),
-                    key -> plugin.getLanguageManager().getGUIText(player, key),
-                    "Unconfigured enchantment description."
-            );
-        }
-
-        VanillaOverride override = vanillaOverride(plugin, entry.id());
-        if (override != null && override.getDescription() != null && !override.getDescription().isEmpty()) {
-            return override.getDescription();
-        }
-        return List.of("Vanilla enchantment.");
-    }
-
-    private static VanillaOverride vanillaOverride(FotiaEnchantment plugin, String id) {
-        if (plugin.getVanillaManager() == null || plugin.getVanillaManager().getVanillaConfig() == null) {
-            return null;
-        }
-        return plugin.getVanillaManager().getVanillaConfig().getOverride(id);
-    }
-
-    private static Component deserialize(String text) {
-        return MiniMessageCache.deserializeLegacyAware(text);
-    }
-
-    private static String normalizeId(String id) {
-        return id == null ? "" : id.toLowerCase(Locale.ROOT);
-    }
-
-    private record LoreEntry(String id,
-                             int level,
-                             boolean custom,
-                             Enchantment enchantment,
-                             EnchantmentData data) {
+    private static List<Component> copy(List<Component> lore) {
+        return lore == null ? List.of() : new ArrayList<>(lore);
     }
 }
