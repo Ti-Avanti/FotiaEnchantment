@@ -16,6 +16,7 @@ import gg.fotia.enchantment.listener.EnchantmentDisplayListener;
 import gg.fotia.enchantment.listener.GrindstoneDisableListener;
 import gg.fotia.enchantment.listener.ItemDropListener;
 import gg.fotia.enchantment.listener.ItemUseListener;
+import gg.fotia.enchantment.listener.MobDropEnchantmentLimitListener;
 import gg.fotia.enchantment.listener.TradeListener;
 import gg.fotia.enchantment.mining.NaturalOreTracker;
 import gg.fotia.enchantment.update.UpdateChecker;
@@ -140,6 +141,7 @@ public class FotiaEnchantment extends JavaPlugin {
         pm.registerEvents(guiManager, this);
         pm.registerEvents(new ItemUseListener(this), this);
         pm.registerEvents(new ItemDropListener(this), this);
+        pm.registerEvents(new MobDropEnchantmentLimitListener(this), this);
         pm.registerEvents(new EnchantListener(this), this);
         enchantmentDisplayListener = new EnchantmentDisplayListener(this);
         pm.registerEvents(enchantmentDisplayListener, this);

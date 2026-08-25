@@ -3,6 +3,7 @@ package gg.fotia.enchantment.config;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.core.EnchantingTableLevelPolicy;
 import gg.fotia.enchantment.core.EnchantmentLimitPolicy;
+import gg.fotia.enchantment.core.MobDropOverflowAction;
 import gg.fotia.enchantment.item.CodexRarityWeights;
 import gg.fotia.enchantment.lore.item.EnchantmentRarityOrder;
 import gg.fotia.enchantment.lore.item.EnchantmentSlotLore;
@@ -103,6 +104,12 @@ public class ConfigManager {
 
     /** 附魔槽位显示模式缓存 */
     private volatile String enchantSlotDisplayMode = EnchantmentSlotLore.MODE_LINES;
+
+    /** 是否限制生物死亡掉落装备的附魔数量 */
+    private volatile boolean mobDropEnchantmentLimitEnabled = true;
+
+    /** 生物掉落装备超过附魔上限时的处理方式 */
+    private volatile MobDropOverflowAction mobDropOverflowAction = MobDropOverflowAction.TRIM;
 
     /** 附魔组 → max-per-item 上限 预解析表 (groups.yml) */
     private volatile Map<String, Integer> groupMaxPerItem = Map.of();
@@ -208,6 +215,9 @@ public class ConfigManager {
         maxEnchantmentsPerItem = mainConfig.getInt("max-enchantments-per-item", 8);
         enchantSlotDisplayMode = EnchantmentSlotLore.normalizeDisplayMode(
                 mainConfig.getString("item-lore.enchant-slots.display-mode", EnchantmentSlotLore.MODE_LINES));
+        mobDropEnchantmentLimitEnabled = limitsConfig.getBoolean("mob-drop-enchantment-limit.enabled", true);
+        mobDropOverflowAction = MobDropOverflowAction.parse(
+                limitsConfig.getString("mob-drop-enchantment-limit.overflow-action", "TRIM"));
         groupMaxPerItem = buildGroupLimits(groupsConfig);
         configGeneration++;
     }
@@ -499,14 +509,24 @@ public class ConfigManager {
     }
 
     static boolean refreshLimitsConfig(YamlConfiguration config) {
-        if (config == null || !config.isConfigurationSection("item-groups")) {
+        if (config == null) {
             return false;
         }
-        if (config.contains("item-groups.spears", true)) {
-            return false;
+
+        boolean changed = false;
+        if (config.isConfigurationSection("item-groups") && !config.contains("item-groups.spears", true)) {
+            config.set("item-groups.spears", config.getInt("item-groups.tridents", 6));
+            changed = true;
         }
-        config.set("item-groups.spears", config.getInt("item-groups.tridents", 6));
-        return true;
+        if (!config.contains("mob-drop-enchantment-limit.enabled", true)) {
+            config.set("mob-drop-enchantment-limit.enabled", true);
+            changed = true;
+        }
+        if (!config.contains("mob-drop-enchantment-limit.overflow-action", true)) {
+            config.set("mob-drop-enchantment-limit.overflow-action", "TRIM");
+            changed = true;
+        }
+        return changed;
     }
 
     private void refreshAndSaveCustomItemsConfig(YamlConfiguration config) {
@@ -734,6 +754,14 @@ public class ConfigManager {
         int resolved = EnchantmentLimitPolicy.resolveLimit(limitsConfig, material, maxEnchantmentsPerItem);
         materialLimitCache.put(material, resolved);
         return resolved;
+    }
+
+    public boolean isMobDropEnchantmentLimitEnabled() {
+        return mobDropEnchantmentLimitEnabled;
+    }
+
+    public MobDropOverflowAction getMobDropOverflowAction() {
+        return mobDropOverflowAction;
     }
 
     /**

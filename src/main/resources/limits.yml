@@ -14,6 +14,23 @@
 # EN: - Priority: per-material materials > item-groups > default-max-enchantments.
 # ============================================
 
+# 生物死亡掉落装备的附魔上限处理
+# EN: Enchantment limit handling for equipment dropped by mobs
+mob-drop-enchantment-limit:
+  # 是否对非玩家生物的死亡掉落物执行本文件中的附魔数量上限。
+  # 开启后会统一统计原版附魔、Fotia 真附魔和旧版 PDC 附魔。
+  # 玩家死亡掉落不受此开关影响。
+  # EN: Whether non-player mob drops must obey the limits in this file.
+  enabled: true
+  # 超限处理方式：
+  # TRIM：优先保留等级较高的附魔，删除超出上限的附魔；同等级按附魔 ID 稳定排序。
+  # REMOVE_DROP：超限装备整件不掉落。
+  # 填写无效值时自动使用 TRIM。
+  # EN: TRIM removes excess enchantments; REMOVE_DROP removes the whole over-limit drop.
+  overflow-action: TRIM
+
+# ============================================
+
 # 通用附魔数量上限
 # EN: Default enchantment count limit
 default-max-enchantments: 8

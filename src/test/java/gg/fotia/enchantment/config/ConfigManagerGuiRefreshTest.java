@@ -63,6 +63,8 @@ class ConfigManagerGuiRefreshTest {
 
         assertTrue(ConfigManager.refreshLimitsConfig(config));
         assertEquals(6, config.getInt("item-groups.spears"));
+        assertTrue(config.getBoolean("mob-drop-enchantment-limit.enabled"));
+        assertEquals("TRIM", config.getString("mob-drop-enchantment-limit.overflow-action"));
     }
 
     @Test
@@ -70,9 +72,23 @@ class ConfigManagerGuiRefreshTest {
         YamlConfiguration config = new YamlConfiguration();
         config.set("item-groups.tridents", 6);
         config.set("item-groups.spears", 4);
+        config.set("mob-drop-enchantment-limit.enabled", false);
+        config.set("mob-drop-enchantment-limit.overflow-action", "REMOVE_DROP");
 
         assertFalse(ConfigManager.refreshLimitsConfig(config));
         assertEquals(4, config.getInt("item-groups.spears"));
+        assertFalse(config.getBoolean("mob-drop-enchantment-limit.enabled"));
+        assertEquals("REMOVE_DROP", config.getString("mob-drop-enchantment-limit.overflow-action"));
+    }
+
+    @Test
+    void oldLimitsConfigGainsMobDropEnchantmentLimitSettings() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("item-groups.spears", 4);
+
+        assertTrue(ConfigManager.refreshLimitsConfig(config));
+        assertTrue(config.getBoolean("mob-drop-enchantment-limit.enabled"));
+        assertEquals("TRIM", config.getString("mob-drop-enchantment-limit.overflow-action"));
     }
 
     @Test
