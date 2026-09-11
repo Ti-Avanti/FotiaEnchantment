@@ -95,8 +95,8 @@ public class VanillaManager implements Listener {
      * 重载配置并重新应用
      */
     public void reload() {
-        vanillaConfig.reload();
-        plugin.getLogger().info("原版附魔覆盖系统已重载，共覆盖 " + vanillaConfig.getAllOverrides().size() + " 个原版附魔");
+        getVanillaConfig().reload();
+        plugin.getLogger().info("原版附魔覆盖系统已重载，共覆盖 " + getVanillaConfig().getAllOverrides().size() + " 个原版附魔");
     }
 
     /**
@@ -208,7 +208,7 @@ public class VanillaManager implements Listener {
      * 获取 VanillaConfig 实例
      */
     public VanillaConfig getVanillaConfig() {
-        return vanillaConfig;
+        return plugin.currentVanillaConfig(vanillaConfig);
     }
 
     // ==================== 事件监听 ====================
@@ -233,7 +233,7 @@ public class VanillaManager implements Listener {
 
         // 物品在事件期间不变, 一次性解析其附魔状态供全部候选过滤复用
         EnchantingTableContext ctx = new EnchantingTableContext(item);
-        boolean useConfiguredWeights = vanillaConfig.hasConfiguredEnchantingWeights();
+        boolean useConfiguredWeights = getVanillaConfig().hasConfiguredEnchantingWeights();
         EnchantmentOffer[] offers = event.getOffers();
         int enchantingSeed = event.getEnchanter().getEnchantmentSeed();
         for (int slot = 0; slot < offers.length; slot++) {
@@ -987,7 +987,7 @@ public class VanillaManager implements Listener {
         if (!isMinecraftEnchantment(enchant)) {
             return null;
         }
-        return vanillaConfig.getOverride(enchant.getKey().getKey());
+        return getVanillaConfig().getOverride(enchant.getKey().getKey());
     }
 
     private boolean hasExistingFotiaEnchantments(ItemStack item) {

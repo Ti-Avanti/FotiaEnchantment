@@ -45,10 +45,15 @@ public class VanillaConfig {
      * 加载 vanilla/ 目录下所有 yml 文件
      */
     public void loadAll() {
+        loadAll(captureDefaultFiles());
+    }
+
+    /** 注册表数据由游戏线程预先捕获，后台只进行文件读写和 YAML 解析。 */
+    public void loadAll(Map<String, String> defaultFiles) {
         Map<String, VanillaOverride> loaded = new HashMap<>();
         File vanillaDir = new File(plugin.getDataFolder(), "vanilla");
         ensureVanillaDirectory(vanillaDir);
-        ensureAllVanillaFiles(vanillaDir);
+        ensureAllVanillaFiles(vanillaDir, defaultFiles);
         if (!vanillaDir.exists() || !vanillaDir.isDirectory()) {
             publishOverrides(loaded);
             return;
@@ -102,21 +107,30 @@ public class VanillaConfig {
     /**
      * 按当前服务端注册表自动补齐所有 minecraft 命名空间的原版附魔配置。
      */
-    private void ensureAllVanillaFiles(File vanillaDir) {
+    public Map<String, String> captureDefaultFiles() {
         List<Enchantment> vanillaEnchantments = Registry.ENCHANTMENT.stream()
                 .filter(enchant -> "minecraft".equals(enchant.getKey().getNamespace()))
                 .sorted((left, right) -> left.getKey().getKey().compareTo(right.getKey().getKey()))
                 .toList();
 
-        int created = 0;
+        Map<String, String> defaults = new java.util.LinkedHashMap<>();
         for (Enchantment enchantment : vanillaEnchantments) {
             String key = enchantment.getKey().getKey().toLowerCase(Locale.ROOT);
+            defaults.put(key, defaultVanillaConfig(enchantment));
+        }
+        return Map.copyOf(defaults);
+    }
+
+    private void ensureAllVanillaFiles(File vanillaDir, Map<String, String> defaults) {
+        int created = 0;
+        for (Map.Entry<String, String> entry : defaults.entrySet()) {
+            String key = entry.getKey();
             File file = new File(vanillaDir, key + ".yml");
             if (file.exists()) {
                 continue;
             }
             try {
-                Files.writeString(file.toPath(), defaultVanillaConfig(enchantment), StandardCharsets.UTF_8);
+                Files.writeString(file.toPath(), entry.getValue(), StandardCharsets.UTF_8);
                 created++;
             } catch (IOException ex) {
                 plugin.getLogger().severe("无法生成原版附魔配置文件: vanilla/" + key + ".yml");

@@ -13,10 +13,6 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSe
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import gg.fotia.enchantment.FotiaEnchantment;
 import gg.fotia.enchantment.compat.BukkitItemFlags;
-import gg.fotia.enchantment.compat.BukkitRegistryCompat;
-import gg.fotia.enchantment.core.EnchantmentData;
-import gg.fotia.enchantment.core.EnchantmentItemSanitizer;
-import gg.fotia.enchantment.core.EnchantmentRegistry;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.core.PDCManager;
 import gg.fotia.enchantment.lore.item.EnchantmentGeneratedLoreStripper;
@@ -26,17 +22,13 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 
@@ -226,10 +218,12 @@ public class PacketEventsHook {
         ItemMeta sourceMeta = item.getItemMeta();
         if (sourceMeta == null) return null;
 
-        List<LoreEntry> entries = collectLoreEntries(item, sourceMeta, enchantManager, pdc, false);
-        List<LoreEntry> sourceEntries = collectLoreEntries(item, sourceMeta, enchantManager, pdc, true);
-        // 无任何相关附魔的物品(绝大多数)在克隆与 lore 计算之前直接返回
-        if (entries.isEmpty() && sourceEntries.isEmpty()) return null;
+        boolean hasStored = sourceMeta instanceof EnchantmentStorageMeta storage
+                && !storage.getStoredEnchants().isEmpty();
+        // 这里只需判断是否存在候选附魔，不再构造两份随后丢弃的 LoreEntry 列表。
+        if (!sourceMeta.hasEnchants() && !hasStored && pdc.getLegacyEnchantments(sourceMeta).isEmpty()) {
+            return null;
+        }
 
         ItemStack copy = item.clone();
         ItemMeta meta = copy.getItemMeta();
@@ -257,94 +251,16 @@ public class PacketEventsHook {
         BukkitItemFlags.hideEnchantments(meta);
         List<Component> mergedLore = EnchantmentLoreCleaner.mergeGeneratedLore(existingLore, generatedLore, sourceGeneratedLore);
         if (generatedLore.isEmpty() && mergedLore.equals(existingLore)) return null;
+        if (mergedLore.equals(sourceMeta.lore()) && BukkitItemFlags.hasHideEnchantments(sourceMeta)) {
+            return null;
+        }
         meta.lore(mergedLore.isEmpty() ? null : mergedLore);
         copy.setItemMeta(meta);
         return copy;
     }
 
-    private List<LoreEntry> collectLoreEntries(ItemStack item,
-                                               ItemMeta meta,
-                                               EnchantmentManager enchantManager,
-                                               PDCManager pdc,
-                                               boolean includeDisabledVanilla) {
-        Map<String, LoreEntry> entries = new LinkedHashMap<>();
-
-        for (Map.Entry<String, Integer> entry : pdc.getEnchantments(meta).entrySet()) {
-            String id = normalizeId(entry.getKey());
-            int level = entry.getValue();
-            if (id.isEmpty() || level <= 0) {
-                continue;
-            }
-            EnchantmentData data = enchantManager.getEnchantment(id);
-            if (!EnchantmentItemSanitizer.isValid(data, item.getType(), level)) {
-                continue;
-            }
-            entries.put("custom:" + id, new LoreEntry(id, level, true, null, data));
-        }
-
-        for (Map.Entry<Enchantment, Integer> entry : meta.getEnchants().entrySet()) {
-            if (isSyntheticGuiGlow(meta, entry.getKey())) {
-                continue;
-            }
-            addVanillaEntry(entries, entry.getKey(), entry.getValue(), includeDisabledVanilla);
-        }
-        if (meta instanceof EnchantmentStorageMeta storageMeta) {
-            for (Map.Entry<Enchantment, Integer> entry : storageMeta.getStoredEnchants().entrySet()) {
-                if (isSyntheticGuiGlow(meta, entry.getKey())) {
-                    continue;
-                }
-                addVanillaEntry(entries, entry.getKey(), entry.getValue(), includeDisabledVanilla);
-            }
-        }
-
-        return new ArrayList<>(entries.values());
-    }
-
-    private boolean isSyntheticGuiGlow(ItemMeta meta, Enchantment enchantment) {
-        Enchantment unbreaking = BukkitRegistryCompat.unbreakingEnchantment();
-        return enchantment != null
-                && enchantment.equals(unbreaking)
-                && meta.getPersistentDataContainer().has(guiGlowKey, PersistentDataType.BYTE);
-    }
-
-    private void addVanillaEntry(Map<String, LoreEntry> entries,
-                                 Enchantment enchantment,
-                                 int level,
-                                 boolean includeDisabledVanilla) {
-        if (enchantment == null || level <= 0) {
-            return;
-        }
-        NamespacedKey key = enchantment.getKey();
-        if (key == null || EnchantmentRegistry.getNamespace().equals(key.getNamespace())) {
-            return;
-        }
-        if (!"minecraft".equals(key.getNamespace())) {
-            return;
-        }
-        if (!includeDisabledVanilla && isDisabledVanilla(enchantment)) {
-            return;
-        }
-        String id = normalizeId(key.getKey());
-        entries.putIfAbsent("vanilla:" + id, new LoreEntry(id, level, false, enchantment, null));
-    }
-
-    private boolean isDisabledVanilla(Enchantment enchantment) {
-        if (plugin.getVanillaManager() == null || enchantment == null || enchantment.getKey() == null) {
-            return false;
-        }
-        NamespacedKey key = enchantment.getKey();
-        if (!"minecraft".equals(key.getNamespace())) {
-            return false;
-        }
-        return plugin.getVanillaManager().isDisabled(enchantment);
-    }
-
     static List<Component> stripGeneratedLoreCopies(List<Component> existingLore, List<Component> generatedLore) {
         return EnchantmentGeneratedLoreStripper.stripGeneratedLoreCopies(existingLore, generatedLore);
-    }
-
-    private String normalizeId(String id) {
-        return id == null ? "" : id.toLowerCase(java.util.Locale.ROOT);
     }
 
     /**
@@ -357,10 +273,4 @@ public class PacketEventsHook {
         return Bukkit.getPlayer(uuid);
     }
 
-    private record LoreEntry(String id,
-                             int level,
-                             boolean custom,
-                             Enchantment enchantment,
-                             EnchantmentData data) {
-    }
 }

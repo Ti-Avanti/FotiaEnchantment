@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -19,7 +21,7 @@ import java.util.function.Supplier;
 public class TriggerRegistry {
 
     private final Map<String, Supplier<Trigger>> triggerFactories = new HashMap<>();
-    private final Map<String, Trigger> activeTriggers = new HashMap<>();
+    private final Map<String, Trigger> activeTriggers = new ConcurrentHashMap<>();
 
     /**
      * 注册一个触发器工厂
@@ -31,7 +33,7 @@ public class TriggerRegistry {
         if (id == null || factory == null) {
             return;
         }
-        triggerFactories.put(id.toUpperCase(), factory);
+        triggerFactories.put(id.toUpperCase(Locale.ROOT), factory);
     }
 
     /**
@@ -44,7 +46,7 @@ public class TriggerRegistry {
         if (id == null) {
             return null;
         }
-        return activeTriggers.get(id.toUpperCase());
+        return activeTriggers.get(id.toUpperCase(Locale.ROOT));
     }
 
     /**
@@ -62,7 +64,7 @@ public class TriggerRegistry {
         if (ids != null) {
             for (String id : ids) {
                 if (id != null) {
-                    requestedIds.add(id.toUpperCase());
+                    requestedIds.add(id.toUpperCase(Locale.ROOT));
                 }
             }
         }
@@ -123,6 +125,6 @@ public class TriggerRegistry {
      * 获取所有已激活的触发器ID
      */
     public Set<String> getActiveIds() {
-        return Collections.unmodifiableSet(activeTriggers.keySet());
+        return Set.copyOf(activeTriggers.keySet());
     }
 }

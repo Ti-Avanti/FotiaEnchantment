@@ -22,12 +22,14 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLocaleChangeEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.inventory.Inventory;
@@ -36,6 +38,7 @@ import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Queue;
 import java.util.Set;
@@ -46,11 +49,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class EnchantmentDisplayListener implements Listener {
 
     private final FotiaEnchantment plugin;
-    private final Set<UUID> pendingNormalizations = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, NormalizationRequest> pendingNormalizations = new ConcurrentHashMap<>();
     private final Set<UUID> pendingClientRefreshes = ConcurrentHashMap.newKeySet();
     private final Queue<UUID> validityScanQueue = new ConcurrentLinkedQueue<>();
     private volatile EnchantmentItemSanitizer.ValidityRules cachedValidityRules;
     private Object validityScanTask;
+    private volatile boolean active = true;
 
     public EnchantmentDisplayListener(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -66,6 +70,7 @@ public class EnchantmentDisplayListener implements Listener {
     }
 
     public void shutdown() {
+        active = false;
         SchedulerUtils.cancelTask(validityScanTask);
         validityScanTask = null;
         validityScanQueue.clear();
@@ -95,12 +100,12 @@ public class EnchantmentDisplayListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onItemHeld(PlayerItemHeldEvent event) {
-        scheduleNormalize(event.getPlayer());
+        scheduleNormalize(event.getPlayer(), new int[]{event.getPreviousSlot(), event.getNewSlot()});
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onSwapHandItems(PlayerSwapHandItemsEvent event) {
-        scheduleNormalize(event.getPlayer());
+        scheduleNormalize(event.getPlayer(), new int[]{event.getPlayer().getInventory().getHeldItemSlot(), 40});
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -123,14 +128,27 @@ public class EnchantmentDisplayListener implements Listener {
             return;
         }
         if (event.getWhoClicked() instanceof Player player) {
-            scheduleNormalize(player);
+            if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY
+                    || event.getAction() == InventoryAction.COLLECT_TO_CURSOR
+                    || event.getAction() == InventoryAction.HOTBAR_MOVE_AND_READD
+                    || event.getAction() == InventoryAction.UNKNOWN) {
+                scheduleNormalize(player);
+            } else {
+                int slot = event.getClickedInventory() == player.getInventory() ? event.getSlot() : -1;
+                int hotbar = event.getHotbarButton();
+                // F 键交换副手的 hotbarButton 为 -1，副手槽位仍需检查。
+                scheduleNormalize(player, new int[]{slot, hotbar, 40});
+            }
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
-            scheduleNormalize(player);
+            int topSize = event.getView().getTopInventory().getSize();
+            int[] slots = event.getRawSlots().stream().filter(slot -> slot >= topSize)
+                    .mapToInt(slot -> event.getView().convertSlot(slot)).toArray();
+            scheduleNormalize(player, slots);
         }
     }
 
@@ -176,23 +194,36 @@ public class EnchantmentDisplayListener implements Listener {
     }
 
     private void scheduleNormalize(Player player) {
-        if (player == null) {
+        scheduleNormalize(player, null);
+    }
+
+    private void scheduleNormalize(Player player, int[] slots) {
+        if (!active || player == null) {
             return;
         }
         UUID playerId = player.getUniqueId();
-        if (!pendingNormalizations.add(playerId)) {
+        NormalizationRequest request = new NormalizationRequest();
+        NormalizationRequest pending = pendingNormalizations.compute(playerId, (id, existing) -> {
+            NormalizationRequest target = existing == null ? request : existing;
+            target.merge(slots);
+            return target;
+        });
+        if (pending != request) {
             return;
         }
         // Folia 下实体在任务执行前被移除时走 retired 回调, 避免 pending 标记永久滞留
         Object task = SchedulerUtils.runEntityTask(plugin, player, () -> {
+            pendingNormalizations.remove(playerId, request);
             try {
-                normalizePlayer(player);
+                if (active) {
+                    normalizePlayer(player, request.slots());
+                }
             } finally {
-                pendingNormalizations.remove(playerId);
+                pendingNormalizations.remove(playerId, request);
             }
-        }, () -> pendingNormalizations.remove(playerId));
+        }, () -> pendingNormalizations.remove(playerId, request));
         if (task == null) {
-            pendingNormalizations.remove(playerId);
+            pendingNormalizations.remove(playerId, request);
         }
     }
 
@@ -271,13 +302,28 @@ public class EnchantmentDisplayListener implements Listener {
         }
     }
 
-    private void normalizePlayer(Player player) {
+    private void normalizePlayer(Player player, int[] slots) {
         if (player == null || !player.isOnline() || shouldSkipInventoryNormalization(player)) {
             return;
         }
 
         EnchantmentItemSanitizer.ValidityRules rules = validityRules();
-        boolean changed = normalizeInventory(player, player.getInventory(), rules);
+        boolean changed;
+        if (slots == null) {
+            changed = normalizeInventory(player, player.getInventory(), rules);
+        } else {
+            changed = false;
+            Inventory inventory = player.getInventory();
+            for (int slot : slots) {
+                if (slot < inventory.getSize()) {
+                    ItemStack item = inventory.getItem(slot);
+                    if (normalizeItem(player, item, rules)) {
+                        inventory.setItem(slot, item);
+                        changed = true;
+                    }
+                }
+            }
+        }
         ItemStack cursor = player.getItemOnCursor();
         if (normalizeItem(player, cursor, rules)) {
             player.setItemOnCursor(cursor);
@@ -419,6 +465,17 @@ public class EnchantmentDisplayListener implements Listener {
         cachedValidityRules = manager == null
                 ? EnchantmentItemSanitizer.ValidityRules.from(List.of())
                 : EnchantmentItemSanitizer.ValidityRules.from(manager.getAllEnchantments());
+    }
+
+    public void refreshRules() {
+        refreshValidityRules();
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID playerId = event.getPlayer().getUniqueId();
+        pendingNormalizations.remove(playerId);
+        pendingClientRefreshes.remove(playerId);
     }
 
     private long itemValidityCheckInterval() {

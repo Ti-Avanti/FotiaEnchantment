@@ -33,18 +33,39 @@ public class LanguageManager {
     private static final String[] FILE_NAMES = {"messages", "enchantments", "items", "gui"};
 
     private final FotiaEnchantment plugin;
+    private final ConfigManager configSource;
     private final Map<String, Map<String, YamlConfiguration>> loadedLanguages = new ConcurrentHashMap<>();
     private final Map<String, Map<String, YamlConfiguration>> bundledLanguages = new ConcurrentHashMap<>();
     private final AtomicLong preloadGeneration = new AtomicLong();
-    private String defaultLanguage;
+    private volatile String defaultLanguage;
+    private volatile Set<String> availableLocales = Set.of();
 
     public LanguageManager(FotiaEnchantment plugin) {
+        this(plugin, null);
+    }
+
+    private LanguageManager(FotiaEnchantment plugin, ConfigManager configSource) {
         this.plugin = plugin;
+        this.configSource = configSource;
+    }
+
+    /** 调用方在后台读取全部语言，完整实例发布后热路径只读内存。 */
+    public LanguageManager prepareReload(ConfigManager config) {
+        LanguageManager prepared = new LanguageManager(plugin, config);
+        prepared.defaultLanguage = normalizeLocale(config.getDefaultLanguage());
+        prepared.ensureBundledLanguageFiles();
+        prepared.availableLocales = prepared.discoverLocales();
+        for (String locale : prepared.availableLocales) {
+            prepared.loadLanguage(locale);
+            prepared.loadBundledLanguage(locale);
+        }
+        return prepared;
     }
 
     public void init() {
         this.defaultLanguage = normalizeLocale(plugin.getConfigManager().getDefaultLanguage());
         ensureBundledLanguageFiles();
+        availableLocales = discoverLocales();
         loadLanguage(defaultLanguage);
         loadBundledLanguage(defaultLanguage);
         preloadAvailableLanguagesAsync();
@@ -105,6 +126,7 @@ public class LanguageManager {
         bundledLanguages.clear();
         this.defaultLanguage = normalizeLocale(plugin.getConfigManager().getDefaultLanguage());
         ensureBundledLanguageFiles();
+        availableLocales = discoverLocales();
         loadLanguage(defaultLanguage);
         loadBundledLanguage(defaultLanguage);
         preloadAvailableLanguagesAsync();
@@ -112,6 +134,10 @@ public class LanguageManager {
     }
 
     public Set<String> getAvailableLocales() {
+        return availableLocales;
+    }
+
+    private Set<String> discoverLocales() {
         Set<String> locales = new TreeSet<>();
         locales.add(defaultLanguage);
         locales.addAll(loadedLanguages.keySet());
@@ -132,11 +158,15 @@ public class LanguageManager {
         List<String> locales = List.copyOf(getAvailableLocales());
         SchedulerUtils.runAsyncTask(plugin, () -> {
             for (String locale : locales) {
-                if (preloadGeneration.get() != generation || !plugin.isEnabled()) {
+                if (preloadGeneration.get() != generation || !plugin.isEnabled()
+                        || plugin.getLanguageManager() != this) {
                     return;
                 }
                 loadLanguage(locale);
                 loadBundledLanguage(locale);
+            }
+            if (preloadGeneration.get() == generation && plugin.getLanguageManager() == this) {
+                gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner.clearCaches();
             }
         });
     }
@@ -229,7 +259,7 @@ public class LanguageManager {
     }
 
     private boolean wereBundledDefaultEnchantmentsInstalled() {
-        ConfigManager configManager = plugin.getConfigManager();
+        ConfigManager configManager = configSource != null ? configSource : plugin.getConfigManager();
         return configManager != null && configManager.wereBundledDefaultEnchantmentsInstalled();
     }
 
@@ -352,7 +382,7 @@ public class LanguageManager {
         String normalizedLocale = normalizeLocale(locale);
         Map<String, YamlConfiguration> langFiles = loadedLanguages.get(normalizedLocale);
         if (langFiles == null) {
-            langFiles = loadLanguage(normalizedLocale);
+            langFiles = loadedLanguages.getOrDefault(defaultLanguage, Map.of());
         }
         YamlConfiguration config = langFiles.get(fileName);
         if (config == null) {
@@ -362,7 +392,7 @@ public class LanguageManager {
                     return defaultFiles.get(fileName);
                 }
             }
-            return new YamlConfiguration();
+            return null;
         }
         return config;
     }
@@ -373,7 +403,7 @@ public class LanguageManager {
         }
         Map<String, YamlConfiguration> langFiles = bundledLanguages.get(normalizeLocale(locale));
         if (langFiles == null) {
-            langFiles = loadBundledLanguage(locale);
+            return null;
         }
         return langFiles.get(fileName);
     }

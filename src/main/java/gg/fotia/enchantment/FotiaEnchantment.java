@@ -2,6 +2,9 @@ package gg.fotia.enchantment;
 
 import gg.fotia.enchantment.command.CommandManager;
 import gg.fotia.enchantment.config.ConfigManager;
+import gg.fotia.enchantment.config.RuntimeConfiguration;
+import gg.fotia.enchantment.config.VanillaConfig;
+import gg.fotia.enchantment.reload.PluginReloadService;
 import gg.fotia.enchantment.core.EnchantmentManager;
 import gg.fotia.enchantment.pipeline.EffectPipeline;
 import gg.fotia.enchantment.core.VanillaManager;
@@ -39,6 +42,8 @@ public class FotiaEnchantment extends JavaPlugin {
     private UpdateChecker updateChecker;
     private NaturalOreTracker naturalOreTracker;
     private EnchantmentDisplayListener enchantmentDisplayListener;
+    private volatile RuntimeConfiguration runtimeConfiguration;
+    private PluginReloadService reloadService;
 
     @Override
     public void onLoad() {
@@ -51,6 +56,7 @@ public class FotiaEnchantment extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
+        runtimeConfiguration = null;
 
         if (!RequiredPluginChecker.verifyOrDisable(this)) {
             return;
@@ -95,6 +101,7 @@ public class FotiaEnchantment extends JavaPlugin {
         effectPipeline.init();
 
         // 初始化命令管理器
+        reloadService = new PluginReloadService(this);
         commandManager = new CommandManager(this);
         commandManager.init();
 
@@ -109,6 +116,9 @@ public class FotiaEnchantment extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (reloadService != null) {
+            reloadService.shutdown();
+        }
         if (guiManager != null) {
             guiManager.shutdown();
         }
@@ -128,7 +138,7 @@ public class FotiaEnchantment extends JavaPlugin {
             vanillaManager.shutdown();
         }
         if (enchantmentManager != null) {
-            enchantmentManager.shutdown();
+            getEnchantmentManager().shutdown();
         }
         if (updateChecker != null) {
             updateChecker.shutdown();
@@ -154,19 +164,36 @@ public class FotiaEnchantment extends JavaPlugin {
     }
 
     public ConfigManager getConfigManager() {
-        return configManager;
+        RuntimeConfiguration current = runtimeConfiguration;
+        return current == null ? configManager : current.config();
     }
 
     public LanguageManager getLanguageManager() {
-        return languageManager;
+        RuntimeConfiguration current = runtimeConfiguration;
+        return current == null ? languageManager : current.language();
     }
 
     public MessageHelper getMessageHelper() {
-        return messageHelper;
+        RuntimeConfiguration current = runtimeConfiguration;
+        return current == null ? messageHelper : current.messages();
     }
 
     public EnchantmentManager getEnchantmentManager() {
-        return enchantmentManager;
+        RuntimeConfiguration current = runtimeConfiguration;
+        return current == null ? enchantmentManager : current.enchantments();
+    }
+
+    public VanillaConfig currentVanillaConfig(VanillaConfig initial) {
+        RuntimeConfiguration current = runtimeConfiguration;
+        return current == null ? initial : current.vanilla();
+    }
+
+    public void publishConfiguration(RuntimeConfiguration prepared) {
+        runtimeConfiguration = prepared;
+    }
+
+    public PluginReloadService getReloadService() {
+        return reloadService;
     }
 
     public VanillaManager getVanillaManager() {

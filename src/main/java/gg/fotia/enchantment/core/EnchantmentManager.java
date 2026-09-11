@@ -163,14 +163,26 @@ public class EnchantmentManager {
             return false;
         }
         boolean persisted = enchantmentConfig.setEnabled(id, enabled);
-        if (!persisted) {
-            data.setEnabled(enabled);
+        if (persisted) {
+            applyEnabled(id, enabled);
         }
+        return persisted;
+    }
+
+    public void applyEnabled(String id, boolean enabled) {
+        EnchantmentData data = getEnchantment(id);
+        if (data == null) {
+            return;
+        }
+        data.setEnabled(enabled);
         applicableCache.clear();
+        gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner.clearCaches();
         if (plugin.getEffectPipeline() != null) {
             plugin.getEffectPipeline().rebuildTriggerIndex();
         }
-        return persisted;
+        if (plugin.getEnchantmentDisplayListener() != null) {
+            plugin.getEnchantmentDisplayListener().refreshRules();
+        }
     }
 
     /**

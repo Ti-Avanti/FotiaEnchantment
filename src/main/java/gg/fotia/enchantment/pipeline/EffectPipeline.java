@@ -16,6 +16,7 @@ import gg.fotia.enchantment.pipeline.effect.EffectRegistry;
 import gg.fotia.enchantment.pipeline.effect.impl.*;
 import gg.fotia.enchantment.pipeline.trigger.TriggerContext;
 import gg.fotia.enchantment.pipeline.trigger.TriggerRegistry;
+import gg.fotia.enchantment.pipeline.trigger.PlayerTimerDispatcher;
 import gg.fotia.enchantment.pipeline.trigger.impl.*;
 import gg.fotia.enchantment.util.SchedulerUtils;
 import org.bukkit.Material;
@@ -53,13 +54,14 @@ public class EffectPipeline {
     private final ConditionStateListener conditionStateListener;
 
     private volatile int maxEffectsPerTick;
-    private final Object effectBudgetLock = new Object();
-    private int currentTickEffects = 0;
-    /** 上次计数所在的服务器 tick, 用于惰性重置计数器 (替代每 tick 常驻重置任务) */
-    private int currentTickStamp = Integer.MIN_VALUE;
+    private final EffectBudget effectBudget = new EffectBudget();
+    /** Folia 各区域的 tick 不同，全服额度统一使用全局调度器推进的时钟。 */
+    private Object budgetClockTask;
     private Object cooldownPurgeTask;
     private final ThreadLocal<List<ExecutionKey>> executionStack = ThreadLocal.withInitial(ArrayList::new);
-    private Map<String, List<TriggerBinding>> triggerIndex = Collections.emptyMap();
+    private volatile Map<String, List<TriggerBinding>> triggerIndex = Collections.emptyMap();
+    private volatile boolean running;
+    private final PlayerTimerDispatcher playerTimers;
 
     public EffectPipeline(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -68,8 +70,9 @@ public class EffectPipeline {
         this.effectRegistry = new EffectRegistry();
         this.cooldownManager = new CooldownManager();
         this.conditionStateListener = new ConditionStateListener(plugin, cooldownManager);
-        this.maxEffectsPerTick = plugin.getConfigManager().getMainConfig()
-                .getInt("performance.max-effects-per-tick", 50);
+        this.playerTimers = new PlayerTimerDispatcher(plugin);
+        this.maxEffectsPerTick = Math.max(1, plugin.getConfigManager().getMainConfig()
+                .getInt("performance.max-effects-per-tick", 50));
     }
 
     /**
@@ -79,9 +82,10 @@ public class EffectPipeline {
         registerBuiltinTriggers();
         registerBuiltinConditions();
         registerBuiltinEffects();
-        rebuildTriggerIndex();
+        triggerIndex = buildTriggerIndex(getRegisteredEnchantments().values());
         conditionStateListener.register();
         startMaintenanceTasks();
+        running = true;
         triggerRegistry.activateOnly(this, triggerIndex.keySet());
         plugin.getLogger().info("效果管道已初始化");
     }
@@ -90,7 +94,9 @@ public class EffectPipeline {
      * 关闭管道
      */
     public void shutdown() {
+        running = false;
         triggerRegistry.deactivateAll();
+        playerTimers.shutdown();
         conditionStateListener.shutdown();
         stopMaintenanceTasks();
         cooldownManager.clearAll();
@@ -100,12 +106,19 @@ public class EffectPipeline {
      * 重载配置
      */
     public void reload() {
+        running = false;
         triggerRegistry.deactivateAll();
-        maxEffectsPerTick = plugin.getConfigManager().getMainConfig()
-                .getInt("performance.max-effects-per-tick", 50);
+        maxEffectsPerTick = Math.max(1, plugin.getConfigManager().getMainConfig()
+                .getInt("performance.max-effects-per-tick", 50));
         resetTickCounter();
-        rebuildTriggerIndex();
+        triggerIndex = buildTriggerIndex(getRegisteredEnchantments().values());
+        syncBudgetClock();
+        running = true;
         triggerRegistry.activateOnly(this, triggerIndex.keySet());
+    }
+
+    public void pause() {
+        running = false;
     }
 
     /**
@@ -129,7 +142,7 @@ public class EffectPipeline {
     }
 
     private void executeInternal(TriggerContext context, ItemStack onlyItem) {
-        if (context == null) {
+        if (!running || context == null) {
             return;
         }
         Player player = context.getPlayer();
@@ -167,7 +180,7 @@ public class EffectPipeline {
 
             for (int idx = 0; idx < activeEnchantments.size(); idx++) {
                 // 性能限制检查
-                if (effectsThisTick() >= maxEffectsPerTick) {
+                if (!running || effectsThisTick() >= maxEffectsPerTick) {
                     break;
                 }
 
@@ -183,6 +196,14 @@ public class EffectPipeline {
                 variables.put("level", (double) level);
                 variables.put("value", context.getValue());
                 variables.put("alt_value", context.getAltValue());
+
+                // 固定冷却优先筛除，不再让冷却中的效果重复执行条件查询。
+                String cooldownKey = active.getCooldownKey();
+                long cooldownTicks = LevelCooldownPolicy.resolveCooldownTicks(effectBlock, level, variables);
+                if (cooldownTicks > 0
+                        && cooldownManager.isOnCooldown(player.getUniqueId(), cooldownKey)) {
+                    continue;
+                }
 
                 // 检查所有条件
                 boolean allConditionsMet = true;
@@ -225,17 +246,23 @@ public class EffectPipeline {
                     continue;
                 }
 
-                // 检查冷却
-                String cooldownKey = active.getCooldownKey();
-                long cooldownTicks = LevelCooldownPolicy.resolveCooldownTicks(effectBlock, level, variables);
-                if (cooldownTicks > 0
-                        && cooldownManager.isOnCooldown(player.getUniqueId(), cooldownKey)) {
+                int actionCount = 0;
+                if (effectBlock.getActions() != null) {
+                    for (EnchantmentData.ActionConfig action : effectBlock.getActions()) {
+                        if (action != null && effectRegistry.get(action.getType()) != null) {
+                            actionCount++;
+                        }
+                    }
+                }
+                long reservationTick = effectBudget.reserve(actionCount, maxEffectsPerTick);
+                if (reservationTick < 0L) {
                     continue;
                 }
 
                 // 执行所有动作
                 boolean actionExecuted = false;
-                if (effectBlock.getActions() != null) {
+                int attemptedActions = 0;
+                try {
                     for (EnchantmentData.ActionConfig actionConfig : effectBlock.getActions()) {
                         if (actionConfig == null) {
                             continue;
@@ -244,9 +271,7 @@ public class EffectPipeline {
                         if (effect == null) {
                             continue;
                         }
-                        if (!tryAcquireEffectBudget()) {
-                            break;
-                        }
+                        attemptedActions++;
                         EffectContext effectContext = new EffectContext(
                                 plugin, context, actionConfig, level, variables
                         );
@@ -261,6 +286,8 @@ public class EffectPipeline {
                             break;
                         }
                     }
+                } finally {
+                    effectBudget.release(reservationTick, actionCount - attemptedActions);
                 }
 
                 if (!actionExecuted) {
@@ -452,6 +479,17 @@ public class EffectPipeline {
 
     public void rebuildTriggerIndex() {
         triggerIndex = buildTriggerIndex(getRegisteredEnchantments().values());
+        // 后台开关会改变实际需要的监听器，在全局线程统一同步生命周期。
+        SchedulerUtils.runTask(plugin, () -> {
+            if (running) {
+                syncBudgetClock();
+                triggerRegistry.activateOnly(this, triggerIndex.keySet());
+            }
+        });
+    }
+
+    public PlayerTimerDispatcher getPlayerTimers() {
+        return playerTimers;
     }
 
     static Map<String, List<TriggerBinding>> buildTriggerIndex(Collection<EnchantmentData> enchantments) {
@@ -502,12 +540,25 @@ public class EffectPipeline {
 
     private void startMaintenanceTasks() {
         stopMaintenanceTasks();
+        syncBudgetClock();
         cooldownPurgeTask = SchedulerUtils.runTaskTimer(plugin, cooldownManager::purgeExpired, 20L * 60L, 20L * 60L);
+    }
+
+    private void syncBudgetClock() {
+        if (triggerIndex.isEmpty()) {
+            SchedulerUtils.cancelTask(budgetClockTask);
+            budgetClockTask = null;
+            effectBudget.reset();
+        } else if (budgetClockTask == null) {
+            budgetClockTask = SchedulerUtils.runTaskTimer(plugin, effectBudget::reset, 1L, 1L);
+        }
     }
 
     private void stopMaintenanceTasks() {
         SchedulerUtils.cancelTask(cooldownPurgeTask);
         cooldownPurgeTask = null;
+        SchedulerUtils.cancelTask(budgetClockTask);
+        budgetClockTask = null;
     }
 
     // ==================== 内置组件注册（待实现） ====================
@@ -881,42 +932,17 @@ public class EffectPipeline {
     }
 
     /**
-     * 惰性按 tick 重置的计数读取: 进入新 tick 时清零, 无需常驻重置任务
+     * 读取全局 tick 的已预留额度，可从任何线程读取。
      */
     private int effectsThisTick() {
-        synchronized (effectBudgetLock) {
-            resetTickCounterIfNeeded();
-            return currentTickEffects;
-        }
-    }
-
-    private boolean tryAcquireEffectBudget() {
-        synchronized (effectBudgetLock) {
-            resetTickCounterIfNeeded();
-            if (currentTickEffects >= maxEffectsPerTick) {
-                return false;
-            }
-            currentTickEffects++;
-            return true;
-        }
-    }
-
-    private void resetTickCounterIfNeeded() {
-        int tick = org.bukkit.Bukkit.getCurrentTick();
-        if (tick != currentTickStamp) {
-            currentTickStamp = tick;
-            currentTickEffects = 0;
-        }
+        return effectBudget.used();
     }
 
     /**
-     * 重置计数器 (惰性重置后仅供外部手动清零使用)
+     * 重置计数器并让上一轮尚未完成的额度归还失效。
      */
     public void resetTickCounter() {
-        synchronized (effectBudgetLock) {
-            currentTickEffects = 0;
-            currentTickStamp = Integer.MIN_VALUE;
-        }
+        effectBudget.reset();
     }
 
     static class TriggerBinding {

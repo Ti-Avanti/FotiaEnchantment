@@ -124,6 +124,14 @@ public class ConfigManager {
         this.plugin = plugin;
     }
 
+    /** 在后台构建独立实例，不修改正在被游戏线程读取的配置。 */
+    public ConfigManager prepareReload() {
+        ConfigManager prepared = new ConfigManager(plugin);
+        prepared.configGeneration = configGeneration;
+        prepared.reload();
+        return prepared;
+    }
+
     /**
      * 加载所有配置文件
      */

@@ -14,7 +14,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,7 +32,7 @@ import java.util.UUID;
 public class GUIManager implements Listener {
 
     private final FotiaEnchantment plugin;
-    private final Map<UUID, BaseGUI> openGUIs = new HashMap<>();
+    private final Map<UUID, BaseGUI> openGUIs = new ConcurrentHashMap<>();
 
     public GUIManager(FotiaEnchantment plugin) {
         this.plugin = plugin;
@@ -74,15 +74,19 @@ public class GUIManager implements Listener {
         // 先清空追踪, 避免 closeInventory 触发的 InventoryCloseEvent 二次处理
         openGUIs.clear();
         for (BaseGUI gui : guis) {
-            try {
-                gui.handleClose(null);
-            } catch (Throwable t) {
-                plugin.getLogger().warning("插件禁用时归还 GUI 物品出错: " + t.getMessage());
-            }
+            closeGui(gui);
+        }
+    }
+
+    private void closeGui(BaseGUI gui) {
+        try {
+            gui.handleClose(null);
             Player player = gui.getPlayer();
             if (player != null && player.isOnline()) {
                 player.closeInventory();
             }
+        } catch (Throwable t) {
+            plugin.getLogger().warning("插件禁用时归还 GUI 物品出错: " + t.getMessage());
         }
     }
 
@@ -141,7 +145,9 @@ public class GUIManager implements Listener {
         if (!isTrackedInventoryClose(gui.getInventory(), event.getInventory())) {
             return;
         }
-        openGUIs.remove(player.getUniqueId());
+        if (!openGUIs.remove(player.getUniqueId(), gui)) {
+            return;
+        }
         try {
             gui.handleClose(event);
         } catch (Throwable t) {

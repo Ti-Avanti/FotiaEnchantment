@@ -43,21 +43,10 @@ public class ReloadCommand implements SubCommand {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
-        // 重载配置管理器
-        plugin.getConfigManager().reload();
-        plugin.getNaturalOreTracker().reload();
+        plugin.getReloadService().reload(sender, () -> reportReload(sender));
+    }
 
-        // 重载语言管理器
-        plugin.getLanguageManager().reload();
-
-        // 重载附魔管理器
-        plugin.getEnchantmentManager().reload();
-
-        // 重载原版附魔覆盖与效果管道运行参数
-        plugin.getVanillaManager().reload();
-        plugin.getEnchantmentDisplayListener().reload();
-        plugin.getEffectPipeline().reload();
-
+    private void reportReload(CommandSender sender) {
         List<ConfigIssue> configIssues = new java.util.ArrayList<>(plugin.getConfigManager().getConfigIssues());
         configIssues.addAll(plugin.getEnchantmentManager().getConfigIssues());
         List<UndefinedConflict> undefinedConflicts = plugin.getEnchantmentManager().getUndefinedConflicts();

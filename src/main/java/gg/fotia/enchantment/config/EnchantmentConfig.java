@@ -166,6 +166,11 @@ public class EnchantmentConfig {
         return true;
     }
 
+    /** 仅写文件，不修改已发布的附魔对象，供后台配置服务使用。 */
+    public boolean persistEnabled(String id, boolean enabled) {
+        return id != null && saveEnabledFlag(sourceFiles.get(id.toLowerCase(Locale.ROOT)), enabled);
+    }
+
     static boolean saveEnabledFlag(File file, boolean enabled) {
         if (file == null || !file.exists() || !file.isFile()) {
             return false;

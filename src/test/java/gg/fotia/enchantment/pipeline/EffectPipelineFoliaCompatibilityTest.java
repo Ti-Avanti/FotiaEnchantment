@@ -22,6 +22,6 @@ class EffectPipelineFoliaCompatibilityTest {
         String method = source.substring(methodStart, methodEnd);
 
         assertFalse(method.contains("Bukkit.getCurrentTick()"));
-        assertTrue(method.contains("currentTickStamp = Integer.MIN_VALUE"));
+        assertTrue(method.contains("effectBudget.reset()"));
     }
 }

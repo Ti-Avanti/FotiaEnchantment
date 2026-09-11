@@ -37,8 +37,8 @@ public final class LocalizedEnchantmentLoreRenderer {
 
     private static final int RENDER_CACHE_MAX = 2048;
     private static final int SLOT_CACHE_MAX = 256;
-    private static final Map<RenderKey, List<Component>> RENDER_CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, List<Component>> SLOT_CACHE = new ConcurrentHashMap<>();
+    private static volatile Map<RenderKey, List<Component>> renderCache = new ConcurrentHashMap<>();
+    private static volatile Map<String, List<Component>> slotCache = new ConcurrentHashMap<>();
 
     private LocalizedEnchantmentLoreRenderer() {
     }
@@ -62,13 +62,24 @@ public final class LocalizedEnchantmentLoreRenderer {
                                                           ItemStack item,
                                                           boolean includeInvalidCustom,
                                                           boolean includeDisabledVanilla) {
-        if (plugin == null || plugin.getLanguageManager() == null) {
+        if (plugin == null || plugin.getLanguageManager() == null
+                || item == null || item.getType().isAir() || plugin.getEnchantmentManager() == null) {
             return List.of();
         }
+        Map<RenderKey, List<Component>> cache = renderCache;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return List.of();
+        }
+        List<LoreEntry> entries = collectEntries(plugin, item, meta,
+                plugin.getEnchantmentManager(), includeInvalidCustom, includeDisabledVanilla);
+        entries.sort(entryComparator(plugin));
+        String signature = entrySignature(entries);
         Set<String> locales = plugin.getLanguageManager().getAvailableLocales();
         List<List<Component>> variants = new ArrayList<>(locales.size());
         for (String locale : locales) {
-            List<Component> lore = render(plugin, locale, item, includeInvalidCustom, includeDisabledVanilla);
+            List<Component> lore = renderPrepared(plugin, locale, item, entries, signature,
+                    includeInvalidCustom, includeDisabledVanilla, cache);
             if (!lore.isEmpty()) {
                 variants.add(lore);
             }
@@ -96,7 +107,8 @@ public final class LocalizedEnchantmentLoreRenderer {
         }
 
         String cacheKey = emptySlot + '\0' + summarySlot + '\0' + maxSlots;
-        List<Component> cached = SLOT_CACHE.get(cacheKey);
+        Map<String, List<Component>> cache = slotCache;
+        List<Component> cached = cache.get(cacheKey);
         if (cached != null) {
             return cached;
         }
@@ -112,7 +124,7 @@ public final class LocalizedEnchantmentLoreRenderer {
                     summarySlot).getFirst()));
         }
         List<Component> immutable = List.copyOf(candidates);
-        putBounded(SLOT_CACHE, cacheKey, immutable, SLOT_CACHE_MAX);
+        putBounded(cache, cacheKey, immutable, SLOT_CACHE_MAX);
         return immutable;
     }
 
@@ -132,8 +144,9 @@ public final class LocalizedEnchantmentLoreRenderer {
     }
 
     public static void clearCaches() {
-        RENDER_CACHE.clear();
-        SLOT_CACHE.clear();
+        // 替换缓存实例，旧渲染任务只能写回旧缓存，无法污染重载后的新缓存。
+        renderCache = new ConcurrentHashMap<>();
+        slotCache = new ConcurrentHashMap<>();
     }
 
     private static List<Component> render(FotiaEnchantment plugin,
@@ -143,6 +156,7 @@ public final class LocalizedEnchantmentLoreRenderer {
                                           boolean includeInvalidCustom,
                                           boolean includeDisabledVanilla) {
         EnchantmentManager enchantManager = plugin.getEnchantmentManager();
+        Map<RenderKey, List<Component>> cache = renderCache;
         if (enchantManager == null || plugin.getConfigManager() == null || plugin.getLanguageManager() == null) {
             return List.of();
         }
@@ -156,16 +170,31 @@ public final class LocalizedEnchantmentLoreRenderer {
                 includeDisabledVanilla);
         entries.sort(entryComparator(plugin));
 
+        return renderPrepared(plugin, locale, item, entries, entrySignature(entries),
+                includeInvalidCustom, includeDisabledVanilla, cache);
+    }
+
+    private static List<Component> renderPrepared(FotiaEnchantment plugin,
+                                                  String locale,
+                                                  ItemStack item,
+                                                  List<LoreEntry> entries,
+                                                  String signature,
+                                                  boolean includeInvalidCustom,
+                                                  boolean includeDisabledVanilla,
+                                                  Map<RenderKey, List<Component>> cache) {
         String normalizedLocale = locale == null || locale.isBlank()
                 ? plugin.getLanguageManager().getDefaultLanguage()
                 : locale.toLowerCase(Locale.ROOT).replace('-', '_');
         RenderKey cacheKey = new RenderKey(
                 normalizedLocale,
                 item.getType(),
+                item.getMaxStackSize(),
+                plugin.getConfigManager().getConfigGeneration(),
+                plugin.getEnchantmentManager(),
                 includeInvalidCustom,
                 includeDisabledVanilla,
-                entrySignature(entries));
-        List<Component> cached = RENDER_CACHE.get(cacheKey);
+                signature);
+        List<Component> cached = cache.get(cacheKey);
         if (cached != null) {
             return cached;
         }
@@ -181,7 +210,7 @@ public final class LocalizedEnchantmentLoreRenderer {
         generated.addAll(slotLines(plugin, normalizedLocale, item, entries.size()));
 
         List<Component> immutable = List.copyOf(generated);
-        putBounded(RENDER_CACHE, cacheKey, immutable, RENDER_CACHE_MAX);
+        putBounded(cache, cacheKey, immutable, RENDER_CACHE_MAX);
         return immutable;
     }
 
@@ -359,7 +388,10 @@ public final class LocalizedEnchantmentLoreRenderer {
     }
 
     private record RenderKey(String locale,
-                             Material material,
+                              Material material,
+                              int maxStackSize,
+                              int configGeneration,
+                              EnchantmentManager manager,
                              boolean includeInvalidCustom,
                              boolean includeDisabledVanilla,
                              String entries) {

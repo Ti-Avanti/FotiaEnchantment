@@ -381,8 +381,11 @@ public class AdminGUI extends BaseGUI {
                 if (data != null) {
                     switch (AdminEnchantClickAction.from(event.getClick())) {
                         case TOGGLE -> {
-                            plugin.getEnchantmentManager().setEnabled(data.getId(), !data.isEnabled());
-                            refresh();
+                            plugin.getReloadService().toggle(player, data.getId(), !data.isEnabled(), () -> {
+                                if (plugin.getGuiManager().getOpen(player) == this) {
+                                    refresh();
+                                }
+                            });
                         }
                         case GIVE_MAX_LEVEL_BOOK -> giveEnchantmentBook(data, data.getMaxLevel());
                         case GIVE_LEVEL_ONE_BOOK -> giveEnchantmentBook(data, 1);

@@ -1,6 +1,5 @@
 package gg.fotia.enchantment.pipeline;
 
-import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,10 +40,10 @@ public class CooldownManager {
         long now = System.currentTimeMillis();
         if (now >= expireAt) {
             // 过期则顺手清理
-            playerMap.remove(key);
-            if (playerMap.isEmpty()) {
-                cooldowns.remove(playerId);
-            }
+            cooldowns.computeIfPresent(playerId, (id, current) -> {
+                current.remove(key, expireAt);
+                return current.isEmpty() ? null : current;
+            });
             return false;
         }
         return true;
@@ -88,17 +87,18 @@ public class CooldownManager {
             return;
         }
         if (ticks <= 0) {
-            Map<String, Long> playerMap = cooldowns.get(playerId);
-            if (playerMap != null) {
-                playerMap.remove(key);
-                if (playerMap.isEmpty()) {
-                    cooldowns.remove(playerId);
-                }
-            }
+            cooldowns.computeIfPresent(playerId, (id, current) -> {
+                current.remove(key);
+                return current.isEmpty() ? null : current;
+            });
             return;
         }
         long expireAt = System.currentTimeMillis() + ticks * MS_PER_TICK;
-        cooldowns.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>()).put(key, expireAt);
+        cooldowns.compute(playerId, (id, current) -> {
+            Map<String, Long> playerMap = current == null ? new ConcurrentHashMap<>() : current;
+            playerMap.put(key, expireAt);
+            return playerMap;
+        });
     }
 
     /**
@@ -123,14 +123,12 @@ public class CooldownManager {
      */
     public void purgeExpired() {
         long now = System.currentTimeMillis();
-        Iterator<Map.Entry<UUID, Map<String, Long>>> outerIt = cooldowns.entrySet().iterator();
-        while (outerIt.hasNext()) {
-            Map.Entry<UUID, Map<String, Long>> entry = outerIt.next();
-            Map<String, Long> playerMap = entry.getValue();
-            playerMap.entrySet().removeIf(e -> e.getValue() <= now);
-            if (playerMap.isEmpty()) {
-                outerIt.remove();
-            }
+        for (UUID playerId : cooldowns.keySet()) {
+            // 与设置冷却使用同一个玩家键上的原子更新，避免删掉刚写入的新冷却。
+            cooldowns.computeIfPresent(playerId, (id, current) -> {
+                current.entrySet().removeIf(entry -> entry.getValue() <= now);
+                return current.isEmpty() ? null : current;
+            });
         }
     }
 }
