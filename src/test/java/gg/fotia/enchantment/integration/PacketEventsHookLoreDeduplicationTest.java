@@ -58,12 +58,12 @@ class PacketEventsHookLoreDeduplicationTest {
     }
 
     @Test
-    void packetLoreDecorationSkipsDisabledVanillaEnchantments() throws IOException {
-        String source = Files.readString(Path.of(
-                "src/main/java/gg/fotia/enchantment/integration/PacketEventsHook.java"));
-
-        assertTrue(source.contains("isDisabledVanilla(enchantment)"),
-                "Packet-only lore decoration must not show vanilla enchantments disabled by config");
+    void removesDisabledEnchantmentLoreWhenNoGeneratedEntriesRemain() {
+        Component disabled = Component.text("Disabled vanilla enchantment");
+        Component custom = Component.text("Player lore");
+        List<Component> cleaned = gg.fotia.enchantment.lore.item.EnchantmentLoreCleaner.mergeGeneratedLore(
+                List.of(disabled, Component.empty(), custom), List.of(), List.of(disabled));
+        assertEquals(List.of(custom), cleaned);
     }
 
     @Test

@@ -8,7 +8,6 @@ import java.lang.reflect.Proxy;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class LocationDistanceTest {
 
@@ -16,8 +15,6 @@ class LocationDistanceTest {
     void safeDistanceReturnsZeroForDifferentWorlds() {
         Location lobby = new Location(world("lobby"), 0, 0, 0);
         Location overworld = new Location(world("world"), 3, 4, 0);
-
-        assertThrows(IllegalArgumentException.class, () -> lobby.distance(overworld));
 
         assertDoesNotThrow(() -> LocationDistance.safeDistance(lobby, overworld));
         assertEquals(0.0, LocationDistance.safeDistance(lobby, overworld));

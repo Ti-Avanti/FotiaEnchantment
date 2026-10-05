@@ -73,3 +73,5 @@ rarity-divine: "Divine"
 reload-started: "{prefix}<!i><gray>백그라운드에서 설정을 불러오는 중입니다. 완료되면 알려드립니다."
 reload-in-progress: "{prefix}<!i><yellow>설정을 업데이트하는 중입니다. 잠시 후 다시 시도하세요."
 reload-failed: "{prefix}<!i><red>설정 업데이트에 실패했습니다. 콘솔을 확인하세요."
+
+dependency-incompatible: "<!i><red>FotiaEnchantment를 활성화할 수 없습니다. Minecraft {minecraft}에는 PacketEvents {required} 이상이 필요합니다(현재: {installed}). 업데이트 후 서버를 다시 시작하세요.</red>"

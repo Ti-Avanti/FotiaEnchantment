@@ -6,16 +6,13 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 
 final class GeneratedLoreMarker {
 
-    private static final String VERSION = "v1";
+    private static final String VERSION = "v2";
+    private static final String LEGACY_VERSION = "v1";
     private static final String KEY = "generated_lore_meta";
 
     private GeneratedLoreMarker() {
@@ -23,7 +20,7 @@ final class GeneratedLoreMarker {
 
     static String encode(List<Component> generatedLore) {
         List<Component> normalized = generatedLore == null ? List.of() : generatedLore;
-        return VERSION + ':' + normalized.size() + ':' + fingerprint(normalized);
+        return VERSION + ':' + normalized.size() + ':' + LoreFingerprint.canonical(normalized);
     }
 
     static List<Component> stripMarkedPrefix(List<Component> existingLore, String marker) {
@@ -32,7 +29,7 @@ final class GeneratedLoreMarker {
         }
 
         String[] parts = marker.split(":", 3);
-        if (parts.length != 3 || !VERSION.equals(parts[0])) {
+        if (parts.length != 3 || (!VERSION.equals(parts[0]) && !LEGACY_VERSION.equals(parts[0]))) {
             return new ArrayList<>(existingLore);
         }
 
@@ -47,7 +44,9 @@ final class GeneratedLoreMarker {
         }
 
         List<Component> prefix = existingLore.subList(0, lineCount);
-        if (!parts[2].equals(fingerprint(prefix))) {
+        String fingerprint = LEGACY_VERSION.equals(parts[0])
+                ? LoreFingerprint.legacy(prefix) : LoreFingerprint.canonical(prefix);
+        if (!parts[2].equals(fingerprint)) {
             return new ArrayList<>(existingLore);
         }
 
@@ -95,23 +94,6 @@ final class GeneratedLoreMarker {
         }
         meta.getPersistentDataContainer().set(key, PersistentDataType.STRING, marker);
         return true;
-    }
-
-    private static String fingerprint(List<Component> lore) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            for (Component component : lore) {
-                byte[] value = String.valueOf(component).getBytes(StandardCharsets.UTF_8);
-                digest.update((byte) (value.length >>> 24));
-                digest.update((byte) (value.length >>> 16));
-                digest.update((byte) (value.length >>> 8));
-                digest.update((byte) value.length);
-                digest.update(value);
-            }
-            return HexFormat.of().formatHex(digest.digest());
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException("SHA-256 is unavailable", impossible);
-        }
     }
 
     private static List<Component> copy(List<Component> lore) {

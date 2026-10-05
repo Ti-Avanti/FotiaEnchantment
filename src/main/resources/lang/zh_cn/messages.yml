@@ -83,3 +83,5 @@ rarity-divine: "神辉"
 reload-started: "{prefix}<!i><gray>正在后台读取配置，完成后会通知你。"
 reload-in-progress: "{prefix}<!i><yellow>已有配置更新正在进行，请稍后再试。"
 reload-failed: "{prefix}<!i><red>配置更新失败，请查看控制台。"
+
+dependency-incompatible: "<!i><red>FotiaEnchantment 无法启用：Minecraft {minecraft} 需要 PacketEvents {required} 或更新版本，当前版本为 {installed}。请更新前置后重启服务器。</red>"

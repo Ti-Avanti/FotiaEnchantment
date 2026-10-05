@@ -3,12 +3,11 @@ package gg.fotia.enchantment.bootstrap;
 import gg.fotia.enchantment.bootstrap.api.FotiaBootstrapImplementation;
 import gg.fotia.enchantment.bootstrap.paper.v1_21_R1.PaperV1_21_R1Bootstrap;
 import gg.fotia.enchantment.bootstrap.paper.v1_21_R6.PaperV1_21_R6Bootstrap;
+import gg.fotia.enchantment.compat.MinecraftVersion;
+import io.papermc.paper.ServerBuildInfo;
 import io.papermc.paper.plugin.bootstrap.BootstrapContext;
 import io.papermc.paper.plugin.bootstrap.PluginBootstrap;
 import org.bukkit.Bukkit;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class FotiaEnchantmentBootstrap implements PluginBootstrap {
 
@@ -35,44 +34,16 @@ public final class FotiaEnchantmentBootstrap implements PluginBootstrap {
 
     private static String currentMinecraftVersion() {
         try {
+            // 引导阶段 Bukkit Server 尚未创建，优先使用不依赖服务器实例的构建信息。
+            return ServerBuildInfo.buildInfo().minecraftVersionId();
+        } catch (RuntimeException | LinkageError ignored) {
+            // 保留旧分支/衍生服务端的 Bukkit 回退路径。
+        }
+        try {
             return Bukkit.getMinecraftVersion();
         } catch (RuntimeException | LinkageError ignored) {
             return "0.0.0";
         }
     }
 
-    record MinecraftVersion(int major, int minor, int patch) implements Comparable<MinecraftVersion> {
-
-        private static final Pattern VERSION_PATTERN = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?.*");
-
-        static MinecraftVersion parse(String raw) {
-            if (raw == null) {
-                return new MinecraftVersion(0, 0, 0);
-            }
-
-            Matcher matcher = VERSION_PATTERN.matcher(raw.trim());
-            if (!matcher.matches()) {
-                return new MinecraftVersion(0, 0, 0);
-            }
-
-            int patch = matcher.group(3) == null ? 0 : Integer.parseInt(matcher.group(3));
-            return new MinecraftVersion(
-                    Integer.parseInt(matcher.group(1)),
-                    Integer.parseInt(matcher.group(2)),
-                    patch);
-        }
-
-        @Override
-        public int compareTo(MinecraftVersion other) {
-            int majorCompare = Integer.compare(major, other.major);
-            if (majorCompare != 0) {
-                return majorCompare;
-            }
-            int minorCompare = Integer.compare(minor, other.minor);
-            if (minorCompare != 0) {
-                return minorCompare;
-            }
-            return Integer.compare(patch, other.patch);
-        }
-    }
 }

@@ -1,5 +1,8 @@
 package gg.fotia.enchantment.bootstrap;
 
+import gg.fotia.enchantment.compat.MinecraftVersion;
+import gg.fotia.enchantment.bootstrap.paper.v1_21_R1.PaperV1_21_R1Bootstrap;
+import gg.fotia.enchantment.bootstrap.paper.v1_21_R6.PaperV1_21_R6Bootstrap;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -7,11 +10,32 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BootstrapCompatibilityStructureTest {
 
     private static final Path ROOT = Path.of("").toAbsolutePath();
+
+    @Test
+    void retainsEveryLegacyDispatchBoundaryAndAcceptsYearBasedVersions() {
+        for (String version : new String[]{"1.21", "1.21.1", "1.21.2", "1.21.3"}) {
+            assertSame(FotiaEnchantmentBootstrap.implementationFor("0.0"),
+                    FotiaEnchantmentBootstrap.implementationFor(version));
+        }
+        for (int patch = 4; patch <= 10; patch++) {
+            assertInstanceOf(PaperV1_21_R1Bootstrap.class,
+                    FotiaEnchantmentBootstrap.implementationFor("1.21." + patch));
+        }
+        for (String version : new String[]{"1.21.11", "26.1.2", "26.2", "26.3", "26.3.1"}) {
+            assertInstanceOf(PaperV1_21_R6Bootstrap.class,
+                    FotiaEnchantmentBootstrap.implementationFor(version));
+        }
+        assertEquals(new MinecraftVersion(26, 3, 0), MinecraftVersion.parse("26.3-pre1"));
+        assertEquals(new MinecraftVersion(0, 0, 0), MinecraftVersion.parse("999999999999.1"));
+    }
 
     @Test
     void paperPluginUsesUnifiedBootstrapper() throws IOException {
@@ -31,7 +55,9 @@ class BootstrapCompatibilityStructureTest {
         assertTrue(dispatcher.contains("return NO_REGISTRY_BOOTSTRAP"));
         assertTrue(dispatcher.contains("PaperV1_21_R1Bootstrap"));
         assertTrue(dispatcher.contains("PaperV1_21_R6Bootstrap"));
-        assertFalse(dispatcher.contains("ServerBuildInfo"));
+        assertTrue(dispatcher.contains("ServerBuildInfo.buildInfo().minecraftVersionId()"));
+        assertTrue(dispatcher.indexOf("ServerBuildInfo.buildInfo().minecraftVersionId()")
+                < dispatcher.indexOf("return Bukkit.getMinecraftVersion()"));
         assertFalse(dispatcher.contains("RegistryEvents.ENCHANTMENT.compose()"));
         assertFalse(dispatcher.contains("RegistryEvents.ENCHANTMENT.freeze()"));
         assertFalse(dispatcher.contains("Class.forName"));

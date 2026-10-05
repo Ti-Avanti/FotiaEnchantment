@@ -75,6 +75,10 @@ public class FotiaEnchantment extends JavaPlugin {
         languageManager.init();
         messageHelper = new MessageHelper(this, languageManager);
 
+        if (!RequiredPluginChecker.verifyPacketEventsVersion(this)) {
+            return;
+        }
+
         // 初始化附魔管理器
         enchantmentManager = new EnchantmentManager(this);
         enchantmentManager.init();

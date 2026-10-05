@@ -75,3 +75,5 @@ rarity-divine: "Divine"
 reload-started: "{prefix}<!i><gray>Loading configuration in the background. You will be notified when it finishes."
 reload-in-progress: "{prefix}<!i><yellow>A configuration update is already in progress. Please try again shortly."
 reload-failed: "{prefix}<!i><red>Configuration update failed. Check the console."
+
+dependency-incompatible: "<!i><red>FotiaEnchantment cannot enable: Minecraft {minecraft} requires PacketEvents {required} or newer; installed: {installed}. Update PacketEvents and restart the server.</red>"

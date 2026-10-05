@@ -73,10 +73,7 @@ public class LanguageManager {
     }
 
     public String getPlayerLocale(Player player) {
-        if (player == null) {
-            return defaultLanguage;
-        }
-        return normalizeLocale(player.locale().toString());
+        return gg.fotia.translator.bridge.PaperTranslatorBridge.locale(player, defaultLanguage);
     }
 
     public String getMessage(Player player, String key) {
@@ -307,6 +304,9 @@ public class LanguageManager {
     }
 
     private String getString(String locale, String fileName, String key, String fallback) {
+        var translated = gg.fotia.translator.bridge.PaperTranslatorBridge.find("fotiaenchantment", locale, fileName + "." + key);
+        if (translated.isPresent() && !(translated.get() instanceof java.util.List<?>)) return String.valueOf(translated.get());
+
         String normalizedLocale = normalizeLocale(locale);
         boolean isDefaultLocale = Objects.equals(normalizedLocale, defaultLanguage);
         return resolveString(
@@ -320,6 +320,9 @@ public class LanguageManager {
     }
 
     private List<String> getStringList(String locale, String fileName, String key) {
+        var translated = gg.fotia.translator.bridge.PaperTranslatorBridge.find("fotiaenchantment", locale, fileName + "." + key);
+        if (translated.isPresent() && translated.get() instanceof java.util.List<?>) return ((java.util.List<?>) translated.get()).stream().map(String::valueOf).toList();
+
         String normalizedLocale = normalizeLocale(locale);
         boolean isDefaultLocale = Objects.equals(normalizedLocale, defaultLanguage);
         return resolveStringList(

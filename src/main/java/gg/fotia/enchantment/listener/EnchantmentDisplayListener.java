@@ -58,6 +58,7 @@ public class EnchantmentDisplayListener implements Listener {
 
     public EnchantmentDisplayListener(FotiaEnchantment plugin) {
         this.plugin = plugin;
+        gg.fotia.translator.bridge.PaperTranslatorBridge.onChange(plugin, this::onLocaleChange);
         refreshValidityRules();
         restartValidityScan();
     }
